@@ -50,7 +50,6 @@ jobs:
           name: skill-manager-macos-${{ matrix.arch }}
           path: |
             release/*.dmg
-            release/*.dmg.blockmap
           if-no-files-found: error
 
   windows:
@@ -78,7 +77,6 @@ jobs:
           name: skill-manager-windows-x64
           path: |
             release/*.exe
-            release/*.blockmap
           if-no-files-found: error
 
   release:
@@ -101,5 +99,4 @@ jobs:
           files: |
             release-artifacts/*.dmg
             release-artifacts/*.exe
-            release-artifacts/*.blockmap
           generate_release_notes: true

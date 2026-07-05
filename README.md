@@ -168,7 +168,7 @@ git push
 git push origin v0.1.8
 ```
 
-Any tag matching `v*` triggers the release job. The workflow builds all installers, creates a GitHub Release, and uploads the `.dmg`, `.exe`, and `.blockmap` files.
+Any tag matching `v*` triggers the release job. The workflow builds all installers, creates a GitHub Release, and uploads the `.dmg` and `.exe` files.
 
 The package scripts use `--publish never` so `electron-builder` only creates local installers. GitHub Release publishing is handled by the release job with the built-in `GITHUB_TOKEN`.
 
