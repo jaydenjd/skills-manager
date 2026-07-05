@@ -160,12 +160,33 @@ function safeName(input) {
   return String(input).replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 120) || "skill";
 }
 
+function normalizeCommandError(command, error, stderr = "") {
+  const output = `${error?.message || ""}\n${stderr || ""}`;
+  if (/xcode license agreements|xcodebuild -license/i.test(output)) {
+    const friendly = new Error(
+      `${command} 无法运行：这台 Mac 还没有同意 Xcode/Apple SDK 许可。请在 Terminal 执行 sudo xcodebuild -license，按提示同意后再重试。`
+    );
+    friendly.code = "XCODE_LICENSE_NOT_ACCEPTED";
+    friendly.cause = error;
+    return friendly;
+  }
+  if (/xcrun: error|invalid active developer path|install the command line developer tools/i.test(output)) {
+    const friendly = new Error(
+      `${command} 无法运行：这台 Mac 缺少或未配置 Apple Command Line Tools。请在 Terminal 执行 xcode-select --install 后再重试。`
+    );
+    friendly.code = "COMMAND_LINE_TOOLS_MISSING";
+    friendly.cause = error;
+    return friendly;
+  }
+  error.message = `${error.message}\n${stderr || ""}`.trim();
+  return error;
+}
+
 function execFileAsync(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     execFile(command, args, options, (error, stdout, stderr) => {
       if (error) {
-        error.message = `${error.message}\n${stderr || ""}`.trim();
-        reject(error);
+        reject(normalizeCommandError(command, error, stderr));
         return;
       }
       resolve({ stdout, stderr });
