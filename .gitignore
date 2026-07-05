@@ -1,0 +1,14 @@
+.DS_Store
+
+node_modules/
+dist/
+release/
+
+.agents/
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+build/*.iconset/
