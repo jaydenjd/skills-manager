@@ -5,11 +5,16 @@ on:
     branches:
       - master
       - main
+    tags:
+      - "v*"
   pull_request:
     branches:
       - master
       - main
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   mac:
@@ -75,3 +80,26 @@ jobs:
             release/*.exe
             release/*.blockmap
           if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs:
+      - mac
+      - windows
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download installers
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-artifacts/*.dmg
+            release-artifacts/*.exe
+            release-artifacts/*.blockmap
+          generate_release_notes: true

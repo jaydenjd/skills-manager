@@ -146,6 +146,32 @@ Recommended Windows validation:
 
 Unsigned Windows builds may trigger SmartScreen warnings. For public distribution, use a code signing certificate.
 
+## GitHub Actions Builds
+
+The repository includes a workflow at `.github/workflows/build.yml`.
+
+Regular pushes to `master` or `main` build installer artifacts:
+
+- macOS arm64 DMG
+- macOS Intel/x64 DMG
+- Windows x64 NSIS installer
+
+Download them from the completed workflow run under **Actions -> Build Installers -> Artifacts**.
+
+## Publish A Release
+
+Formal releases are tag based. Update the version, push the commit, then push the tag:
+
+```bash
+npm version patch
+git push
+git push origin v0.1.8
+```
+
+Any tag matching `v*` triggers the release job. The workflow builds all installers, creates a GitHub Release, and uploads the `.dmg`, `.exe`, and `.blockmap` files.
+
+The package scripts use `--publish never` so `electron-builder` only creates local installers. GitHub Release publishing is handled by the release job with the built-in `GITHUB_TOKEN`.
+
 ## Project Structure
 
 ```text
@@ -162,6 +188,7 @@ build/
   icon.svg       Source app icon.
   icon.png       Runtime icon.
   icon.icns      macOS app icon.
+  icon.ico       Windows app icon.
 
 dist/            Built frontend assets.
 release/         Packaged installers.
