@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const https = require("node:https");
 const path = require("node:path");
+const AdmZip = require("adm-zip");
 const { scanSkills, defaultSources, defaultIgnorePatterns, expandHome } = require("./scanner.cjs");
 
 const isDev = !app.isPackaged;
@@ -393,7 +394,7 @@ function fetchJson(url) {
   return new Promise((resolve, reject) => {
     const request = https.get(url, {
       headers: {
-        "User-Agent": "Skill-Studio",
+        "User-Agent": "Skill-Manager",
         "Accept": "application/vnd.github+json"
       }
     }, (response) => {
@@ -423,7 +424,7 @@ function fetchJson(url) {
 
 function fetchText(url) {
   return new Promise((resolve, reject) => {
-    const request = https.get(url, { headers: { "User-Agent": "Skill-Studio" } }, (response) => {
+    const request = https.get(url, { headers: { "User-Agent": "Skill-Manager" } }, (response) => {
       let body = "";
       response.setEncoding("utf8");
       response.on("data", (chunk) => {
@@ -439,6 +440,38 @@ function fetchText(url) {
     });
     request.setTimeout(12000, () => {
       request.destroy(new Error("Request timed out"));
+    });
+    request.on("error", reject);
+  });
+}
+
+function fetchBuffer(url, redirects = 0) {
+  return new Promise((resolve, reject) => {
+    const request = https.get(url, { headers: { "User-Agent": "Skill-Manager" } }, (response) => {
+      if ([301, 302, 303, 307, 308].includes(response.statusCode) && response.headers.location) {
+        if (redirects > 5) {
+          reject(new Error("下载 GitHub zip 时重定向次数过多。"));
+          return;
+        }
+        const nextUrl = new URL(response.headers.location, url).toString();
+        response.resume();
+        fetchBuffer(nextUrl, redirects + 1).then(resolve, reject);
+        return;
+      }
+
+      const chunks = [];
+      response.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+      response.on("end", () => {
+        const body = Buffer.concat(chunks);
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          reject(new Error(`HTTP ${response.statusCode}: ${body.toString("utf8", 0, 180)}`));
+          return;
+        }
+        resolve(body);
+      });
+    });
+    request.setTimeout(180000, () => {
+      request.destroy(new Error("下载 GitHub zip 超时。"));
     });
     request.on("error", reject);
   });
@@ -467,6 +500,62 @@ function htmlToText(input = "") {
     .replace(/<[^>]+>/g, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim());
+}
+
+function githubRepoFullName(repoUrlOrFullName = "") {
+  const value = String(repoUrlOrFullName || "").trim();
+  if (/^[\w.-]+\/[\w.-]+$/.test(value)) return value;
+  const match = value.match(/github\.com[:/]([^/\s]+)\/([^/\s#?]+?)(?:\.git)?(?:[/?#]|$)/i);
+  if (!match) return "";
+  return `${match[1]}/${match[2].replace(/\.git$/i, "")}`;
+}
+
+async function extractZipBuffer(zipBuffer, destination) {
+  const zip = new AdmZip(zipBuffer);
+  const destinationRoot = path.resolve(destination);
+  await fsp.mkdir(destinationRoot, { recursive: true });
+
+  for (const entry of zip.getEntries()) {
+    const outputPath = path.resolve(destinationRoot, entry.entryName);
+    if (!outputPath.startsWith(destinationRoot + path.sep) && outputPath !== destinationRoot) {
+      throw new Error("GitHub zip 包含不安全路径，已拒绝解压。");
+    }
+    if (entry.isDirectory) {
+      await fsp.mkdir(outputPath, { recursive: true });
+      continue;
+    }
+    await fsp.mkdir(path.dirname(outputPath), { recursive: true });
+    await fsp.writeFile(outputPath, entry.getData());
+  }
+}
+
+async function downloadGithubRepoZip(repoFullName, destination) {
+  if (!repoFullName) throw new Error("无法识别 GitHub 仓库地址。");
+  const zipUrl = `https://api.github.com/repos/${repoFullName}/zipball`;
+  const zipBuffer = await fetchBuffer(zipUrl);
+  await extractZipBuffer(zipBuffer, destination);
+  const entries = await fsp.readdir(destination, { withFileTypes: true });
+  const rootDir = entries.find((entry) => entry.isDirectory());
+  if (!rootDir) throw new Error("GitHub zip 解压后没有找到仓库目录。");
+  return path.join(destination, rootDir.name);
+}
+
+async function cloneGithubRepoWithFallback(repoUrl, destination, fallbackRoot) {
+  try {
+    await execFileAsync("git", ["clone", "--depth", "1", repoUrl, destination], { timeout: 180000 });
+    return { repoDir: destination, method: "git-clone" };
+  } catch (gitError) {
+    const repoFullName = githubRepoFullName(repoUrl);
+    if (!repoFullName) throw gitError;
+    const zipDestination = path.join(fallbackRoot, "zip");
+    try {
+      const repoDir = await downloadGithubRepoZip(repoFullName, zipDestination);
+      return { repoDir, method: "github-zip", gitError };
+    } catch (zipError) {
+      zipError.message = `git clone 失败，GitHub zip fallback 也失败：${zipError.message}\n原始 git 错误：${gitError.message || String(gitError)}`;
+      throw zipError;
+    }
+  }
 }
 
 function compactNumber(value) {
@@ -945,16 +1034,29 @@ async function performInstallDiscoverSkill(item, targetSourceId, forceUpdate = f
     if (item.installMethod === "skills-cli" || item.source === "skillssh") {
       tempRoot = await fsp.mkdtemp(path.join(app.getPath("temp"), "skill-manager-install-"));
       const repoDir = path.join(tempRoot, "repo");
-      await execFileAsync("git", ["clone", "--depth", "1", repoUrl, repoDir], { timeout: 180000 });
-      const skillDir = await findSkillDirectory(repoDir, item.name);
+      const cloneResult = await cloneGithubRepoWithFallback(repoUrl, repoDir, tempRoot);
+      const skillDir = await findSkillDirectory(cloneResult.repoDir, item.name);
       await fsp.cp(skillDir, target, { recursive: true, force: true });
-      appendOperationLog({ type: "install", status: "success", title: item.name, message: "已安装到指定 Agent。", detail: `${repoUrl} -> ${target}` });
-      return { path: target, installed: true, command: item.installCommand, method: "copy-from-repo" };
+      const message = cloneResult.method === "github-zip" ? "git 失败后，已通过 GitHub zip 安装到指定 Agent。" : "已安装到指定 Agent。";
+      appendOperationLog({ type: "install", status: "success", title: item.name, message, detail: `${repoUrl} -> ${target}` });
+      return { path: target, installed: true, command: item.installCommand, method: cloneResult.method === "github-zip" ? "github-zip-fallback" : "copy-from-repo" };
     }
 
-    await execFileAsync("git", ["clone", "--depth", "1", item.url, target], { timeout: 120000 });
-    appendOperationLog({ type: "install", status: "success", title: item.name, message: "已安装到指定 Agent。", detail: `${item.url} -> ${target}` });
-    return { path: target, installed: true };
+    try {
+      await execFileAsync("git", ["clone", "--depth", "1", item.url, target], { timeout: 120000 });
+      appendOperationLog({ type: "install", status: "success", title: item.name, message: "已安装到指定 Agent。", detail: `${item.url} -> ${target}` });
+      return { path: target, installed: true, method: "git-clone" };
+    } catch (gitError) {
+      const repoFullName = githubRepoFullName(item.url);
+      if (!repoFullName) throw gitError;
+      await fsp.rm(target, { recursive: true, force: true }).catch(() => {});
+      tempRoot = await fsp.mkdtemp(path.join(app.getPath("temp"), "skill-manager-install-"));
+      const repoDir = await downloadGithubRepoZip(repoFullName, path.join(tempRoot, "zip"));
+      const skillDir = await findSkillDirectory(repoDir, item.name);
+      await fsp.cp(skillDir, target, { recursive: true, force: true });
+      appendOperationLog({ type: "install", status: "success", title: item.name, message: "git 失败后，已通过 GitHub zip 安装到指定 Agent。", detail: `${item.url} -> ${target}` });
+      return { path: target, installed: true, method: "github-zip-fallback" };
+    }
   } catch (error) {
     appendOperationLog({ type: "install", status: "failed", title: item.name || item.fullName, message: error.message || String(error), detail: `${repoUrl} -> ${target}` });
     throw error;
