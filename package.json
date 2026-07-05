@@ -10,10 +10,10 @@
     "start": "concurrently -k \"npm run dev\" \"npm run electron\"",
     "build": "vite build",
     "dist": "npm run dist:mac",
-    "dist:mac": "npm run build && electron-builder --mac dmg",
-    "dist:mac:arm64": "npm run build && electron-builder --mac dmg --arm64",
-    "dist:mac:x64": "npm run build && electron-builder --mac dmg --x64",
-    "dist:win": "npm run build && electron-builder --win nsis --x64",
+    "dist:mac": "npm run build && electron-builder --mac dmg --publish never",
+    "dist:mac:arm64": "npm run build && electron-builder --mac dmg --arm64 --publish never",
+    "dist:mac:x64": "npm run build && electron-builder --mac dmg --x64 --publish never",
+    "dist:win": "npm run build && electron-builder --win nsis --x64 --publish never",
     "preview": "vite preview"
   },
   "dependencies": {
