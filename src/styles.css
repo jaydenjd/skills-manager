@@ -2231,6 +2231,24 @@ button.tag-pill {
   box-shadow: none;
 }
 
+.detail-actions .star-button.detail-star.active,
+.star-button.detail-star.active {
+  border-color: #d6ad2f;
+  background: #ffd84f;
+  color: #3b2c00;
+  box-shadow: 0 3px 0 rgba(154, 107, 0, 0.16);
+}
+
+.detail-actions .star-button.detail-star.active svg,
+.star-button.detail-star.active svg {
+  fill: currentColor;
+  stroke-width: 2.4;
+}
+
+.detail-actions .star-button.detail-star.active:hover {
+  background: #ffcf24;
+}
+
 .facts {
   display: none;
 }
