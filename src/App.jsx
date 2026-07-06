@@ -2343,12 +2343,17 @@ function App() {
                     {tagCloudOpen ? (
                       <div className="tag-cloud-panel">
                         <div className="tag-cloud-head">
-                          <span>多选标签</span>
-                          <div className="tag-match-switch">
-                            <button className={tagMatchMode === "and" ? "on" : ""} onClick={() => setTagMatchMode("and")} title="必须同时包含所有已选标签">AND</button>
-                            <button className={tagMatchMode === "or" ? "on" : ""} onClick={() => setTagMatchMode("or")} title="包含任意一个已选标签即可">OR</button>
+                          <div>
+                            <span>多选标签</span>
+                            {activeTags.length ? <button onClick={() => setActiveTags([])}>清除</button> : null}
                           </div>
-                          {activeTags.length ? <button onClick={() => setActiveTags([])}>清除</button> : null}
+                          <div>
+                            <span>关系</span>
+                            <div className="tag-match-switch">
+                              <button className={tagMatchMode === "and" ? "on" : ""} onClick={() => setTagMatchMode("and")} title="必须同时包含所有已选标签">AND</button>
+                              <button className={tagMatchMode === "or" ? "on" : ""} onClick={() => setTagMatchMode("or")} title="包含任意一个已选标签即可">OR</button>
+                            </div>
+                          </div>
                         </div>
                         <div className="tag-cloud">
                           {tagCounts.length ? tagCounts.slice(0, 80).map(({ tag, count }) => {

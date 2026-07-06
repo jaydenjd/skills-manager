@@ -571,23 +571,31 @@ button {
 }
 
 .tag-cloud-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
   gap: 5px;
   margin-bottom: 6px;
   color: #62675e;
   font-size: 12px;
 }
 
-.tag-cloud-head > span {
-  flex: 1 1 auto;
+.tag-cloud-head > div {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.tag-cloud-head span {
+  min-width: 0;
+  color: #62675e;
+  font-size: 11px;
 }
 
 .tag-cloud-head button,
 .active-filter-row button {
-  height: 26px;
-  padding: 0 8px;
+  height: 24px;
+  padding: 0 7px;
   border: 1px solid #d8d1c2;
   border-radius: 999px;
   background: #fffdf7;
