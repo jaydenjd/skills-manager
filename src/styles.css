@@ -518,8 +518,152 @@ button {
   font-size: 12px;
 }
 
+.tag-cloud-toggle {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid #d8d1c2;
+  border-radius: 7px;
+  background: #fffdf7;
+  color: #1f211d;
+  font-size: 12px;
+}
+
+.tag-cloud-toggle.on {
+  border-color: #1f211d;
+  background: #edf7d1;
+}
+
+.tag-cloud-panel {
+  margin: -4px 0 10px;
+  padding: 10px;
+  border: 1px solid #ded7c8;
+  border-radius: 8px;
+  background: rgba(255, 253, 247, 0.86);
+}
+
+.tag-cloud-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  color: #62675e;
+  font-size: 12px;
+}
+
+.tag-cloud-head button,
+.active-filter-row button {
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid #d8d1c2;
+  border-radius: 999px;
+  background: #fffdf7;
+  color: #444842;
+  font-size: 11px;
+}
+
+.tag-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  max-height: 144px;
+  overflow: auto;
+}
+
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--tag-border);
+  border-radius: 999px;
+  background: var(--tag-bg);
+  color: var(--tag-fg);
+}
+
+button.tag-pill {
+  cursor: pointer;
+}
+
+.detail-tags .tag-pill {
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.cloud-tag {
+  min-height: 28px;
+  padding: 0 9px;
+  box-shadow: 0 1px 0 rgba(31, 33, 29, 0.08);
+}
+
+.cloud-tag strong {
+  font-size: 12px;
+}
+
+.cloud-tag em {
+  font-size: 10px;
+  font-style: normal;
+  opacity: 0.78;
+}
+
+.cloud-tag.size-2 strong {
+  font-size: 13px;
+}
+
+.cloud-tag.size-3 {
+  min-height: 31px;
+}
+
+.cloud-tag.size-3 strong {
+  font-size: 14px;
+}
+
+.cloud-tag.size-4 {
+  min-height: 34px;
+}
+
+.cloud-tag.size-4 strong {
+  font-size: 16px;
+}
+
+.cloud-tag.size-5 {
+  min-height: 38px;
+  padding: 0 12px;
+}
+
+.cloud-tag.size-5 strong {
+  font-size: 18px;
+}
+
+.cloud-tag.active {
+  outline: 2px solid #1f211d;
+  outline-offset: 2px;
+}
+
+.tag-cloud-empty {
+  color: #8c9186;
+  font-size: 12px;
+}
+
+.active-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -2px 0 10px;
+}
+
+.active-filter-row .tag-pill {
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .skill-list {
-  height: calc(100% - 54px);
+  max-height: calc(100% - 54px);
   display: grid;
   grid-auto-rows: max-content;
   align-content: start;
@@ -896,8 +1040,8 @@ button {
   flex-wrap: wrap;
   gap: 7px;
   margin-top: 10px;
-  max-height: 78px;
-  overflow: hidden;
+  max-height: 144px;
+  overflow: auto;
 }
 
 .tag-cloud span,
@@ -911,7 +1055,8 @@ button {
 
 .tag-cloud em {
   font-style: normal;
-  color: #f0552f;
+  color: inherit;
+  opacity: 0.78;
 }
 
 .detail {

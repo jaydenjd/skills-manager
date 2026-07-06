@@ -19,7 +19,8 @@ import {
   Settings2,
   SlidersHorizontal,
   Sparkles,
-  Star
+  Star,
+  Tags
 } from "lucide-react";
 import "./styles.css";
 
@@ -166,6 +167,35 @@ function isMarkdownPath(filePath = "") {
 
 function countTree(nodes = []) {
   return nodes.reduce((total, node) => total + 1 + countTree(node.children || []), 0);
+}
+
+function tagTone(tag = "") {
+  const tones = [
+    { bg: "#e9f7d7", border: "#9fcf4c", fg: "#355315" },
+    { bg: "#e2f3ff", border: "#76b7df", fg: "#17465f" },
+    { bg: "#fff0cc", border: "#dfb24e", fg: "#684712" },
+    { bg: "#ffe4dc", border: "#e58d72", fg: "#7a2b1c" },
+    { bg: "#e9e6ff", border: "#9a8de4", fg: "#31266f" },
+    { bg: "#ddf7ef", border: "#63b99e", fg: "#14513e" },
+    { bg: "#f4e5ff", border: "#bd8adc", fg: "#5a2574" },
+    { bg: "#edf0d5", border: "#aab65b", fg: "#454d17" }
+  ];
+  const hash = String(tag).split("").reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return tones[hash % tones.length];
+}
+
+function TagPill({ tag, as = "span", className = "", onClick, children }) {
+  const Component = as;
+  const tone = tagTone(tag);
+  return (
+    <Component
+      className={`tag-pill ${className}`}
+      style={{ "--tag-bg": tone.bg, "--tag-border": tone.border, "--tag-fg": tone.fg }}
+      onClick={onClick}
+    >
+      {children || tag}
+    </Component>
+  );
 }
 
 function buildLineDiff(previous = "", current = "") {
@@ -566,10 +596,9 @@ function DiscoverDetail({ item, onInstall, onUninstall, busy, starred, onStar, i
         ]}
       />
       <div className="detail-tags">
-        <span>{sourceName}</span>
-        <span>{item.sourceLabel || "skills.sh"}</span>
-        <span>{item.language || "Mixed"}</span>
-        <span>discover</span>
+        {[sourceName, item.sourceLabel || "skills.sh", item.language || "Mixed", "discover"].map((tag) => (
+          <TagPill key={tag} tag={tag} />
+        ))}
       </div>
       <section className="discover-info-panel">
         <div>
@@ -1156,7 +1185,7 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
         </div>
       ) : null}
       <div className="detail-tags">
-        {skill.tags.length ? skill.tags.map((tag) => <span key={tag}>{tag}</span>) : <span>untagged</span>}
+        {(skill.tags || []).length ? skill.tags.map((tag) => <TagPill key={tag} tag={tag} />) : <TagPill tag="untagged" />}
       </div>
       {fileError ? <div className="file-error">{fileError}</div> : null}
       <div className="reader-shell">
@@ -1685,6 +1714,8 @@ function App() {
   const [listMode, setListMode] = useState("installed");
   const [localSort, setLocalSort] = useState("updated");
   const [sourceFilter, setSourceFilter] = useState("all");
+  const [tagCloudOpen, setTagCloudOpen] = useState(false);
+  const [activeTag, setActiveTag] = useState("");
   const [selected, setSelected] = useState(null);
   const [selectedDiscover, setSelectedDiscover] = useState(null);
   const [selectedStarred, setSelectedStarred] = useState(null);
@@ -2047,6 +2078,7 @@ function App() {
     const matches = (data?.skills || []).filter((skill) => {
       const sourceOk = sourceFilter === "all" || skill.client === sourceFilter;
       if (!sourceOk) return false;
+      if (activeTag && !(skill.tags || []).includes(activeTag)) return false;
       return matchesSearchFields(localSkillSearchValues(skill, searchOptions), q);
     });
     const visible = sourceFilter === "all" && settings?.mergeDuplicateSkills !== false ? mergeSkillCopies(matches) : matches;
@@ -2054,7 +2086,21 @@ function App() {
       if (localSort === "alpha") return a.name.localeCompare(b.name);
       return new Date(b.updatedAt) - new Date(a.updatedAt);
     });
-  }, [data, query, sourceFilter, localSort, searchOptions, settings]);
+  }, [data, query, sourceFilter, activeTag, localSort, searchOptions, settings]);
+
+  const tagCounts = useMemo(() => {
+    const map = new Map();
+    (data?.skills || []).forEach((skill) => {
+      if (sourceFilter !== "all" && skill.client !== sourceFilter) return;
+      (skill.tags || []).forEach((tag) => {
+        if (!tag) return;
+        map.set(tag, (map.get(tag) || 0) + 1);
+      });
+    });
+    return [...map.entries()]
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
+  }, [data, sourceFilter]);
 
   const uninstalledFiltered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -2272,10 +2318,16 @@ function App() {
             </div>
             <div className="result-controls">
               {listMode === "installed" ? (
-                <select value={localSort} onChange={(event) => setLocalSort(event.target.value)}>
-                  <option value="updated">按更新时间</option>
-                  <option value="alpha">按字母顺序</option>
-                </select>
+                <>
+                  <button className={`tag-cloud-toggle ${tagCloudOpen ? "on" : ""}`} onClick={() => setTagCloudOpen((open) => !open)}>
+                    <Tags size={15} />
+                    标签云
+                  </button>
+                  <select value={localSort} onChange={(event) => setLocalSort(event.target.value)}>
+                    <option value="updated">按更新时间</option>
+                    <option value="alpha">按字母顺序</option>
+                  </select>
+                </>
               ) : listMode === "discover" ? (
                 <>
                   <div className="segmented">
@@ -2287,6 +2339,38 @@ function App() {
               ) : null}
             </div>
           </div>
+          {listMode === "installed" && tagCloudOpen ? (
+            <div className="tag-cloud-panel">
+              <div className="tag-cloud-head">
+                <span>按标签统计</span>
+                {activeTag ? <button onClick={() => setActiveTag("")}>清除过滤：{activeTag}</button> : null}
+              </div>
+              <div className="tag-cloud">
+                {tagCounts.length ? tagCounts.slice(0, 80).map(({ tag, count }) => {
+                  const max = Math.max(1, tagCounts[0]?.count || 1);
+                  const level = Math.min(5, Math.max(1, Math.ceil((count / max) * 5)));
+                  return (
+                    <TagPill
+                      key={tag}
+                      tag={tag}
+                      as="button"
+                      className={`cloud-tag size-${level} ${activeTag === tag ? "active" : ""}`}
+                      onClick={() => setActiveTag(activeTag === tag ? "" : tag)}
+                    >
+                      <strong>{tag}</strong>
+                      <em>{count}</em>
+                    </TagPill>
+                  );
+                }) : <span className="tag-cloud-empty">暂无标签</span>}
+              </div>
+            </div>
+          ) : null}
+          {listMode === "installed" && activeTag ? (
+            <div className="active-filter-row">
+              <TagPill tag={activeTag}>标签：{activeTag}</TagPill>
+              <button onClick={() => setActiveTag("")}>清除</button>
+            </div>
+          ) : null}
           <div className="skill-list" onScroll={handleListScroll}>
             {visibleCount === 0 ? <EmptyList mode={listMode} /> : null}
             {listMode === "discover" ? visibleDiscoverItems.map((item, index) => (
