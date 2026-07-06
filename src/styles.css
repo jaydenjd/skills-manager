@@ -735,6 +735,159 @@ button.tag-pill {
   padding-right: 4px;
 }
 
+.tag-overview {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 2px 20px;
+}
+
+.tag-page-tag {
+  min-height: 30px;
+  padding: 0 10px;
+  box-shadow: 0 1px 0 rgba(31, 33, 29, 0.08);
+}
+
+.tag-page-tag strong {
+  font-size: 12px;
+}
+
+.tag-page-tag em {
+  min-width: 22px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
+  font-size: 10px;
+  font-style: normal;
+}
+
+.tag-page-tag.size-2 strong {
+  font-size: 13px;
+}
+
+.tag-page-tag.size-3 {
+  min-height: 34px;
+}
+
+.tag-page-tag.size-3 strong {
+  font-size: 15px;
+}
+
+.tag-page-tag.size-4 {
+  min-height: 38px;
+}
+
+.tag-page-tag.size-4 strong {
+  font-size: 17px;
+}
+
+.tag-page-tag.size-5 {
+  min-height: 42px;
+}
+
+.tag-page-tag.size-5 strong {
+  font-size: 20px;
+}
+
+.tag-page-tag.size-6 {
+  min-height: 48px;
+  padding: 0 14px;
+}
+
+.tag-page-tag.size-6 strong {
+  font-size: 24px;
+}
+
+.tag-page-tag.active {
+  border-color: #1f211d;
+  background: #d2ff2f !important;
+  color: #1f211d !important;
+  box-shadow: inset 0 0 0 1px #1f211d;
+}
+
+.tag-skill-panel {
+  min-width: 0;
+  min-height: 0;
+  padding: 14px;
+  overflow: hidden;
+  border-left: 1px solid #cfc7b8;
+  background: rgba(255, 253, 247, 0.66);
+}
+
+.tag-skill-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(201, 195, 180, 0.65);
+}
+
+.tag-skill-head .tag-pill {
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.tag-skill-head p {
+  color: #62675e;
+  font-size: 12px;
+}
+
+.tag-skill-list {
+  height: calc(100% - 58px);
+  display: grid;
+  grid-auto-rows: max-content;
+  gap: 8px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.tag-skill-card {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #ded7c8;
+  border-radius: 8px;
+  background: #fffdf7;
+  color: #1f211d;
+  text-align: left;
+}
+
+.tag-skill-card span {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.tag-skill-card strong,
+.tag-skill-card em,
+.tag-skill-card small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tag-skill-card strong,
+.tag-skill-card em {
+  white-space: nowrap;
+}
+
+.tag-skill-card em,
+.tag-skill-card small {
+  color: #62675e;
+  font-size: 12px;
+  font-style: normal;
+}
+
 .skill-row {
   width: 100%;
   min-height: 132px;

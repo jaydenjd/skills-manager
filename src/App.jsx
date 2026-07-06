@@ -505,6 +505,8 @@ function EmptyList({ mode }) {
       ? "Starred 里还没有收藏的 skill。"
     : mode === "discover"
       ? "当前 Discover 条件下没有匹配结果。"
+    : mode === "tags"
+      ? "当前还没有可统计的标签。"
       : "当前条件下没有本地 skill。";
   return <div className="list-empty">{text}</div>;
 }
@@ -1661,6 +1663,37 @@ function OperationEventPage({ events, onRefresh, onClear }) {
   );
 }
 
+function TagSkillPanel({ tag, skills, onOpenSkill }) {
+  if (!tag) {
+    return (
+      <section className="detail empty">
+        <Tags size={34} />
+        <p>选择一个标签，查看包含该标签的所有 skill。</p>
+      </section>
+    );
+  }
+  return (
+    <section className="tag-skill-panel">
+      <div className="tag-skill-head">
+        <TagPill tag={tag}>标签：{tag}</TagPill>
+        <p>{skills.length} 个 skill 包含这个标签</p>
+      </div>
+      <div className="tag-skill-list">
+        {skills.map((skill) => (
+          <button key={skill.id} className="tag-skill-card" onClick={() => onOpenSkill(skill)}>
+            <div className="skill-glyph">{skill.name.slice(0, 1).toUpperCase()}</div>
+            <span>
+              <strong>{skill.name}</strong>
+              <em>{skill.installationCount ? `${[...new Set((skill.installations || [skill]).map((copy) => copy.client))].join(", ")} · ${skill.installationCount} copies` : skill.client}</em>
+              <small>{skill.description || "暂无描述"}</small>
+            </span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function SearchConfig({ open, options, onChange }) {
   const fields = [
     ["name", "名称"],
@@ -1725,6 +1758,7 @@ function App() {
   const [selected, setSelected] = useState(null);
   const [selectedDiscover, setSelectedDiscover] = useState(null);
   const [selectedStarred, setSelectedStarred] = useState(null);
+  const [selectedTag, setSelectedTag] = useState("");
   const [selectedInstallTargets, setSelectedInstallTargets] = useState(["agents"]);
   const [dialogTargetIds, setDialogTargetIds] = useState(["agents"]);
   const [pendingInstall, setPendingInstall] = useState(null);
@@ -2114,6 +2148,26 @@ function App() {
       .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
   }, [data, sourceFilter]);
 
+  const allTagCounts = useMemo(() => {
+    const map = new Map();
+    (data?.skills || []).forEach((skill) => {
+      (skill.tags || []).forEach((tag) => {
+        if (!tag) return;
+        map.set(tag, (map.get(tag) || 0) + 1);
+      });
+    });
+    return [...map.entries()]
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
+  }, [data]);
+
+  const selectedTagSkills = useMemo(() => {
+    if (!selectedTag) return [];
+    const matches = (data?.skills || []).filter((skill) => (skill.tags || []).includes(selectedTag));
+    const visible = settings?.mergeDuplicateSkills !== false ? mergeSkillCopies(matches) : matches;
+    return visible.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+  }, [data, selectedTag, settings]);
+
   const uninstalledFiltered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const matches = (uninstalledData?.skills || []).filter((skill) => {
@@ -2196,10 +2250,13 @@ function App() {
   }
 
   useEffect(() => {
-    if (listMode === "settings" || listMode === "logs" || listMode === "events") {
+    if (listMode === "settings" || listMode === "logs" || listMode === "events" || listMode === "tags") {
       setSelected(null);
       setSelectedDiscover(null);
       setSelectedStarred(null);
+      if (listMode === "tags" && (!selectedTag || !allTagCounts.some((item) => item.tag === selectedTag))) {
+        setSelectedTag(allTagCounts[0]?.tag || "");
+      }
       return;
     }
     if (listMode === "starred") {
@@ -2227,7 +2284,7 @@ function App() {
       }
       if (!discoverItems.length) setSelectedDiscover(null);
     }
-  }, [installedFiltered, uninstalledFiltered, discoverItems, starredFiltered, selected, selectedDiscover, selectedStarred, listMode]);
+  }, [installedFiltered, uninstalledFiltered, discoverItems, starredFiltered, selected, selectedDiscover, selectedStarred, selectedTag, allTagCounts, listMode]);
 
   useEffect(() => {
     if (listMode === "logs") refreshLogs();
@@ -2236,7 +2293,7 @@ function App() {
 
   const installedCount = data?.skills?.length || 0;
   const uninstalledCount = uninstalledData?.skills?.length || 0;
-  const visibleCount = listMode === "discover" ? discoverItems.length : listMode === "starred" ? starredFiltered.length : listMode === "uninstalled" ? uninstalledFiltered.length : installedFiltered.length;
+  const visibleCount = listMode === "discover" ? discoverItems.length : listMode === "tags" ? allTagCounts.length : listMode === "starred" ? starredFiltered.length : listMode === "uninstalled" ? uninstalledFiltered.length : installedFiltered.length;
   const discoverTotalLabel = githubTrends.meta?.totalLabel || githubTrends.items.length || 0;
   const discoverTabLabels = githubTrends.meta?.tabLabels || {};
   const installTargets = useMemo(() => {
@@ -2302,6 +2359,7 @@ function App() {
             <NavRow icon={FileCode2} label="Installed" count={installedCount} active={listMode === "installed"} onClick={() => { setListMode("installed"); setSourceFilter("all"); }} />
             <NavRow icon={RotateCcw} label="Uninstalled" count={uninstalledCount} active={listMode === "uninstalled"} onClick={() => { setListMode("uninstalled"); setSourceFilter("all"); }} />
             <NavRow icon={Star} label="Starred" count={starredItems.length} active={listMode === "starred"} onClick={() => setListMode("starred")} />
+            <NavRow icon={Tags} label="Tags" count={allTagCounts.length} active={listMode === "tags"} onClick={() => setListMode("tags")} />
           </div>
 
           <div className="agent-nav">
@@ -2329,7 +2387,7 @@ function App() {
         <section className="results">
           <div className="result-head">
             <div>
-              <h2>{listMode === "discover" ? "Discover Skills" : listMode === "starred" ? "Star" : listMode === "uninstalled" ? "Uninstalled" : "Installed"}</h2>
+              <h2>{listMode === "discover" ? "Discover Skills" : listMode === "tags" ? "Tags" : listMode === "starred" ? "Star" : listMode === "uninstalled" ? "Uninstalled" : "Installed"}</h2>
               <p>{loading ? "正在扫描..." : (listMode === "discover" ? "" : `${visibleCount} 个匹配项 · ${data?.scannedAt ? formatDate(data.scannedAt) : ""}`)}</p>
             </div>
             <div className="result-controls">
@@ -2402,7 +2460,26 @@ function App() {
           ) : null}
           <div className="skill-list" onScroll={handleListScroll}>
             {visibleCount === 0 ? <EmptyList mode={listMode} /> : null}
-            {listMode === "discover" ? visibleDiscoverItems.map((item, index) => (
+            {listMode === "tags" ? (
+              <div className="tag-overview">
+                {allTagCounts.map(({ tag, count }) => {
+                  const max = Math.max(1, allTagCounts[0]?.count || 1);
+                  const level = Math.min(6, Math.max(1, Math.ceil((count / max) * 6)));
+                  return (
+                    <TagPill
+                      key={tag}
+                      tag={tag}
+                      as="button"
+                      className={`tag-page-tag size-${level} ${selectedTag === tag ? "active" : ""}`}
+                      onClick={() => setSelectedTag(tag)}
+                    >
+                      <strong>{tag}</strong>
+                      <em>{count}</em>
+                    </TagPill>
+                  );
+                })}
+              </div>
+            ) : listMode === "discover" ? visibleDiscoverItems.map((item, index) => (
               <DiscoverRow
                 key={item.id}
                 item={item}
@@ -2482,6 +2559,17 @@ function App() {
             starred={selectedDiscover ? isStarred("discover", selectedDiscover) : false}
             onStar={(item) => toggleStar("discover", item)}
             installedSkills={selectedDiscover ? installedForDiscover(selectedDiscover) : []}
+          />
+        ) : listMode === "tags" ? (
+          <TagSkillPanel
+            tag={selectedTag}
+            skills={selectedTagSkills}
+            onOpenSkill={(skill) => {
+              setActiveTags([]);
+              setSourceFilter("all");
+              setSelected(skill);
+              setListMode("installed");
+            }}
           />
         ) : listMode === "starred" ? (
           selectedStarred?.type === "discover" ? (
