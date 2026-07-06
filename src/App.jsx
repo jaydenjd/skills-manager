@@ -56,6 +56,18 @@ function shortPath(path) {
   return path?.replace(/^\/Users\/[^/]+/, "~") || "";
 }
 
+function copyRelativePath(copy, filePath) {
+  if (!copy?.dir || !filePath) return "SKILL.md";
+  const root = copy.dir.replace(/\/+$/, "");
+  if (!filePath.startsWith(root)) return "SKILL.md";
+  return filePath.slice(root.length).replace(/^\/+/, "") || "SKILL.md";
+}
+
+function copyFilePath(copy, relativePath) {
+  const root = copy?.dir?.replace(/\/+$/, "") || "";
+  return `${root}/${relativePath || "SKILL.md"}`;
+}
+
 function starKey(type, item) {
   return `${type}:${item?.id || item?.filePath || item?.dir || item?.url || item?.name}`;
 }
@@ -756,9 +768,11 @@ function DiffViewer({ detail }) {
   );
 }
 
-function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
+function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, baselineSourceId = "agents" }) {
   const [activeFile, setActiveFile] = useState(null);
   const [activeCopyId, setActiveCopyId] = useState("");
+  const [syncDraft, setSyncDraft] = useState(null);
+  const [syncTargetIds, setSyncTargetIds] = useState([]);
   const [draft, setDraft] = useState("");
   const [mode, setMode] = useState("view");
   const [history, setHistory] = useState([]);
@@ -837,7 +851,11 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
   useEffect(() => {
     if (!skill) return;
     const copies = skill.installations || [skill];
-    openSkillCopy(copies[0] || skill);
+    const preferred = copies.find((copy) => copy.id === activeCopyId)
+      || copies.find((copy) => copy.sourceId === baselineSourceId)
+      || copies[0]
+      || skill;
+    openSkillCopy(preferred);
   }, [skill]);
 
   async function openTreeFile(item) {
@@ -876,6 +894,17 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
       await loadHistory(activeFile.path);
       setSelectedVersion(null);
       setVersionDetail(null);
+      const syncTargets = installations.filter((copy) => copy.id !== activeCopy.id);
+      if (activeCopy.sourceId === baselineSourceId && syncTargets.length) {
+        setSyncDraft({
+          sourceCopy: activeCopy,
+          content: draft,
+          relativePath: copyRelativePath(activeCopy, activeFile.path),
+          fileName: activeFile.name,
+          savedAt: new Date().toISOString()
+        });
+        setSyncTargetIds(syncTargets.map((copy) => copy.id));
+      }
       onSaved?.();
     } catch (err) {
       setFileError(err.message || String(err));
@@ -916,6 +945,8 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
   }
   const installations = skill.installations || [skill];
   const activeCopy = installations.find((copy) => copy.id === activeCopyId) || installations[0] || skill;
+  const baselineCopy = installations.find((copy) => copy.sourceId === baselineSourceId) || installations.find((copy) => copy.sourceId === "agents") || installations[0] || skill;
+  const syncTargets = installations.filter((copy) => copy.id !== syncDraft?.sourceCopy?.id);
   const installationAgents = [...new Set(installations.map((copy) => copy.client))];
   const isUninstalledSkill = skill.sourceId === "uninstalled";
   const uninstallSource = skill.uninstallMeta?.sourceClient || skill.uninstallMeta?.sourceLabel || "未知";
@@ -944,11 +975,16 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
           Uninstall
         </button>
         ) : null}
+        <button className="action-baseline" onClick={() => openSkillCopy(baselineCopy, "edit")}>
+          <Edit3 size={16} />
+          编辑基准
+        </button>
         <StarButton active={starred} className="detail-star" label onClick={(event) => { event.stopPropagation(); onStar?.(skill); }} />
       </div>
       <MetaStrip
         items={[
           { label: isUninstalledSkill ? "卸载来源" : "已安装", value: isUninstalledSkill ? uninstallSource : installationAgents.join(", ") },
+          { label: "基准", value: baselineCopy.client },
           { label: "当前副本", value: activeCopy.client },
           { label: "行数", value: activeCopy.lines },
           { label: "大小", value: `${Math.round((activeCopy.bytes || 0) / 1024)} KB` },
@@ -981,6 +1017,55 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
             <RotateCcw size={14} />
             撤销未保存
           </button>
+        </div>
+      ) : null}
+      {syncDraft ? (
+        <div className="copy-sync-panel">
+          <div>
+            <strong>同步基准修改</strong>
+            <span>{syncDraft.sourceCopy.client} 已保存 {syncDraft.relativePath}，可同步到其它 Agent。</span>
+          </div>
+          <div className="sync-target-list">
+            {syncTargets.map((copy) => (
+              <label key={copy.id}>
+                <input
+                  type="checkbox"
+                  checked={syncTargetIds.includes(copy.id)}
+                  onChange={(event) => {
+                    setSyncTargetIds((current) => event.target.checked ? [...new Set([...current, copy.id])] : current.filter((id) => id !== copy.id));
+                  }}
+                />
+                <span>{copy.client}</span>
+              </label>
+            ))}
+          </div>
+          <div className="sync-actions">
+            <button onClick={() => setSyncTargetIds(syncTargets.map((copy) => copy.id))}>全选</button>
+            <button className="soft-button" onClick={() => setSyncDraft(null)}>稍后</button>
+            <button
+              className="primary"
+              disabled={!syncTargetIds.length || saving}
+              onClick={async () => {
+                setSaving(true);
+                setFileError("");
+                try {
+                  const targets = syncTargets.filter((copy) => syncTargetIds.includes(copy.id));
+                  for (const copy of targets) {
+                    await window.skillStudio.saveFile(copyFilePath(copy, syncDraft.relativePath), syncDraft.content);
+                  }
+                  setSyncDraft(null);
+                  setSyncTargetIds([]);
+                  onSaved?.();
+                } catch (err) {
+                  setFileError(err.message || String(err));
+                } finally {
+                  setSaving(false);
+                }
+              }}
+            >
+              同步到选中 Agent
+            </button>
+          </div>
         </div>
       ) : null}
       <div className="detail-tags">
@@ -1055,6 +1140,7 @@ function SettingsPage({ settings, onSave, saving }) {
     sources: [],
     ignorePatterns: [],
     installSourceId: "agents",
+    baselineSourceId: "agents",
     installTargetMode: "remember-last",
     mergeDuplicateSkills: true,
     logRetentionDays: null,
@@ -1064,6 +1150,7 @@ function SettingsPage({ settings, onSave, saving }) {
     sources: [],
     ignorePatterns: [],
     installSourceId: "agents",
+    baselineSourceId: "agents",
     installTargetMode: "remember-last",
     mergeDuplicateSkills: true,
     logRetentionDays: null,
@@ -1120,7 +1207,8 @@ function SettingsPage({ settings, onSave, saving }) {
       return {
         ...current,
         sources,
-        installSourceId: current.installSourceId === id ? (sources.find((source) => source.enabled)?.id || "agents") : current.installSourceId
+        installSourceId: current.installSourceId === id ? (sources.find((source) => source.enabled)?.id || "agents") : current.installSourceId,
+        baselineSourceId: current.baselineSourceId === id ? (sources.find((source) => source.enabled)?.id || "agents") : current.baselineSourceId
       };
     });
   }
@@ -1204,6 +1292,14 @@ function SettingsPage({ settings, onSave, saving }) {
           <label className="settings-field">
             <span>Install to Agent</span>
             <select value={draft.installSourceId || "agents"} onChange={(event) => setDraft({ ...draft, installSourceId: event.target.value })}>
+              {installable.map((source) => (
+                <option key={source.id} value={source.id}>{source.client} · {shortPath(source.root)}</option>
+              ))}
+            </select>
+          </label>
+          <label className="settings-field">
+            <span>默认基准 Agent</span>
+            <select value={draft.baselineSourceId || "agents"} onChange={(event) => setDraft({ ...draft, baselineSourceId: event.target.value })}>
               {installable.map((source) => (
                 <option key={source.id} value={source.id}>{source.client} · {shortPath(source.root)}</option>
               ))}
@@ -2206,6 +2302,7 @@ function App() {
               onStar={(item) => toggleStar(selectedStarred?.type || "installed", item)}
               onInstall={selectedStarred?.type === "uninstalled" ? beginRestoreSkill : beginInstallLocal}
               onUninstall={selectedStarred?.type === "uninstalled" ? null : beginUninstallMany}
+              baselineSourceId={settings?.baselineSourceId || "agents"}
             />
           )
         ) : (
@@ -2216,6 +2313,7 @@ function App() {
             onStar={(item) => toggleStar(listMode === "uninstalled" ? "uninstalled" : "installed", item)}
             onInstall={listMode === "uninstalled" ? beginRestoreSkill : beginInstallLocal}
             onUninstall={listMode === "uninstalled" ? null : beginUninstallMany}
+            baselineSourceId={settings?.baselineSourceId || "agents"}
           />
         )}
         </>

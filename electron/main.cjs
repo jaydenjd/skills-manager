@@ -52,6 +52,7 @@ function defaultSettings() {
     sources: defaultSources(),
     ignorePatterns: defaultIgnorePatterns(),
     installSourceId: "agents",
+    baselineSourceId: "agents",
     installTargetMode: "remember-last",
     mergeDuplicateSkills: true,
     logRetentionDays: null,
@@ -73,10 +74,12 @@ function normalizeRetentionDays(value) {
 function getSettings() {
   const sources = normalizeSources(getStoreValue("sources", defaultSources()));
   const installSourceId = getStoreValue("installSourceId", "agents");
+  const baselineSourceId = getStoreValue("baselineSourceId", "agents");
   return {
     sources,
     ignorePatterns: getStoreValue("ignorePatterns", defaultIgnorePatterns()),
     installSourceId: sources.some((source) => source.id === installSourceId) ? installSourceId : "agents",
+    baselineSourceId: sources.some((source) => source.id === baselineSourceId) ? baselineSourceId : "agents",
     installTargetMode: getStoreValue("installTargetMode", "remember-last"),
     mergeDuplicateSkills: getStoreValue("mergeDuplicateSkills", true),
     logRetentionDays: normalizeRetentionDays(getStoreValue("logRetentionDays", null)),
@@ -90,6 +93,7 @@ function saveSettings(settings) {
     sources,
     ignorePatterns: Array.isArray(settings?.ignorePatterns) ? settings.ignorePatterns : defaultIgnorePatterns(),
     installSourceId: sources.some((source) => source.id === settings?.installSourceId) ? settings.installSourceId : "agents",
+    baselineSourceId: sources.some((source) => source.id === settings?.baselineSourceId) ? settings.baselineSourceId : "agents",
     installTargetMode: settings?.installTargetMode === "always-default" ? "always-default" : "remember-last",
     mergeDuplicateSkills: settings?.mergeDuplicateSkills !== false,
     logRetentionDays: normalizeRetentionDays(settings?.logRetentionDays),
@@ -98,6 +102,7 @@ function saveSettings(settings) {
   setStoreValue("sources", next.sources);
   setStoreValue("ignorePatterns", next.ignorePatterns);
   setStoreValue("installSourceId", next.installSourceId);
+  setStoreValue("baselineSourceId", next.baselineSourceId);
   setStoreValue("installTargetMode", next.installTargetMode);
   setStoreValue("mergeDuplicateSkills", next.mergeDuplicateSkills);
   setStoreValue("logRetentionDays", next.logRetentionDays);
@@ -118,6 +123,9 @@ function summarizeSettingsChange(before, after) {
   const changes = [];
   if (before.installSourceId !== after.installSourceId) {
     changes.push(`默认安装目标：${sourceLabelById(before, before.installSourceId)} -> ${sourceLabelById(after, after.installSourceId)}`);
+  }
+  if (before.baselineSourceId !== after.baselineSourceId) {
+    changes.push(`默认基准 Agent：${sourceLabelById(before, before.baselineSourceId)} -> ${sourceLabelById(after, after.baselineSourceId)}`);
   }
   if (before.installTargetMode !== after.installTargetMode) {
     changes.push(`安装弹窗默认选择：${settingModeLabel(before.installTargetMode)} -> ${settingModeLabel(after.installTargetMode)}`);

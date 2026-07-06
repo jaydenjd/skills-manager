@@ -706,7 +706,8 @@ button {
 .row-meta button.action-uninstall,
 .detail-actions button.action-install,
 .detail-actions button.action-update,
-.detail-actions button.action-uninstall {
+.detail-actions button.action-uninstall,
+.detail-actions button.action-baseline {
   border-color: #1f211d;
   color: #1f211d;
 }
@@ -727,6 +728,10 @@ button {
   border-color: #e4a08c;
   background: #fff1e9;
   color: #8f2d17;
+}
+
+.detail-actions button.action-baseline {
+  background: #fffdf7;
 }
 
 .star-button {
@@ -1169,6 +1174,82 @@ button {
 }
 
 .copy-edit-actions button:disabled {
+  opacity: 0.58;
+  cursor: default;
+}
+
+.copy-sync-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid #1f211d;
+  border-radius: 8px;
+  background: #fffdf7;
+  box-shadow: inset 4px 0 0 #d2ff2f;
+}
+
+.copy-sync-panel > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.copy-sync-panel strong {
+  color: #1f211d;
+  font-size: 13px;
+}
+
+.copy-sync-panel span {
+  color: #62675e;
+  font-size: 12px;
+}
+
+.sync-target-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.sync-target-list label {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid #ded7c8;
+  border-radius: 999px;
+  background: #f8f4e9;
+}
+
+.sync-target-list input {
+  width: 13px;
+  height: 13px;
+  accent-color: #1f211d;
+}
+
+.sync-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.sync-actions button {
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid #d8d1c2;
+  border-radius: 7px;
+  background: #fffdf7;
+  color: #444842;
+}
+
+.sync-actions button.primary {
+  border-color: #1f211d;
+  background: #d2ff2f;
+  color: #1f211d;
+}
+
+.sync-actions button:disabled {
   opacity: 0.58;
   cursor: default;
 }
