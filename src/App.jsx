@@ -659,7 +659,6 @@ function DirectoryTree({ skill, activePath, onOpenFile }) {
         Skill 目录
         <em>{total}</em>
       </div>
-      <div className="directory-current-path">{shortPath(skill.dir || skill.filePath)}</div>
       <div className="tree-list">
         <button className="tree-item root" onClick={() => window.skillStudio.reveal(skill.filePath)}>
           <FolderOpen size={14} />
@@ -993,7 +992,10 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
         <section className="content-pane">
           <div className="reader-label">
             <FileText size={15} />
-            {activeFile?.name || "SKILL.md"}
+            <span className="reader-file-title">
+              <strong>{activeFile?.name || "SKILL.md"}</strong>
+              <small>{shortPath(activeFile?.path)}</small>
+            </span>
             <em>{mode === "edit" ? "编辑模式" : "阅读模式"}</em>
           </div>
           {mode === "edit" ? (
