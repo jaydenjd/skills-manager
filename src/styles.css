@@ -734,6 +734,34 @@ button {
   background: #fffdf7;
 }
 
+.baseline-picker {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 8px 0 10px;
+  border: 1px solid #d8d1c2;
+  border-radius: 8px;
+  background: #fffdf7;
+  color: #444842;
+  font-size: 12px;
+}
+
+.baseline-picker span {
+  color: #62675e;
+  font-weight: 700;
+}
+
+.baseline-picker select {
+  max-width: 128px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #1f211d;
+  font: inherit;
+  font-weight: 800;
+}
+
 .star-button {
   width: 30px;
   height: 30px;

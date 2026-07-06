@@ -33,10 +33,11 @@ const starStorageKey = "skill-manager-stars";
 const legacyStarStorageKey = "skill-studio-stars";
 const installTargetsStorageKey = "skill-manager-last-install-targets";
 const legacyInstallTargetsStorageKey = "skill-studio-last-install-targets";
+const baselineOverridesStorageKey = "skill-manager-baseline-overrides";
 
 function readStoredJson(primaryKey, legacyKey, fallback) {
   const primary = localStorage.getItem(primaryKey);
-  const legacy = primary === null ? localStorage.getItem(legacyKey) : null;
+  const legacy = primary === null && legacyKey ? localStorage.getItem(legacyKey) : null;
   const raw = primary ?? legacy;
   if (raw === null) return fallback;
   try {
@@ -773,6 +774,7 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
   const [activeCopyId, setActiveCopyId] = useState("");
   const [syncDraft, setSyncDraft] = useState(null);
   const [syncTargetIds, setSyncTargetIds] = useState([]);
+  const [baselineOverrides, setBaselineOverrides] = useState(() => readStoredJson(baselineOverridesStorageKey, null, {}));
   const [draft, setDraft] = useState("");
   const [mode, setMode] = useState("view");
   const [pendingNavigation, setPendingNavigation] = useState(null);
@@ -875,8 +877,9 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
   useEffect(() => {
     if (!skill) return;
     const copies = skill.installations || [skill];
+    const skillBaselineId = baselineOverrides[skillGroupKey(skill)] || baselineSourceId;
     const preferred = copies.find((copy) => copy.id === activeCopyId)
-      || copies.find((copy) => copy.sourceId === baselineSourceId)
+      || copies.find((copy) => copy.sourceId === skillBaselineId)
       || copies[0]
       || skill;
     openSkillCopy(preferred);
@@ -926,7 +929,7 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
       setSelectedVersion(null);
       setVersionDetail(null);
       const syncTargets = installations.filter((copy) => copy.id !== activeCopy.id);
-      if (activeCopy.sourceId === baselineSourceId && syncTargets.length) {
+      if (activeCopy.sourceId === effectiveBaselineSourceId && syncTargets.length) {
         setSyncDraft({
           sourceCopy: activeCopy,
           content: draft,
@@ -978,11 +981,22 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
   }
   const installations = skill.installations || [skill];
   const activeCopy = installations.find((copy) => copy.id === activeCopyId) || installations[0] || skill;
-  const baselineCopy = installations.find((copy) => copy.sourceId === baselineSourceId) || installations.find((copy) => copy.sourceId === "agents") || installations[0] || skill;
+  const baselineKey = skillGroupKey(skill);
+  const requestedBaselineSourceId = baselineOverrides[baselineKey] || baselineSourceId;
+  const baselineCopy = installations.find((copy) => copy.sourceId === requestedBaselineSourceId) || installations.find((copy) => copy.sourceId === "agents") || installations[0] || skill;
+  const effectiveBaselineSourceId = baselineCopy.sourceId;
   const syncTargets = installations.filter((copy) => copy.id !== syncDraft?.sourceCopy?.id);
   const installationAgents = [...new Set(installations.map((copy) => copy.client))];
   const isUninstalledSkill = skill.sourceId === "uninstalled";
   const uninstallSource = skill.uninstallMeta?.sourceClient || skill.uninstallMeta?.sourceLabel || "未知";
+
+  function selectSkillBaseline(sourceId) {
+    const next = { ...baselineOverrides, [baselineKey]: sourceId };
+    if (sourceId === baselineSourceId) delete next[baselineKey];
+    setBaselineOverrides(next);
+    localStorage.setItem(baselineOverridesStorageKey, JSON.stringify(next));
+    setSyncDraft(null);
+  }
 
   return (
     <section className="detail">
@@ -1008,6 +1022,14 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
           Uninstall
         </button>
         ) : null}
+        <label className="baseline-picker">
+          <span>基准</span>
+          <select value={effectiveBaselineSourceId} onChange={(event) => selectSkillBaseline(event.target.value)}>
+            {installations.map((copy) => (
+              <option key={copy.id} value={copy.sourceId}>{copy.client}</option>
+            ))}
+          </select>
+        </label>
         <button className="action-baseline" onClick={() => openSkillCopy(baselineCopy, "edit")}>
           <Edit3 size={16} />
           编辑基准
