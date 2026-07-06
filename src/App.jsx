@@ -2349,6 +2349,7 @@ function App() {
                                 className={`cloud-tag ${activeTags.includes(tag) ? "active" : ""}`}
                                 onClick={() => toggleActiveTag(tag)}
                               >
+                                <i>{activeTags.includes(tag) ? "✓" : ""}</i>
                                 <strong>{tag}</strong>
                                 <em>{count}</em>
                               </TagPill>
