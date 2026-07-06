@@ -825,7 +825,19 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
       await openSkillCopyNow(pending.copy, pending.nextMode);
     } else if (pending.type === "file") {
       await openTreeFileNow(pending.item);
+    } else if (pending.type === "mode") {
+      setDraft(activeFile?.content || "");
+      setMode(pending.nextMode);
     }
+  }
+
+  function exitEditMode() {
+    if (hasUnsavedChanges()) {
+      setPendingNavigation({ type: "mode", nextMode: "view" });
+      return;
+    }
+    setMode("view");
+    setPendingNavigation(null);
   }
 
   async function openSkillCopy(copy, nextMode = mode) {
@@ -1030,9 +1042,9 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
             ))}
           </select>
         </label>
-        <button className="action-baseline" onClick={() => openSkillCopy(baselineCopy, "edit")}>
+        <button className="action-baseline" onClick={() => (mode === "edit" && activeCopy.id === baselineCopy.id ? exitEditMode() : openSkillCopy(baselineCopy, "edit"))}>
           <Edit3 size={16} />
-          编辑基准
+          {mode === "edit" && activeCopy.id === baselineCopy.id ? "取消编辑" : "编辑基准"}
         </button>
         <StarButton active={starred} className="detail-star" label onClick={(event) => { event.stopPropagation(); onStar?.(skill); }} />
       </div>
@@ -1056,7 +1068,7 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
               <i>
                 <small onClick={(event) => { event.stopPropagation(); window.skillStudio.open(copy.filePath); }}>打开</small>
                 <small onClick={(event) => { event.stopPropagation(); window.skillStudio.reveal(copy.filePath); }}>定位</small>
-                <small onClick={(event) => { event.stopPropagation(); openSkillCopy(copy, copy.id === activeCopy.id && mode === "edit" ? "view" : "edit"); }}>{copy.id === activeCopy.id && mode === "edit" ? "预览" : "编辑"}</small>
+                <small onClick={(event) => { event.stopPropagation(); copy.id === activeCopy.id && mode === "edit" ? exitEditMode() : openSkillCopy(copy, "edit"); }}>{copy.id === activeCopy.id && mode === "edit" ? "取消编辑" : "编辑"}</small>
               </i>
             </button>
         ))}
@@ -1076,7 +1088,7 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
       ) : null}
       {pendingNavigation ? (
         <div className="pending-edit-panel">
-          <span>当前文件有未保存修改，切换前请选择处理方式。</span>
+          <span>当前文件有未保存修改，{pendingNavigation.type === "mode" ? "退出编辑前" : "切换前"}请选择处理方式。</span>
           <button
             onClick={async () => {
               const saved = await saveDraft();
