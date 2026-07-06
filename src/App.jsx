@@ -1100,7 +1100,11 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
                 <strong>{copy.client}</strong>
                 <em>{shortPath(copy.dir)}</em>
               </span>
-              <i>双击打开</i>
+              <i>
+                <small onClick={(event) => { event.stopPropagation(); window.skillStudio.open(copy.filePath); }}>打开</small>
+                <small onClick={(event) => { event.stopPropagation(); window.skillStudio.reveal(copy.filePath); }}>定位</small>
+                <small onClick={(event) => { event.stopPropagation(); copy.id === activeCopy.id && mode === "edit" ? exitEditMode() : openSkillCopy(copy, "edit"); }}>{copy.id === activeCopy.id && mode === "edit" ? "取消编辑" : "编辑"}</small>
+              </i>
             </button>
         ))}
       </div>

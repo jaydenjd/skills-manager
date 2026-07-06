@@ -1304,10 +1304,9 @@ button.tag-pill {
 
 .installations-panel button {
   min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 7px;
   padding: 8px 10px;
   border: 1px solid #ded7c8;
   border-radius: 8px;
@@ -1342,20 +1341,21 @@ button.tag-pill {
 }
 
 .installations-panel i {
-  flex: 0 0 auto;
-  padding: 2px 6px;
-  border: 1px solid #e3ddcf;
-  border-radius: 999px;
-  background: #f8f4e9;
-  color: #8c9186;
-  font-size: 10px;
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
   font-style: normal;
-  opacity: 0.68;
 }
 
-.installations-panel button:hover i,
-.installations-panel button.active i {
-  opacity: 1;
+.installations-panel small {
+  padding: 3px 6px;
+  border: 1px solid #d8d1c2;
+  border-radius: 999px;
+  background: #f8f4e9;
+  color: #444842;
+  font-size: 10px;
+  line-height: 1;
 }
 
 .copy-edit-actions {
