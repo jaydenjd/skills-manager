@@ -533,7 +533,6 @@ function DiscoverDetail({ item, onInstall, onUninstall, busy, starred, onStar, i
             <span>skills.sh</span>
           </div>
         </div>
-        <StarButton active={starred} className="detail-star" label onClick={(event) => { event.stopPropagation(); onStar?.(item); }} />
       </div>
       <div className="detail-actions">
         {installedSkills.length ? (
@@ -546,6 +545,7 @@ function DiscoverDetail({ item, onInstall, onUninstall, busy, starred, onStar, i
           <FileCode2 size={16} />
           {busy ? "安装中" : "Install"}
         </button>
+        <StarButton active={starred} className="detail-star" label onClick={(event) => { event.stopPropagation(); onStar?.(item); }} />
         <button className="soft-button" onClick={() => window.skillStudio.open(item.repositoryUrl || item.url)}>
           <Github size={16} />
           Repository
