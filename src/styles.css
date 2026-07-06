@@ -2267,7 +2267,7 @@ button.tag-pill {
 }
 
 .detail-actions .soft-button,
-.detail-actions button:not(.action-install):not(.action-update):not(.action-uninstall):not(.soft-active) {
+.detail-actions button:not(.action-install):not(.action-update):not(.action-uninstall):not(.soft-active):not(.star-button) {
   border-color: #d8d1c2;
   background: #fffdf7;
   color: #444842;
