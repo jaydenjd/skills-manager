@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
-  Bell,
+  Activity,
   Command,
   Edit3,
   ExternalLink,
@@ -384,24 +384,6 @@ function MetaStrip({ items, className = "" }) {
         </span>
       ))}
     </div>
-  );
-}
-
-function TaskCenterButton({ events, onOpen }) {
-  const running = events.filter((event) => event.status === "queued" || event.status === "running");
-  const latest = events[0];
-  const active = running[0] || latest;
-  const percent = active ? Math.round((active.progress / Math.max(1, active.total)) * 100) : 0;
-  const statusLabel = running.length ? `${running.length} 个任务进行中` : latest ? `${latest.status} · ${formatDate(latest.updatedAt)}` : "暂无后台任务";
-  return (
-    <button className={`task-center ${running.length ? "running" : ""}`} onClick={onOpen}>
-      <Bell size={16} />
-      <span>
-        <strong>Events</strong>
-        <em>{statusLabel}</em>
-      </span>
-      {active ? <b>{percent}%</b> : null}
-    </button>
   );
 }
 
@@ -982,7 +964,6 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
           ))}
         </div>
       ) : null}
-      <div className="path-line">{shortPath(skill.filePath)}</div>
       <div className="detail-tags">
         {skill.tags.length ? skill.tags.map((tag) => <span key={tag}>{tag}</span>) : <span>untagged</span>}
       </div>
@@ -2062,6 +2043,8 @@ function App() {
             ))}
           </div>
           <div className="settings-nav">
+            <NavRow icon={Activity} label="Events" count={operationEvents.length} active={listMode === "events"} onClick={() => setListMode("events")} />
+            <NavRow icon={Activity} label="Logs" count={operationLogs.length} active={listMode === "logs"} onClick={() => setListMode("logs")} />
             <NavRow icon={Settings2} label="Settings" count="" active={listMode === "settings"} onClick={() => setListMode("settings")} />
           </div>
         </aside>
@@ -2223,12 +2206,6 @@ function App() {
         onConfirm={confirmPendingInstall}
         busy={Boolean(busyAction)}
       />
-      {listMode !== "events" && listMode !== "logs" ? (
-        <div className="task-center-wrap">
-          <TaskCenterButton events={operationEvents} onOpen={() => setListMode("events")} />
-          <button className="task-log-link" onClick={() => setListMode("logs")}>Logs {operationLogs.length ? operationLogs.length : ""}</button>
-        </div>
-      ) : null}
     </main>
   );
 }
