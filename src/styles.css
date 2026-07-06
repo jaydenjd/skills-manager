@@ -561,8 +561,8 @@ button {
   top: calc(100% + 7px);
   right: 0;
   z-index: 20;
-  width: min(156px, 52vw);
-  max-width: 156px;
+  width: min(144px, 50vw);
+  max-width: 144px;
   margin: 0;
   padding: 6px;
   border: 1px solid #ded7c8;
@@ -595,7 +595,7 @@ button {
 .tag-cloud {
   display: grid;
   gap: 2px;
-  max-height: 220px;
+  max-height: 320px;
   overflow: auto;
 }
 
@@ -640,7 +640,7 @@ button.tag-pill {
 
 .cloud-tag strong {
   min-width: 0;
-  max-width: 86px;
+  max-width: 76px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

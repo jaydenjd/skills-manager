@@ -2330,7 +2330,7 @@ function App() {
                   <div className="tag-filter-wrap">
                     <button className={`tag-cloud-toggle ${tagCloudOpen ? "on" : ""}`} onClick={() => setTagCloudOpen((open) => !open)}>
                       <Tags size={15} />
-                      标签云
+                      标签
                       {activeTags.length ? <em>{activeTags.length}</em> : null}
                     </button>
                     {tagCloudOpen ? (
