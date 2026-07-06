@@ -758,6 +758,7 @@ function DiffViewer({ detail }) {
 
 function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
   const [activeFile, setActiveFile] = useState(null);
+  const [activeCopyId, setActiveCopyId] = useState("");
   const [draft, setDraft] = useState("");
   const [mode, setMode] = useState("view");
   const [history, setHistory] = useState([]);
@@ -796,17 +797,33 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
     }
   }
 
-  useEffect(() => {
-    if (!skill) return;
+  async function openSkillCopy(copy) {
+    if (!copy) return;
+    setFileError("");
+    let content = copy.raw || "";
+    let size = copy.bytes;
+    let updatedAt = copy.updatedAt;
+    try {
+      if (!content) {
+        const result = await window.skillStudio.readFile(copy.filePath);
+        content = result.content;
+        size = result.size;
+        updatedAt = result.updatedAt;
+      }
+    } catch (err) {
+      setFileError(err.message || String(err));
+      return;
+    }
     const file = {
-      path: skill.filePath,
+      path: copy.filePath,
       name: "SKILL.md",
-      content: skill.raw,
+      content,
       isMarkdown: true,
       isSkillFile: true,
-      size: skill.bytes,
-      updatedAt: skill.updatedAt
+      size,
+      updatedAt
     };
+    setActiveCopyId(copy.id);
     setActiveFile(file);
     setDraft(file.content);
     setMode("view");
@@ -815,6 +832,12 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
     setSelectedVersion(null);
     setVersionDetail(null);
     loadHistory(file.path);
+  }
+
+  useEffect(() => {
+    if (!skill) return;
+    const copies = skill.installations || [skill];
+    openSkillCopy(copies[0] || skill);
   }, [skill]);
 
   async function openTreeFile(item) {
@@ -826,7 +849,7 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
         name: item.name,
         content: result.content,
         isMarkdown: isMarkdownPath(item.path),
-        isSkillFile: item.path === skill.filePath,
+        isSkillFile: item.path === activeCopy.filePath,
         size: result.size,
         updatedAt: result.updatedAt
       };
@@ -892,9 +915,11 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
     );
   }
   const installations = skill.installations || [skill];
+  const activeCopy = installations.find((copy) => copy.id === activeCopyId) || installations[0] || skill;
   const installationAgents = [...new Set(installations.map((copy) => copy.client))];
   const isUninstalledSkill = skill.sourceId === "uninstalled";
   const uninstallSource = skill.uninstallMeta?.sourceClient || skill.uninstallMeta?.sourceLabel || "未知";
+  const activeCopyPath = activeCopy?.filePath || skill.filePath;
 
   return (
     <section className="detail">
@@ -921,11 +946,11 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
           Uninstall
         </button>
         ) : null}
-        <button onClick={() => window.skillStudio.open(skill.filePath)}>
+        <button onClick={() => window.skillStudio.open(activeCopyPath)}>
           <FileCode2 size={16} />
           打开 SKILL.md
         </button>
-        <button onClick={() => window.skillStudio.reveal(skill.filePath)}>
+        <button onClick={() => window.skillStudio.reveal(activeCopyPath)}>
           <FolderOpen size={16} />
           定位目录
         </button>
@@ -949,17 +974,24 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
       <MetaStrip
         items={[
           { label: isUninstalledSkill ? "卸载来源" : "已安装", value: isUninstalledSkill ? uninstallSource : installationAgents.join(", ") },
-          { label: "行数", value: skill.lines },
-          { label: "大小", value: `${Math.round(skill.bytes / 1024)} KB` },
-          { label: "更新", value: formatDate(skill.updatedAt) }
+          { label: "当前副本", value: activeCopy.client },
+          { label: "行数", value: activeCopy.lines },
+          { label: "大小", value: `${Math.round((activeCopy.bytes || 0) / 1024)} KB` },
+          { label: "更新", value: formatDate(activeCopy.updatedAt) }
         ]}
       />
       {installations.length > 1 ? (
         <div className="installations-panel">
           {installations.map((copy) => (
-            <button key={copy.id} className={copy.id === skill.id ? "active" : ""} onClick={() => window.skillStudio.reveal(copy.filePath)}>
-              <strong>{copy.client}</strong>
-              <span>{shortPath(copy.dir)}</span>
+            <button key={copy.id} className={copy.id === activeCopy.id ? "active" : ""} onClick={() => openSkillCopy(copy)}>
+              <span>
+                <strong>{copy.client}</strong>
+                <em>{shortPath(copy.dir)}</em>
+              </span>
+              <i>
+                <small onClick={(event) => { event.stopPropagation(); window.skillStudio.open(copy.filePath); }}>打开</small>
+                <small onClick={(event) => { event.stopPropagation(); window.skillStudio.reveal(copy.filePath); }}>定位</small>
+              </i>
             </button>
           ))}
         </div>
@@ -969,7 +1001,7 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
       </div>
       {fileError ? <div className="file-error">{fileError}</div> : null}
       <div className="reader-shell">
-        <DirectoryTree skill={skill} activePath={activeFile?.path} onOpenFile={openTreeFile} />
+        <DirectoryTree skill={activeCopy} activePath={activeFile?.path} onOpenFile={openTreeFile} />
         <section className="content-pane">
           <div className="reader-label">
             <FileText size={15} />
