@@ -561,8 +561,8 @@ button {
   top: calc(100% + 7px);
   right: 0;
   z-index: 20;
-  width: min(248px, 64vw);
-  max-width: 248px;
+  width: min(196px, 58vw);
+  max-width: 196px;
   margin: 0;
   padding: 7px;
   border: 1px solid #ded7c8;
@@ -623,7 +623,7 @@ button.tag-pill {
   width: 100%;
   min-height: 26px;
   justify-content: space-between;
-  padding: 0 6px;
+  padding: 0 5px;
   border-radius: 6px;
   text-align: left;
   box-shadow: none;
@@ -631,6 +631,7 @@ button.tag-pill {
 
 .cloud-tag strong {
   min-width: 0;
+  max-width: 138px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
