@@ -574,10 +574,14 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 5px;
   margin-bottom: 6px;
   color: #62675e;
   font-size: 12px;
+}
+
+.tag-cloud-head > span {
+  flex: 1 1 auto;
 }
 
 .tag-cloud-head button,
@@ -589,6 +593,32 @@ button {
   background: #fffdf7;
   color: #444842;
   font-size: 11px;
+}
+
+.tag-match-switch {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid #d8d1c2;
+  border-radius: 999px;
+  background: #f8f4e9;
+}
+
+.tag-match-switch button {
+  height: 20px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #62675e;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.tag-match-switch button.on {
+  background: #1f211d;
+  color: #fffdf7;
 }
 
 .tag-cloud {

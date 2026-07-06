@@ -1716,6 +1716,7 @@ function App() {
   const [sourceFilter, setSourceFilter] = useState("all");
   const [tagCloudOpen, setTagCloudOpen] = useState(false);
   const [activeTags, setActiveTags] = useState([]);
+  const [tagMatchMode, setTagMatchMode] = useState("and");
   const [selected, setSelected] = useState(null);
   const [selectedDiscover, setSelectedDiscover] = useState(null);
   const [selectedStarred, setSelectedStarred] = useState(null);
@@ -2078,7 +2079,13 @@ function App() {
     const matches = (data?.skills || []).filter((skill) => {
       const sourceOk = sourceFilter === "all" || skill.client === sourceFilter;
       if (!sourceOk) return false;
-      if (activeTags.length && !activeTags.every((tag) => (skill.tags || []).includes(tag))) return false;
+      if (activeTags.length) {
+        const skillTags = skill.tags || [];
+        const tagOk = tagMatchMode === "or"
+          ? activeTags.some((tag) => skillTags.includes(tag))
+          : activeTags.every((tag) => skillTags.includes(tag));
+        if (!tagOk) return false;
+      }
       return matchesSearchFields(localSkillSearchValues(skill, searchOptions), q);
     });
     const visible = sourceFilter === "all" && settings?.mergeDuplicateSkills !== false ? mergeSkillCopies(matches) : matches;
@@ -2086,7 +2093,7 @@ function App() {
       if (localSort === "alpha") return a.name.localeCompare(b.name);
       return new Date(b.updatedAt) - new Date(a.updatedAt);
     });
-  }, [data, query, sourceFilter, activeTags, localSort, searchOptions, settings]);
+  }, [data, query, sourceFilter, activeTags, tagMatchMode, localSort, searchOptions, settings]);
 
   const tagCounts = useMemo(() => {
     const map = new Map();
@@ -2337,6 +2344,10 @@ function App() {
                       <div className="tag-cloud-panel">
                         <div className="tag-cloud-head">
                           <span>多选标签</span>
+                          <div className="tag-match-switch">
+                            <button className={tagMatchMode === "and" ? "on" : ""} onClick={() => setTagMatchMode("and")} title="必须同时包含所有已选标签">AND</button>
+                            <button className={tagMatchMode === "or" ? "on" : ""} onClick={() => setTagMatchMode("or")} title="包含任意一个已选标签即可">OR</button>
+                          </div>
                           {activeTags.length ? <button onClick={() => setActiveTags([])}>清除</button> : null}
                         </div>
                         <div className="tag-cloud">
