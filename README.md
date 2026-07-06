@@ -16,7 +16,7 @@ Browse skills.sh rankings, search the leaderboard, inspect repository metadata, 
 
 Review installed or starred skills, inspect `SKILL.md`, browse the full directory tree, and see which agent copies exist locally.
 
-![local_detail](docs/screenshots/local_detail.png)
+![installed_skills](docs/screenshots/installed_skills.png)
 
 ### Multi-agent install
 
