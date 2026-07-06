@@ -4,11 +4,32 @@ Skill Manager is a local desktop app for managing AI agent skills across multipl
 
 The app is built with Electron, React, and Vite.
 
+## Screenshots
+
+### Discover skills
+
+Browse skills.sh rankings, search the leaderboard, inspect repository metadata, and install a skill into one or more configured agents.
+
+![Discover skills](docs/screenshots/discover.png)
+
+### Local skill detail
+
+Review installed or starred skills, inspect `SKILL.md`, browse the full directory tree, and see which agent copies exist locally.
+
+![Local skill detail](docs/screenshots/local-detail.png)
+
+### Multi-agent install
+
+Install, uninstall, restore, and update can target multiple agent directories. The app can remember the previous selection or use a configured default.
+
+![Choose install agents](docs/screenshots/install-agents.png)
+
 ## Features
 
 - Discover skills from skills.sh with All Time, Trending, and Hot rankings.
 - Search local and discover skills by configurable fields.
 - Manage installed skills across multiple agent directories.
+- Browse local tags in a tag cloud and jump to matching skills.
 - Install, uninstall, restore, and update skills through background operation events.
 - Move uninstalled skills into the app data directory instead of deleting them.
 - View `SKILL.md` with a skill-friendly reader and full directory tree.
@@ -113,7 +134,7 @@ The generated DMG is currently unsigned. On another Mac, the first launch may re
 To verify a DMG:
 
 ```bash
-hdiutil verify "release/Skill Manager-0.1.7-arm64.dmg"
+hdiutil verify "release/Skill Manager-<version>-arm64.dmg"
 ```
 
 ## Package For Windows
@@ -165,7 +186,7 @@ Formal releases are tag based. Update the version, push the commit, then push th
 ```bash
 npm version patch
 git push
-git push origin v0.1.8
+git push origin v<version>
 ```
 
 Any tag matching `v*` triggers the release job. The workflow builds all installers, creates a GitHub Release, and uploads the `.dmg` and `.exe` files.
@@ -199,4 +220,5 @@ release/         Packaged installers.
 - Installed skills are not deleted by uninstall. They are moved into the app-managed uninstalled directory.
 - Settings support both visual editing and JSON editing.
 - Operation Logs and Operation Events have configurable retention. By default they are kept forever.
+- Tags are computed from local skill metadata and can be used to browse related installed skills.
 - The app currently focuses on macOS, but the Electron codebase is portable with Windows packaging and path testing.
