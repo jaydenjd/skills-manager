@@ -392,8 +392,7 @@ button {
   margin: 13px 0;
 }
 
-.client-tabs button,
-.detail-tags span {
+.client-tabs button {
   border: 1px solid #c9c3b4;
   border-radius: 999px;
   background: #fffdf7;
