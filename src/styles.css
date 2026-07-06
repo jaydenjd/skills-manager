@@ -1067,6 +1067,10 @@ button {
   margin: 10px 0 0;
 }
 
+.installations-panel.single {
+  grid-template-columns: minmax(240px, 420px);
+}
+
 .installations-panel button {
   min-width: 0;
   display: flex;
@@ -1109,6 +1113,8 @@ button {
 .installations-panel i {
   flex: 0 0 auto;
   display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 5px;
   font-style: normal;
 }
@@ -1881,6 +1887,11 @@ button {
 .star-button.detail-star {
   height: 36px;
   min-height: 36px;
+}
+
+.detail-actions .star-button.detail-star {
+  border-color: #d8d1c2;
+  box-shadow: none;
 }
 
 .facts {

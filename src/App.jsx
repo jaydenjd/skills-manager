@@ -919,7 +919,6 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
   const installationAgents = [...new Set(installations.map((copy) => copy.client))];
   const isUninstalledSkill = skill.sourceId === "uninstalled";
   const uninstallSource = skill.uninstallMeta?.sourceClient || skill.uninstallMeta?.sourceLabel || "未知";
-  const activeCopyPath = activeCopy?.filePath || skill.filePath;
 
   return (
     <section className="detail">
@@ -933,7 +932,6 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
           <History size={16} />
           历史版本
         </button>
-        <StarButton active={starred} className="detail-star" label onClick={(event) => { event.stopPropagation(); onStar?.(skill); }} />
       </div>
       <div className="detail-actions">
         <button className="action-install" onClick={() => onInstall?.(skill)}>
@@ -946,18 +944,7 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
           Uninstall
         </button>
         ) : null}
-        <button onClick={() => window.skillStudio.open(activeCopyPath)}>
-          <FileCode2 size={16} />
-          打开 SKILL.md
-        </button>
-        <button onClick={() => window.skillStudio.reveal(activeCopyPath)}>
-          <FolderOpen size={16} />
-          定位目录
-        </button>
-        <button className={mode === "edit" ? "soft-active" : ""} onClick={() => setMode(mode === "edit" ? "view" : "edit")}>
-          {mode === "edit" ? <Eye size={16} /> : <Edit3 size={16} />}
-          {mode === "edit" ? "预览" : "修改"}
-        </button>
+        <StarButton active={starred} className="detail-star" label onClick={(event) => { event.stopPropagation(); onStar?.(skill); }} />
         {mode === "edit" ? (
           <button onClick={saveDraft} disabled={saving || draft === activeFile?.content}>
             <Save size={16} />
@@ -980,9 +967,8 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
           { label: "更新", value: formatDate(activeCopy.updatedAt) }
         ]}
       />
-      {installations.length > 1 ? (
-        <div className="installations-panel">
-          {installations.map((copy) => (
+      <div className={`installations-panel ${installations.length === 1 ? "single" : ""}`}>
+        {(installations.length > 1 ? installations : [activeCopy]).map((copy) => (
             <button key={copy.id} className={copy.id === activeCopy.id ? "active" : ""} onClick={() => openSkillCopy(copy)}>
               <span>
                 <strong>{copy.client}</strong>
@@ -991,11 +977,11 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
               <i>
                 <small onClick={(event) => { event.stopPropagation(); window.skillStudio.open(copy.filePath); }}>打开</small>
                 <small onClick={(event) => { event.stopPropagation(); window.skillStudio.reveal(copy.filePath); }}>定位</small>
+                <small onClick={(event) => { event.stopPropagation(); openSkillCopy(copy); setMode(copy.id === activeCopy.id && mode === "edit" ? "view" : "edit"); }}>{copy.id === activeCopy.id && mode === "edit" ? "预览" : "编辑"}</small>
               </i>
             </button>
-          ))}
-        </div>
-      ) : null}
+        ))}
+      </div>
       <div className="detail-tags">
         {skill.tags.length ? skill.tags.map((tag) => <span key={tag}>{tag}</span>) : <span>untagged</span>}
       </div>
