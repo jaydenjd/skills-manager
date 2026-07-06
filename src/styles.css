@@ -2161,6 +2161,25 @@ button {
   font-weight: 500;
 }
 
+.reader-mode-toggle {
+  margin-left: auto;
+  height: 25px;
+  flex: 0 0 auto;
+  padding: 0 9px;
+  border: 1px solid #d8d1c2;
+  border-radius: 999px;
+  background: #fffdf7;
+  color: #62675e;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.reader-mode-toggle:hover {
+  border-color: #1f211d;
+  color: #1f211d;
+  background: #d2ff2f;
+}
+
 .reader-file-title {
   min-width: 0;
   display: flex;

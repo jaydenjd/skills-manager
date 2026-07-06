@@ -996,7 +996,9 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
               <strong>{activeFile?.name || "SKILL.md"}</strong>
               <small>{shortPath(activeFile?.path)}</small>
             </span>
-            <em>{mode === "edit" ? "编辑模式" : "阅读模式"}</em>
+            <button className="reader-mode-toggle" onClick={() => setMode(mode === "edit" ? "view" : "edit")}>
+              {mode === "edit" ? "编辑模式" : "阅读模式"}
+            </button>
           </div>
           {mode === "edit" ? (
             <textarea className="file-editor" value={draft} onChange={(event) => setDraft(event.target.value)} spellCheck={false} />
