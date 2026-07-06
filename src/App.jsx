@@ -1089,23 +1089,22 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
       />
       <div className={`installations-panel ${installations.length === 1 ? "single" : ""}`}>
         {(installations.length > 1 ? installations : [activeCopy]).map((copy) => (
-            <button
+            <div
               key={copy.id}
-              className={copy.id === activeCopy.id ? "active" : ""}
+              className={`installation-card ${copy.id === activeCopy.id ? "active" : ""}`}
               onClick={() => openSkillCopy(copy)}
-              onDoubleClick={() => window.skillStudio.open(copy.filePath)}
-              title={`${copy.client} · 双击打开 SKILL.md`}
+              title={`${copy.client} · 点击选择副本`}
             >
-              <span>
+              <div className="copy-card-main">
                 <strong>{copy.client}</strong>
-                <em>{shortPath(copy.dir)}</em>
-              </span>
-              <i>
-                <small onClick={(event) => { event.stopPropagation(); window.skillStudio.open(copy.filePath); }}>打开</small>
-                <small onClick={(event) => { event.stopPropagation(); window.skillStudio.reveal(copy.filePath); }}>定位</small>
-                <small onClick={(event) => { event.stopPropagation(); copy.id === activeCopy.id && mode === "edit" ? exitEditMode() : openSkillCopy(copy, "edit"); }}>{copy.id === activeCopy.id && mode === "edit" ? "取消编辑" : "编辑"}</small>
-              </i>
-            </button>
+                <button onClick={(event) => { event.stopPropagation(); copy.id === activeCopy.id && mode === "edit" ? exitEditMode() : openSkillCopy(copy, "edit"); }}>
+                  {copy.id === activeCopy.id && mode === "edit" ? "取消编辑" : "编辑"}
+                </button>
+              </div>
+              <button className="copy-path-row" onClick={(event) => { event.stopPropagation(); window.skillStudio.reveal(copy.dir); }} title="点击定位目录">
+                {shortPath(copy.dir)}
+              </button>
+            </div>
         ))}
       </div>
       {mode === "edit" ? (

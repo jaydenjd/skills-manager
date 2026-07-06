@@ -1302,53 +1302,43 @@ button.tag-pill {
   grid-template-columns: minmax(240px, 420px);
 }
 
-.installations-panel button {
+.installation-card {
   min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 7px;
+  gap: 5px;
   padding: 8px 10px;
   border: 1px solid #ded7c8;
   border-radius: 8px;
   background: #fffdf7;
   color: #1f211d;
   text-align: left;
+  cursor: pointer;
 }
 
-.installations-panel button.active {
+.installation-card.active {
   border-color: #1f211d;
   box-shadow: inset 4px 0 0 #d2ff2f;
 }
 
-.installations-panel strong,
-.installations-panel em {
+.copy-card-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.copy-card-main strong,
+.copy-path-row {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.installations-panel span {
-  min-width: 0;
-  display: grid;
-  gap: 3px;
-}
-
-.installations-panel em {
-  color: #62675e;
-  font-size: 11px;
-  font-style: normal;
-}
-
-.installations-panel i {
-  display: inline-flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 5px;
-  font-style: normal;
-}
-
-.installations-panel small {
+.copy-card-main button {
+  flex: 0 0 auto;
   padding: 3px 6px;
   border: 1px solid #d8d1c2;
   border-radius: 999px;
@@ -1356,6 +1346,23 @@ button.tag-pill {
   color: #444842;
   font-size: 10px;
   line-height: 1;
+}
+
+.copy-path-row {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #62675e;
+  font-size: 11px;
+  font-style: normal;
+  text-align: left;
+  cursor: pointer;
+}
+
+.copy-path-row:hover {
+  color: #1f211d;
+  text-decoration: underline;
 }
 
 .copy-edit-actions {
