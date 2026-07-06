@@ -1129,6 +1129,50 @@ button {
   line-height: 1;
 }
 
+.copy-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid #ded7c8;
+  border-radius: 8px;
+  background: #fffdf7;
+}
+
+.copy-edit-actions span {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: #62675e;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copy-edit-actions button {
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid #1f211d;
+  border-radius: 7px;
+  background: #d2ff2f;
+  color: #1f211d;
+}
+
+.copy-edit-actions .soft-button {
+  border-color: #d8d1c2;
+  background: #fffdf7;
+  color: #444842;
+}
+
+.copy-edit-actions button:disabled {
+  opacity: 0.58;
+  cursor: default;
+}
+
 .discover-detail {
   overflow: auto;
 }
@@ -1971,6 +2015,15 @@ button {
 
 .reader-shell {
   margin-top: 2px;
+}
+
+.directory-current-path {
+  margin: -4px 10px 8px;
+  overflow: hidden;
+  color: #62675e;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .retention-field {

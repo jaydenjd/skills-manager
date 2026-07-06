@@ -659,6 +659,7 @@ function DirectoryTree({ skill, activePath, onOpenFile }) {
         Skill 目录
         <em>{total}</em>
       </div>
+      <div className="directory-current-path">{shortPath(skill.dir || skill.filePath)}</div>
       <div className="tree-list">
         <button className="tree-item root" onClick={() => window.skillStudio.reveal(skill.filePath)}>
           <FolderOpen size={14} />
@@ -797,7 +798,7 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
     }
   }
 
-  async function openSkillCopy(copy) {
+  async function openSkillCopy(copy, nextMode = "view") {
     if (!copy) return;
     setFileError("");
     let content = copy.raw || "";
@@ -826,7 +827,7 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
     setActiveCopyId(copy.id);
     setActiveFile(file);
     setDraft(file.content);
-    setMode("view");
+    setMode(nextMode);
     setFileError("");
     setHistoryOpen(false);
     setSelectedVersion(null);
@@ -945,18 +946,6 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
         </button>
         ) : null}
         <StarButton active={starred} className="detail-star" label onClick={(event) => { event.stopPropagation(); onStar?.(skill); }} />
-        {mode === "edit" ? (
-          <button onClick={saveDraft} disabled={saving || draft === activeFile?.content}>
-            <Save size={16} />
-            {saving ? "保存中" : "保存"}
-          </button>
-        ) : null}
-        {mode === "edit" ? (
-          <button onClick={() => setDraft(activeFile?.content || "")} disabled={draft === activeFile?.content}>
-            <RotateCcw size={16} />
-            撤销未保存
-          </button>
-        ) : null}
       </div>
       <MetaStrip
         items={[
@@ -977,11 +966,24 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
               <i>
                 <small onClick={(event) => { event.stopPropagation(); window.skillStudio.open(copy.filePath); }}>打开</small>
                 <small onClick={(event) => { event.stopPropagation(); window.skillStudio.reveal(copy.filePath); }}>定位</small>
-                <small onClick={(event) => { event.stopPropagation(); openSkillCopy(copy); setMode(copy.id === activeCopy.id && mode === "edit" ? "view" : "edit"); }}>{copy.id === activeCopy.id && mode === "edit" ? "预览" : "编辑"}</small>
+                <small onClick={(event) => { event.stopPropagation(); openSkillCopy(copy, copy.id === activeCopy.id && mode === "edit" ? "view" : "edit"); }}>{copy.id === activeCopy.id && mode === "edit" ? "预览" : "编辑"}</small>
               </i>
             </button>
         ))}
       </div>
+      {mode === "edit" ? (
+        <div className="copy-edit-actions">
+          <span>正在编辑 {activeCopy.client} · {shortPath(activeFile?.path)}</span>
+          <button onClick={saveDraft} disabled={saving || draft === activeFile?.content}>
+            <Save size={14} />
+            {saving ? "保存中" : "保存修改"}
+          </button>
+          <button className="soft-button" onClick={() => setDraft(activeFile?.content || "")} disabled={draft === activeFile?.content}>
+            <RotateCcw size={14} />
+            撤销未保存
+          </button>
+        </div>
+      ) : null}
       <div className="detail-tags">
         {skill.tags.length ? skill.tags.map((tag) => <span key={tag}>{tag}</span>) : <span>untagged</span>}
       </div>
