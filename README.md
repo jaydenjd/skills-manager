@@ -22,7 +22,7 @@ Review installed or starred skills, inspect `SKILL.md`, browse the full director
 
 Install, uninstall, restore, and update can target multiple agent directories. The app can remember the previous selection or use a configured default.
 
-![Choose install agents](docs/screenshots/install-agents.png)
+![Choose install agents](docs/screenshots/install-agents_v2.png)
 
 ## Features
 
