@@ -2323,6 +2323,10 @@ function App() {
             <div className="result-controls">
               {listMode === "installed" ? (
                 <>
+                  <select value={localSort} onChange={(event) => setLocalSort(event.target.value)}>
+                    <option value="updated">按更新时间</option>
+                    <option value="alpha">按字母顺序</option>
+                  </select>
                   <div className="tag-filter-wrap">
                     <button className={`tag-cloud-toggle ${tagCloudOpen ? "on" : ""}`} onClick={() => setTagCloudOpen((open) => !open)}>
                       <Tags size={15} />
@@ -2337,14 +2341,12 @@ function App() {
                         </div>
                         <div className="tag-cloud">
                           {tagCounts.length ? tagCounts.slice(0, 80).map(({ tag, count }) => {
-                            const max = Math.max(1, tagCounts[0]?.count || 1);
-                            const level = Math.min(5, Math.max(1, Math.ceil((count / max) * 5)));
                             return (
                               <TagPill
                                 key={tag}
                                 tag={tag}
                                 as="button"
-                                className={`cloud-tag size-${level} ${activeTags.includes(tag) ? "active" : ""}`}
+                                className={`cloud-tag ${activeTags.includes(tag) ? "active" : ""}`}
                                 onClick={() => toggleActiveTag(tag)}
                               >
                                 <strong>{tag}</strong>
@@ -2356,10 +2358,6 @@ function App() {
                       </div>
                     ) : null}
                   </div>
-                  <select value={localSort} onChange={(event) => setLocalSort(event.target.value)}>
-                    <option value="updated">按更新时间</option>
-                    <option value="alpha">按字母顺序</option>
-                  </select>
                 </>
               ) : listMode === "discover" ? (
                 <>
