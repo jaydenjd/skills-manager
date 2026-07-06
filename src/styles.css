@@ -1696,6 +1696,314 @@ button {
   background: #f1ece1;
 }
 
+/* Product polish pass: quieter navigation, lighter details, and a non-blocking task center. */
+.left-rail {
+  padding: 12px 10px;
+}
+
+.section-label {
+  margin: 18px 0 7px;
+  color: #7a8076;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+
+.nav-row,
+.count-row {
+  min-height: 28px;
+  border-radius: 7px;
+}
+
+.nav-row {
+  grid-template-columns: 20px 1fr auto;
+}
+
+.nav-row svg {
+  width: 15px;
+  height: 15px;
+  color: #4c84ff;
+  stroke-width: 2;
+}
+
+.nav-row span,
+.count-row span {
+  font-size: 12px;
+}
+
+.nav-row em,
+.count-row em {
+  min-width: 22px;
+  padding: 0 6px;
+  background: #e3ded2;
+  color: #5e625a;
+  font-size: 11px;
+}
+
+.nav-row:hover,
+.count-row:hover {
+  background: #f0eadc;
+}
+
+.nav-row.active,
+.count-row.active {
+  background: #e8e2d4;
+  box-shadow: inset 3px 0 0 #d2ff2f;
+}
+
+.skill-row,
+.discover-row {
+  min-height: 116px;
+  gap: 7px;
+  padding-top: 9px;
+  padding-bottom: 9px;
+  background: rgba(255, 253, 247, 0.92);
+}
+
+.discover-row {
+  grid-template-columns: 32px minmax(0, 1fr);
+}
+
+.discover-rank {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+.skill-glyph {
+  width: 36px;
+  height: 36px;
+}
+
+.row-title strong {
+  font-size: 13px;
+}
+
+.row-source {
+  margin-top: 4px;
+  padding: 2px 6px;
+  background: #f0eadc;
+  font-size: 10px;
+}
+
+.skill-row p,
+.discover-row p {
+  max-height: 42px;
+  margin-top: 6px;
+  line-height: 1.42;
+  -webkit-line-clamp: 2;
+}
+
+.row-meta {
+  font-size: 11px;
+}
+
+.row-meta button {
+  min-height: 26px;
+  padding: 0 10px;
+}
+
+.detail-header {
+  grid-template-columns: 46px minmax(0, 1fr) auto auto;
+  align-items: center;
+}
+
+.discover-detail .detail-header {
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+}
+
+.detail-icon {
+  width: 46px;
+  height: 46px;
+}
+
+.detail h2 {
+  font-size: 21px;
+}
+
+.detail p {
+  margin-top: 6px;
+}
+
+.detail-actions {
+  margin: 13px 0 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(201, 195, 180, 0.65);
+}
+
+.detail-actions button {
+  height: 36px;
+  padding: 0 11px;
+}
+
+.detail-actions button.action-install,
+.detail-actions button.action-update,
+.detail-actions button.action-uninstall {
+  min-width: 112px;
+  font-weight: 800;
+  box-shadow: 0 5px 0 rgba(31, 33, 29, 0.08);
+}
+
+.detail-actions .soft-button,
+.detail-actions button:not(.action-install):not(.action-update):not(.action-uninstall):not(.soft-active) {
+  border-color: #d8d1c2;
+  background: #fffdf7;
+  color: #444842;
+}
+
+.history-top-button,
+.star-button.detail-star {
+  height: 36px;
+  min-height: 36px;
+}
+
+.facts {
+  display: none;
+}
+
+.meta-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 8px 0 9px;
+  padding: 8px 9px;
+  border: 1px solid #ded7c8;
+  border-radius: 8px;
+  background: rgba(255, 253, 247, 0.76);
+}
+
+.meta-strip span {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 9px;
+  border-right: 1px solid #e7e0d2;
+  color: #444842;
+  font-size: 12px;
+}
+
+.meta-strip span:last-child {
+  border-right: 0;
+  padding-right: 0;
+}
+
+.meta-strip b {
+  flex: 0 0 auto;
+  color: #7a8076;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.meta-strip em {
+  min-width: 0;
+  max-width: 280px;
+  overflow: hidden;
+  color: #1f211d;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.path-line {
+  margin: 8px 0;
+  padding: 7px 9px;
+  background: rgba(248, 244, 233, 0.72);
+  font-size: 11px;
+}
+
+.detail-tags {
+  gap: 6px;
+  margin: 8px 0 10px;
+}
+
+.detail-tags span {
+  padding: 4px 7px;
+  font-size: 11px;
+}
+
+.discover-info-panel {
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.discover-info-panel > div {
+  padding: 12px;
+}
+
+.reader-shell {
+  margin-top: 2px;
+}
+
+.task-center-wrap {
+  position: fixed;
+  right: 24px;
+  bottom: 20px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  -webkit-app-region: no-drag;
+}
+
+.task-center,
+.task-log-link {
+  border: 1px solid #c9c3b4;
+  border-radius: 8px;
+  background: rgba(255, 253, 247, 0.94);
+  color: #1f211d;
+  box-shadow: 0 12px 34px rgba(31, 33, 29, 0.12);
+}
+
+.task-center {
+  min-width: 214px;
+  min-height: 46px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.task-center.running {
+  border-color: #1f211d;
+  box-shadow: 0 0 0 3px rgba(210, 255, 47, 0.38), 0 12px 34px rgba(31, 33, 29, 0.12);
+}
+
+.task-center span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.task-center strong {
+  font-size: 12px;
+}
+
+.task-center em {
+  overflow: hidden;
+  color: #62675e;
+  font-size: 11px;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-center b {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #d2ff2f;
+  font-size: 11px;
+}
+
+.task-log-link {
+  min-height: 36px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
 .retention-field {
   grid-template-columns: 1fr 118px;
   align-items: end;

@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
-  Activity,
-  BarChart3,
+  Bell,
   Command,
   Edit3,
   ExternalLink,
@@ -20,8 +19,7 @@ import {
   Settings2,
   SlidersHorizontal,
   Sparkles,
-  Star,
-  Tags
+  Star
 } from "lucide-react";
 import "./styles.css";
 
@@ -374,6 +372,39 @@ function StarButton({ active, onClick, className = "", label = false }) {
   );
 }
 
+function MetaStrip({ items, className = "" }) {
+  const visible = items.filter((item) => item?.value !== undefined && item?.value !== null && item?.value !== "");
+  if (!visible.length) return null;
+  return (
+    <div className={`meta-strip ${className}`}>
+      {visible.map((item) => (
+        <span key={item.label}>
+          <b>{item.label}</b>
+          <em>{item.value}</em>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function TaskCenterButton({ events, onOpen }) {
+  const running = events.filter((event) => event.status === "queued" || event.status === "running");
+  const latest = events[0];
+  const active = running[0] || latest;
+  const percent = active ? Math.round((active.progress / Math.max(1, active.total)) * 100) : 0;
+  const statusLabel = running.length ? `${running.length} 个任务进行中` : latest ? `${latest.status} · ${formatDate(latest.updatedAt)}` : "暂无后台任务";
+  return (
+    <button className={`task-center ${running.length ? "running" : ""}`} onClick={onOpen}>
+      <Bell size={16} />
+      <span>
+        <strong>Events</strong>
+        <em>{statusLabel}</em>
+      </span>
+      {active ? <b>{percent}%</b> : null}
+    </button>
+  );
+}
+
 function SkillManagerLogo() {
   return (
     <div className="skill-manager-logo" aria-hidden="true">
@@ -529,14 +560,16 @@ function DiscoverDetail({ item, onInstall, onUninstall, busy, starred, onStar, i
           Open on {item.sourceLabel || "GitHub"}
         </button>
       </div>
-      <div className="facts discover-facts">
-        <span><b>来源</b>{sourceName}</span>
-        <span><b>仓库</b>{sourceName}</span>
-        <span><b>安装状态</b>{installedAgents.length ? installedAgents.join(", ") : "未安装"}</span>
-        <span><b>{item.installsLabel ? "Installs" : "Stars"}</b>{item.installsLabel || item.stars.toLocaleString()}</span>
-        <span><b>8W Activity</b>{item.weeklyLabel || "-"}</span>
-        <span><b>Rank</b>{item.rank ? `#${item.rank}` : "-"}</span>
-      </div>
+      <MetaStrip
+        className="discover-meta"
+        items={[
+          { label: "安装状态", value: installedAgents.length ? installedAgents.join(", ") : "未安装" },
+          { label: "来源", value: sourceName },
+          { label: item.installsLabel ? "Installs" : "Stars", value: item.installsLabel || item.stars.toLocaleString() },
+          { label: "8W Activity", value: item.weeklyLabel || "-" },
+          { label: "Rank", value: item.rank ? `#${item.rank}` : "-" }
+        ]}
+      />
       <div className="detail-tags">
         <span>{sourceName}</span>
         <span>{item.sourceLabel || "skills.sh"}</span>
@@ -931,12 +964,14 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall }) {
           </button>
         ) : null}
       </div>
-      <div className="facts">
-        <span><b>{isUninstalledSkill ? "卸载来源" : "已安装"}</b>{isUninstalledSkill ? uninstallSource : installationAgents.join(", ")}</span>
-        <span><b>行数</b>{skill.lines}</span>
-        <span><b>大小</b>{Math.round(skill.bytes / 1024)} KB</span>
-        <span><b>更新</b>{formatDate(skill.updatedAt)}</span>
-      </div>
+      <MetaStrip
+        items={[
+          { label: isUninstalledSkill ? "卸载来源" : "已安装", value: isUninstalledSkill ? uninstallSource : installationAgents.join(", ") },
+          { label: "行数", value: skill.lines },
+          { label: "大小", value: `${Math.round(skill.bytes / 1024)} KB` },
+          { label: "更新", value: formatDate(skill.updatedAt) }
+        ]}
+      />
       {installations.length > 1 ? (
         <div className="installations-panel">
           {installations.map((copy) => (
@@ -2027,8 +2062,6 @@ function App() {
             ))}
           </div>
           <div className="settings-nav">
-            <NavRow icon={Activity} label="Events" count={operationEvents.length} active={listMode === "events"} onClick={() => setListMode("events")} />
-            <NavRow icon={Activity} label="Logs" count={operationLogs.length} active={listMode === "logs"} onClick={() => setListMode("logs")} />
             <NavRow icon={Settings2} label="Settings" count="" active={listMode === "settings"} onClick={() => setListMode("settings")} />
           </div>
         </aside>
@@ -2190,6 +2223,12 @@ function App() {
         onConfirm={confirmPendingInstall}
         busy={Boolean(busyAction)}
       />
+      {listMode !== "events" && listMode !== "logs" ? (
+        <div className="task-center-wrap">
+          <TaskCenterButton events={operationEvents} onOpen={() => setListMode("events")} />
+          <button className="task-log-link" onClick={() => setListMode("logs")}>Logs {operationLogs.length ? operationLogs.length : ""}</button>
+        </div>
+      ) : null}
     </main>
   );
 }
