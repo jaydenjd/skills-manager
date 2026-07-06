@@ -775,6 +775,7 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
   const [syncTargetIds, setSyncTargetIds] = useState([]);
   const [draft, setDraft] = useState("");
   const [mode, setMode] = useState("view");
+  const [pendingNavigation, setPendingNavigation] = useState(null);
   const [history, setHistory] = useState([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState(null);
@@ -811,7 +812,29 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
     }
   }
 
-  async function openSkillCopy(copy, nextMode = "view") {
+  function hasUnsavedChanges() {
+    return mode === "edit" && activeFile && draft !== activeFile.content;
+  }
+
+  async function runPendingNavigation(pending = pendingNavigation) {
+    if (!pending) return;
+    setPendingNavigation(null);
+    if (pending.type === "copy") {
+      await openSkillCopyNow(pending.copy, pending.nextMode);
+    } else if (pending.type === "file") {
+      await openTreeFileNow(pending.item);
+    }
+  }
+
+  async function openSkillCopy(copy, nextMode = mode) {
+    if (hasUnsavedChanges()) {
+      setPendingNavigation({ type: "copy", copy, nextMode });
+      return;
+    }
+    await openSkillCopyNow(copy, nextMode);
+  }
+
+  async function openSkillCopyNow(copy, nextMode = "view") {
     if (!copy) return;
     setFileError("");
     let content = copy.raw || "";
@@ -841,6 +864,7 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
     setActiveFile(file);
     setDraft(file.content);
     setMode(nextMode);
+    setPendingNavigation(null);
     setFileError("");
     setHistoryOpen(false);
     setSelectedVersion(null);
@@ -859,6 +883,14 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
   }, [skill]);
 
   async function openTreeFile(item) {
+    if (hasUnsavedChanges()) {
+      setPendingNavigation({ type: "file", item });
+      return;
+    }
+    await openTreeFileNow(item);
+  }
+
+  async function openTreeFileNow(item) {
     setFileError("");
     try {
       const result = await window.skillStudio.readFile(item.path);
@@ -873,7 +905,7 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
       };
       setActiveFile(file);
       setDraft(file.content);
-      setMode("view");
+      setPendingNavigation(null);
       setHistoryOpen(false);
       setSelectedVersion(null);
       setVersionDetail(null);
@@ -884,13 +916,12 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
   }
 
   async function saveDraft() {
-    if (!activeFile) return;
+    if (!activeFile) return false;
     setSaving(true);
     setFileError("");
     try {
       const result = await window.skillStudio.saveFile(activeFile.path, draft);
       setActiveFile({ ...activeFile, content: draft, size: result.size, updatedAt: result.updatedAt });
-      setMode("view");
       await loadHistory(activeFile.path);
       setSelectedVersion(null);
       setVersionDetail(null);
@@ -906,8 +937,10 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
         setSyncTargetIds(syncTargets.map((copy) => copy.id));
       }
       onSaved?.();
+      return true;
     } catch (err) {
       setFileError(err.message || String(err));
+      return false;
     } finally {
       setSaving(false);
     }
@@ -1013,9 +1046,29 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
             <Save size={14} />
             {saving ? "保存中" : "保存修改"}
           </button>
-          <button className="soft-button" onClick={() => setDraft(activeFile?.content || "")} disabled={draft === activeFile?.content}>
+          <button className="soft-button" onClick={() => { setDraft(activeFile?.content || ""); setPendingNavigation(null); }} disabled={draft === activeFile?.content}>
             <RotateCcw size={14} />
-            撤销未保存
+            取消修改
+          </button>
+        </div>
+      ) : null}
+      {pendingNavigation ? (
+        <div className="pending-edit-panel">
+          <span>当前文件有未保存修改，切换前请选择处理方式。</span>
+          <button
+            onClick={async () => {
+              const saved = await saveDraft();
+              if (saved) await runPendingNavigation();
+            }}
+            disabled={saving}
+          >
+            保存并切换
+          </button>
+          <button className="soft-button" onClick={() => runPendingNavigation()} disabled={saving}>
+            放弃修改
+          </button>
+          <button className="soft-button" onClick={() => setPendingNavigation(null)} disabled={saving}>
+            继续编辑
           </button>
         </div>
       ) : null}

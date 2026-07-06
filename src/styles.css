@@ -1178,6 +1178,45 @@ button {
   cursor: default;
 }
 
+.pending-edit-panel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid #d8c39a;
+  border-radius: 8px;
+  background: #fff7df;
+  box-shadow: inset 4px 0 0 #f3bd2e;
+}
+
+.pending-edit-panel span {
+  min-width: 0;
+  flex: 1 1 auto;
+  color: #5f5646;
+  font-size: 12px;
+}
+
+.pending-edit-panel button {
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid #1f211d;
+  border-radius: 7px;
+  background: #d2ff2f;
+  color: #1f211d;
+}
+
+.pending-edit-panel .soft-button {
+  border-color: #d8d1c2;
+  background: #fffdf7;
+  color: #444842;
+}
+
+.pending-edit-panel button:disabled {
+  opacity: 0.58;
+  cursor: default;
+}
+
 .copy-sync-panel {
   display: grid;
   gap: 10px;
