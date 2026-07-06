@@ -1715,7 +1715,7 @@ function App() {
   const [localSort, setLocalSort] = useState("updated");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [tagCloudOpen, setTagCloudOpen] = useState(false);
-  const [activeTag, setActiveTag] = useState("");
+  const [activeTags, setActiveTags] = useState([]);
   const [selected, setSelected] = useState(null);
   const [selectedDiscover, setSelectedDiscover] = useState(null);
   const [selectedStarred, setSelectedStarred] = useState(null);
@@ -2078,7 +2078,7 @@ function App() {
     const matches = (data?.skills || []).filter((skill) => {
       const sourceOk = sourceFilter === "all" || skill.client === sourceFilter;
       if (!sourceOk) return false;
-      if (activeTag && !(skill.tags || []).includes(activeTag)) return false;
+      if (activeTags.length && !activeTags.every((tag) => (skill.tags || []).includes(tag))) return false;
       return matchesSearchFields(localSkillSearchValues(skill, searchOptions), q);
     });
     const visible = sourceFilter === "all" && settings?.mergeDuplicateSkills !== false ? mergeSkillCopies(matches) : matches;
@@ -2086,7 +2086,7 @@ function App() {
       if (localSort === "alpha") return a.name.localeCompare(b.name);
       return new Date(b.updatedAt) - new Date(a.updatedAt);
     });
-  }, [data, query, sourceFilter, activeTag, localSort, searchOptions, settings]);
+  }, [data, query, sourceFilter, activeTags, localSort, searchOptions, settings]);
 
   const tagCounts = useMemo(() => {
     const map = new Map();
@@ -2232,6 +2232,10 @@ function App() {
     return sources.filter((source) => source.enabled);
   }, [settings, data]);
 
+  function toggleActiveTag(tag) {
+    setActiveTags((current) => current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]);
+  }
+
   useEffect(() => {
     if (!installTargets.length) return;
     const valid = selectedInstallTargets.filter((id) => installTargets.some((source) => source.id === id));
@@ -2319,10 +2323,39 @@ function App() {
             <div className="result-controls">
               {listMode === "installed" ? (
                 <>
-                  <button className={`tag-cloud-toggle ${tagCloudOpen ? "on" : ""}`} onClick={() => setTagCloudOpen((open) => !open)}>
-                    <Tags size={15} />
-                    标签云
-                  </button>
+                  <div className="tag-filter-wrap">
+                    <button className={`tag-cloud-toggle ${tagCloudOpen ? "on" : ""}`} onClick={() => setTagCloudOpen((open) => !open)}>
+                      <Tags size={15} />
+                      标签云
+                      {activeTags.length ? <em>{activeTags.length}</em> : null}
+                    </button>
+                    {tagCloudOpen ? (
+                      <div className="tag-cloud-panel">
+                        <div className="tag-cloud-head">
+                          <span>多选标签</span>
+                          {activeTags.length ? <button onClick={() => setActiveTags([])}>清除</button> : null}
+                        </div>
+                        <div className="tag-cloud">
+                          {tagCounts.length ? tagCounts.slice(0, 80).map(({ tag, count }) => {
+                            const max = Math.max(1, tagCounts[0]?.count || 1);
+                            const level = Math.min(5, Math.max(1, Math.ceil((count / max) * 5)));
+                            return (
+                              <TagPill
+                                key={tag}
+                                tag={tag}
+                                as="button"
+                                className={`cloud-tag size-${level} ${activeTags.includes(tag) ? "active" : ""}`}
+                                onClick={() => toggleActiveTag(tag)}
+                              >
+                                <strong>{tag}</strong>
+                                <em>{count}</em>
+                              </TagPill>
+                            );
+                          }) : <span className="tag-cloud-empty">暂无标签</span>}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
                   <select value={localSort} onChange={(event) => setLocalSort(event.target.value)}>
                     <option value="updated">按更新时间</option>
                     <option value="alpha">按字母顺序</option>
@@ -2339,36 +2372,12 @@ function App() {
               ) : null}
             </div>
           </div>
-          {listMode === "installed" && tagCloudOpen ? (
-            <div className="tag-cloud-panel">
-              <div className="tag-cloud-head">
-                <span>按标签统计</span>
-                {activeTag ? <button onClick={() => setActiveTag("")}>清除过滤：{activeTag}</button> : null}
-              </div>
-              <div className="tag-cloud">
-                {tagCounts.length ? tagCounts.slice(0, 80).map(({ tag, count }) => {
-                  const max = Math.max(1, tagCounts[0]?.count || 1);
-                  const level = Math.min(5, Math.max(1, Math.ceil((count / max) * 5)));
-                  return (
-                    <TagPill
-                      key={tag}
-                      tag={tag}
-                      as="button"
-                      className={`cloud-tag size-${level} ${activeTag === tag ? "active" : ""}`}
-                      onClick={() => setActiveTag(activeTag === tag ? "" : tag)}
-                    >
-                      <strong>{tag}</strong>
-                      <em>{count}</em>
-                    </TagPill>
-                  );
-                }) : <span className="tag-cloud-empty">暂无标签</span>}
-              </div>
-            </div>
-          ) : null}
-          {listMode === "installed" && activeTag ? (
+          {listMode === "installed" && activeTags.length ? (
             <div className="active-filter-row">
-              <TagPill tag={activeTag}>标签：{activeTag}</TagPill>
-              <button onClick={() => setActiveTag("")}>清除</button>
+              {activeTags.map((tag) => (
+                <TagPill key={tag} tag={tag} as="button" onClick={() => toggleActiveTag(tag)}>标签：{tag}</TagPill>
+              ))}
+              <button onClick={() => setActiveTags([])}>清除</button>
             </div>
           ) : null}
           <div className="skill-list" onScroll={handleListScroll}>
