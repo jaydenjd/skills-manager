@@ -11,6 +11,7 @@
     "build": "vite build",
     "dist": "npm run dist:mac",
     "dist:mac": "npm run build && electron-builder --mac dmg --publish never",
+    "dist:mac:signed": "CSC_NAME=\"JUNDE WU (A8DZ968K75)\" npm run dist:mac",
     "dist:mac:arm64": "npm run build && electron-builder --mac dmg --arm64 --publish never",
     "dist:mac:x64": "npm run build && electron-builder --mac dmg --x64 --publish never",
     "dist:win": "npm run build && electron-builder --win nsis --x64 --publish never",
@@ -26,6 +27,7 @@
     "vite": "^6.0.7"
   },
   "devDependencies": {
+    "@electron/notarize": "^3.1.1",
     "concurrently": "^9.1.2",
     "electron": "^33.2.1",
     "electron-builder": "^25.1.8",
@@ -49,10 +51,16 @@
     "mac": {
       "category": "public.app-category.developer-tools",
       "icon": "build/icon.icns",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "identity": "JUNDE WU (A8DZ968K75)",
       "target": [
         "dmg"
       ]
     },
+    "afterSign": "build/notarize.cjs",
     "win": {
       "icon": "build/icon.ico",
       "target": [

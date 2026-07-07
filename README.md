@@ -129,12 +129,43 @@ The app icon is configured from:
 build/icon.icns
 ```
 
-The generated DMG is currently unsigned. On another Mac, the first launch may require right-clicking the app and choosing **Open**, or allowing it in macOS Security settings.
+macOS builds are configured for Developer ID signing and optional Apple notarization.
+
+Local signing uses the configured certificate:
+
+```text
+JUNDE WU (A8DZ968K75)
+```
+
+Build a signed DMG on the Mac that has this certificate installed:
+
+```bash
+npm run dist:mac:signed
+```
+
+To notarize the signed app, set App Store Connect API key environment variables before building:
+
+```bash
+export APPLE_API_KEY="/absolute/path/to/AuthKey_XXXXXXXXXX.p8"
+export APPLE_API_KEY_ID="XXXXXXXXXX"
+export APPLE_API_ISSUER="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+npm run dist:mac:signed
+```
+
+If these Apple variables are not set, the build still signs the app but skips notarization. For public distribution outside the Mac App Store, notarization is recommended so other Macs can open the app without Gatekeeper reporting that it is damaged.
 
 To verify a DMG:
 
 ```bash
 hdiutil verify "release/Skill Manager-<version>-arm64.dmg"
+```
+
+To verify the app signature:
+
+```bash
+codesign --verify --deep --strict --verbose=2 "release/mac-arm64/Skill Manager.app"
+spctl --assess --type execute --verbose "release/mac-arm64/Skill Manager.app"
 ```
 
 ## Package For Windows
