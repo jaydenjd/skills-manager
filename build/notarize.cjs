@@ -10,9 +10,10 @@ exports.default = async function notarizeMac(context) {
   const appleApiKey = process.env.APPLE_API_KEY;
   const appleApiKeyId = process.env.APPLE_API_KEY_ID;
   const appleApiIssuer = process.env.APPLE_API_ISSUER;
+  const keychainProfile = process.env.APPLE_NOTARY_KEYCHAIN_PROFILE;
 
-  if (!appleApiKey || !appleApiKeyId || !appleApiIssuer) {
-    console.log("Skipping notarization: APPLE_API_KEY, APPLE_API_KEY_ID, or APPLE_API_ISSUER is not set.");
+  if (!keychainProfile && (!appleApiKey || !appleApiKeyId || !appleApiIssuer)) {
+    console.log("Skipping notarization: set APPLE_NOTARY_KEYCHAIN_PROFILE or APPLE_API_KEY/APPLE_API_KEY_ID/APPLE_API_ISSUER.");
     return;
   }
 
@@ -20,11 +21,18 @@ exports.default = async function notarizeMac(context) {
   const appPath = path.join(appOutDir, `${appName}.app`);
 
   console.log(`Notarizing ${appPath}`);
-  await notarize({
+  const options = {
     appBundleId: packager.appInfo.appId,
-    appPath,
-    appleApiKey,
-    appleApiKeyId,
-    appleApiIssuer
-  });
+    appPath
+  };
+
+  if (keychainProfile) {
+    options.keychainProfile = keychainProfile;
+  } else {
+    options.appleApiKey = appleApiKey;
+    options.appleApiKeyId = appleApiKeyId;
+    options.appleApiIssuer = appleApiIssuer;
+  }
+
+  await notarize(options);
 };

@@ -11,7 +11,7 @@
     "build": "vite build",
     "dist": "npm run dist:mac",
     "dist:mac": "npm run build && electron-builder --mac dmg --publish never",
-    "dist:mac:signed": "CSC_NAME=\"JUNDE WU (A8DZ968K75)\" npm run dist:mac",
+    "dist:mac:signed": "CSC_NAME=\"JUNDE WU (A8DZ968K75)\" APPLE_NOTARY_KEYCHAIN_PROFILE=\"${APPLE_NOTARY_KEYCHAIN_PROFILE:-skill-manager-notary}\" npm run dist:mac",
     "dist:mac:arm64": "npm run build && electron-builder --mac dmg --arm64 --publish never",
     "dist:mac:x64": "npm run build && electron-builder --mac dmg --x64 --publish never",
     "dist:win": "npm run build && electron-builder --win nsis --x64 --publish never",
@@ -61,6 +61,7 @@
       ]
     },
     "afterSign": "build/notarize.cjs",
+    "afterAllArtifactBuild": "build/notarize-dmg.cjs",
     "win": {
       "icon": "build/icon.ico",
       "target": [
