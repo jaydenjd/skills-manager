@@ -1283,6 +1283,7 @@ function SettingsPage({ settings, onSave, saving }) {
   const [jsonText, setJsonText] = useState(JSON.stringify(settings || fallbackSettings, null, 2));
   const [jsonError, setJsonError] = useState("");
   const [ignoreText, setIgnoreText] = useState((settings?.ignorePatterns || []).join("\n"));
+  const [appInfo, setAppInfo] = useState(null);
 
   useEffect(() => {
     if (!settings) return;
@@ -1291,6 +1292,16 @@ function SettingsPage({ settings, onSave, saving }) {
     setJsonText(JSON.stringify(settings, null, 2));
     setJsonError("");
   }, [settings]);
+
+  useEffect(() => {
+    let alive = true;
+    window.skillStudio.getAppInfo?.().then((info) => {
+      if (alive) setAppInfo(info);
+    }).catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   function switchSettingsMode(mode) {
     if (mode === settingsMode) return;
@@ -1387,6 +1398,14 @@ function SettingsPage({ settings, onSave, saving }) {
           </button>
         </div>
       </div>
+
+      <section className="settings-version-card">
+        <div>
+          <span>应用版本</span>
+          <strong>{appInfo?.version ? `v${appInfo.version}` : "读取中"}</strong>
+        </div>
+        <p>{appInfo?.name || "Skill Manager"} · {appInfo?.isPackaged ? "已打包应用" : "开发模式"}</p>
+      </section>
 
       {settingsMode === "json" ? (
         <section className="settings-card settings-json-card">

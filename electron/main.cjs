@@ -1089,6 +1089,12 @@ ipcMain.handle("settings:save", async (_event, settings) => {
   return saved;
 });
 
+ipcMain.handle("app:info", async () => ({
+  name: app.getName(),
+  version: app.getVersion(),
+  isPackaged: app.isPackaged
+}));
+
 function sourceNamesForTargetIds(targetIds = []) {
   const settings = getSettings();
   return targetIds.map((id) => sourceLabelById(settings, id)).join(", ");

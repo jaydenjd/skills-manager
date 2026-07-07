@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld("skillStudio", {
   installDiscover: (item, targetSourceId, forceUpdate) => ipcRenderer.invoke("discover:install", item, targetSourceId, forceUpdate),
   getSources: () => ipcRenderer.invoke("sources:get"),
   saveSources: (sources) => ipcRenderer.invoke("sources:save", sources),
+  getAppInfo: () => ipcRenderer.invoke("app:info"),
   getSettings: () => ipcRenderer.invoke("settings:get"),
   saveSettings: (settings) => ipcRenderer.invoke("settings:save", settings),
   operationLogs: () => ipcRenderer.invoke("operations:list"),

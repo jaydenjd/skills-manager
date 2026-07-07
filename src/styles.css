@@ -2164,6 +2164,36 @@ button.tag-pill {
   cursor: default;
 }
 
+.settings-version-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid #ded7c8;
+  border-radius: 8px;
+  background: #fffdf7;
+}
+
+.settings-version-card div {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.settings-version-card span,
+.settings-version-card p {
+  margin: 0;
+  color: #62675e;
+  font-size: 12px;
+}
+
+.settings-version-card strong {
+  color: #1f211d;
+  font-size: 15px;
+}
+
 .settings-head-actions {
   display: flex;
   align-items: center;
