@@ -210,6 +210,28 @@ Regular pushes to `master` or `main` build installer artifacts:
 
 Download them from the completed workflow run under **Actions -> Build Installers -> Artifacts**.
 
+For `push` and `tag` builds, macOS artifacts are signed and notarized when the following GitHub repository secrets are configured:
+
+| Secret | Purpose |
+| --- | --- |
+| `MAC_CERTIFICATE_BASE64` | Base64 encoded Developer ID Application `.p12` certificate. |
+| `MAC_CERTIFICATE_PASSWORD` | Password used when exporting the `.p12`. |
+| `KEYCHAIN_PASSWORD` | Temporary CI keychain password, any strong random value. |
+| `APPLE_API_KEY_BASE64` | Base64 encoded App Store Connect `AuthKey_*.p8`. |
+| `APPLE_API_KEY_ID` | App Store Connect API Key ID. |
+| `APPLE_API_ISSUER` | App Store Connect Issuer ID. |
+
+Create the base64 values on macOS:
+
+```bash
+base64 -i /path/to/DeveloperIDApplication.p12 | pbcopy
+base64 -i /path/to/AuthKey_XXXXXXXXXX.p8 | pbcopy
+```
+
+Add them under **GitHub -> Repository -> Settings -> Secrets and variables -> Actions -> New repository secret**.
+
+Pull request builds intentionally use unsigned macOS artifacts because GitHub does not expose signing secrets to untrusted PR contexts.
+
 ## Publish A Release
 
 Formal releases are tag based. Update the version, push the commit, then push the tag:
