@@ -1,5 +1,7 @@
 # Skill Manager
 
+[English](README.en.md) | 中文
+
 Skill Manager 是一个本地桌面应用，用来管理不同 AI Agent 客户端里的 skills。它可以扫描本地已经安装的 `SKILL.md`，展示 skill 目录结构，支持阅读、编辑、历史版本、回滚、收藏，也可以从 skills.sh 发现热门 skill，并安装到一个或多个 Agent 目录。
 
 项目基于 Electron、React 和 Vite 构建。
@@ -181,8 +183,6 @@ npm run dist:win
 
 构建产物输出到 `release/`。
 
-也可以通过 GitHub Actions 的 Windows runner 构建。
-
 建议在 Windows 上重点验证：
 
 - Agent 目录识别和路径处理。
@@ -193,62 +193,6 @@ npm run dist:win
 - 设置、日志和事件是否持久化。
 
 未签名的 Windows 安装包可能触发 SmartScreen 提示。如需公开分发，建议配置 Windows 代码签名证书。
-
-## GitHub Actions 构建
-
-仓库包含 GitHub Actions workflow：
-
-```text
-.github/workflows/build.yml
-```
-
-推送到 `master` 或 `main` 会构建安装包：
-
-- macOS arm64 DMG
-- macOS Intel/x64 DMG
-- Windows x64 NSIS 安装包
-
-可以在 GitHub 的 **Actions -> Build Installers -> Artifacts** 下载。
-
-对于 push 和 tag 构建，如果仓库配置了以下 secrets，macOS 产物会自动签名并公证：
-
-| Secret | 用途 |
-| --- | --- |
-| `MAC_CERTIFICATE_BASE64` | Developer ID Application `.p12` 证书的 base64 内容 |
-| `MAC_CERTIFICATE_PASSWORD` | 导出 `.p12` 时设置的密码 |
-| `KEYCHAIN_PASSWORD` | CI 临时 Keychain 密码，使用强随机值即可 |
-| `APPLE_API_KEY_BASE64` | App Store Connect `AuthKey_*.p8` 的 base64 内容 |
-| `APPLE_API_KEY_ID` | App Store Connect API Key ID |
-| `APPLE_API_ISSUER` | App Store Connect Issuer ID |
-
-在 macOS 上生成 base64：
-
-```bash
-base64 -i /path/to/DeveloperIDApplication.p12 | pbcopy
-base64 -i /path/to/AuthKey_XXXXXXXXXX.p8 | pbcopy
-```
-
-在 GitHub 仓库设置中添加：
-
-```text
-Settings -> Secrets and variables -> Actions -> New repository secret
-```
-
-PR 构建默认不使用签名证书，因为 GitHub 不会把 secrets 暴露给不受信任的 PR 上下文。
-
-## 发布正式版本
-
-正式版本通过 tag 发布。先更新版本号并提交，再推送 tag：
-
-```bash
-npm version patch
-git push
-git push origin v<version>
-```
-
-任何匹配 `v*` 的 tag 都会触发 release job。workflow 会构建全部安装包，创建 GitHub Release，并上传 `.dmg` 和 `.exe`。
-
-项目里的 `electron-builder` 使用 `--publish never`，它只负责生成本地安装包；GitHub Release 发布由 workflow 里的 release job 负责。
 
 ## 项目结构
 
