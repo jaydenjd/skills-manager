@@ -54,7 +54,12 @@ jobs:
           CERTIFICATE_PATH="$RUNNER_TEMP/developer-id-application.p12"
           KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
 
-          echo "$MAC_CERTIFICATE_BASE64" | base64 -D > "$CERTIFICATE_PATH"
+          echo "Certificate secret length: ${#MAC_CERTIFICATE_BASE64}"
+          printf '%s' "$MAC_CERTIFICATE_BASE64" \
+            | tr -d '\n\r\t ' \
+            | sed "s/^'//;s/'$//;s/^\"//;s/\"$//" \
+            | base64 -D > "$CERTIFICATE_PATH"
+          echo "Certificate file size: $(wc -c < "$CERTIFICATE_PATH") bytes"
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
@@ -73,7 +78,12 @@ jobs:
             echo "Missing APPLE_API_KEY_BASE64 secret."
             exit 1
           fi
-          echo "$APPLE_API_KEY_BASE64" | base64 -D > "$RUNNER_TEMP/AuthKey.p8"
+          echo "Apple API key secret length: ${#APPLE_API_KEY_BASE64}"
+          printf '%s' "$APPLE_API_KEY_BASE64" \
+            | tr -d '\n\r\t ' \
+            | sed "s/^'//;s/'$//;s/^\"//;s/\"$//" \
+            | base64 -D > "$RUNNER_TEMP/AuthKey.p8"
+          echo "Apple API key file size: $(wc -c < "$RUNNER_TEMP/AuthKey.p8") bytes"
           chmod 600 "$RUNNER_TEMP/AuthKey.p8"
 
       - name: Build signed and notarized macOS installer
