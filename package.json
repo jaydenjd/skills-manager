@@ -1,6 +1,6 @@
 {
   "name": "skill-manager",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Local multi-client skill manager for macOS",
   "private": true,
   "main": "electron/main.cjs",

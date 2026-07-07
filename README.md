@@ -1,46 +1,46 @@
 # Skill Manager
 
-Skill Manager is a local desktop app for managing AI agent skills across multiple clients. It helps you browse installed `SKILL.md` packages, inspect their directory structure, edit skill files, discover popular skills from skills.sh, and install or uninstall skills across configured agents.
+Skill Manager 是一个本地桌面应用，用来管理不同 AI Agent 客户端里的 skills。它可以扫描本地已经安装的 `SKILL.md`，展示 skill 目录结构，支持阅读、编辑、历史版本、回滚、收藏，也可以从 skills.sh 发现热门 skill，并安装到一个或多个 Agent 目录。
 
-The app is built with Electron, React, and Vite.
+项目基于 Electron、React 和 Vite 构建。
 
-## Screenshots
+## 截图
 
-### Discover skills
+### Discover Skills
 
-Browse skills.sh rankings, search the leaderboard, inspect repository metadata, and install a skill into one or more configured agents.
+浏览 skills.sh 排行榜，支持 All Time、Trending、Hot 排序，搜索 skill，查看仓库信息，并安装到指定 Agent。
 
 ![Discover skills](docs/screenshots/discover.png)
 
-### Local skill detail
+### 本地 Skill 详情
 
-Review installed or starred skills, inspect `SKILL.md`, browse the full directory tree, and see which agent copies exist locally.
+查看已安装或收藏的 skill，阅读 `SKILL.md`，浏览完整目录树，并查看当前 skill 安装到了哪些 Agent。
 
 ![Installed skills](docs/screenshots/installed-skills.jpg)
 
-### Multi-agent install
+### 多 Agent 安装
 
-Install, uninstall, restore, and update can target multiple agent directories. The app can remember the previous selection or use a configured default.
+安装、卸载、恢复、更新都支持选择多个 Agent 目录。应用可以记住上次选择，也可以使用设置里的默认安装目标。
 
 ![Choose install agents](docs/screenshots/install-agents_v2.png)
 
-## Features
+## 主要能力
 
-- Discover skills from skills.sh with All Time, Trending, and Hot rankings.
-- Search local and discover skills by configurable fields.
-- Manage installed skills across multiple agent directories.
-- Browse local tags in a tag cloud and jump to matching skills.
-- Install, uninstall, restore, and update skills through background operation events.
-- Move uninstalled skills into the app data directory instead of deleting them.
-- View `SKILL.md` with a skill-friendly reader and full directory tree.
-- Edit local skill files with history, diff, and rollback support.
-- Star skills from Discover, Installed, or Uninstalled.
-- Configure agents, ignore patterns, retention policy, and install defaults.
-- Switch Settings between visual configuration and JSON configuration.
+- 从 skills.sh 发现 skill，支持 All Time、Trending、Hot 排序。
+- 支持搜索本地和 Discover skill，搜索范围可配置。
+- 管理多个 Agent 目录下的本地 skill。
+- 支持标签浏览，按标签云查看和筛选相关 skill。
+- 安装、卸载、恢复、更新通过后台事件执行，并展示进度和状态。
+- 卸载时不会直接删除 skill，而是移动到应用数据目录，方便恢复。
+- 以适合 skill 阅读的方式展示 `SKILL.md` 和完整目录树。
+- 支持编辑本地 skill 文件，并提供历史版本、diff 和回滚。
+- Discover、Installed、Uninstalled 都支持收藏。
+- 支持配置 Agent、忽略规则、日志/事件保留时间、默认安装目标。
+- 设置页支持可视化配置和 JSON 配置切换。
 
-## Default Agent Sources
+## 默认 Agent 来源
 
-By default, Skill Manager scans:
+默认扫描以下目录：
 
 - Codex: `~/.codex/skills`
 - Agents: `~/.agents/skills`
@@ -49,192 +49,196 @@ By default, Skill Manager scans:
 - QoderWork: `~/.qoderwork/skills`
 - OpenClaw: `~/.openclaw/skills`
 
-These can be changed in Settings.
+这些目录可以在设置里修改、增加或删除。
 
-## App Data
+## 应用数据目录
 
-Runtime data is stored in Electron's app data directory:
+运行时数据保存在 Electron 的 app data 目录：
 
 ```text
 ~/Library/Application Support/skill-manager
 ```
 
-Important subdirectories:
+主要内容：
 
-- `settings.json`: app settings, logs, events, agents, ignore rules.
-- `history/`: edited file history and rollback versions.
-- `managed-skills/uninstalled/`: skills moved by uninstall.
-- `managed-skills/skills/`: app-managed copied skills.
+- `settings.json`：设置、日志、事件、Agent 配置、忽略规则等。
+- `history/`：编辑历史和可回滚版本。
+- `managed-skills/uninstalled/`：卸载后移动过来的 skill。
+- `managed-skills/skills/`：应用管理的复制 skill。
 
-## Requirements
+## 开发环境要求
 
-For development:
+开发需要：
 
 - Node.js
 - npm
 - Git
 
-For Discover install actions on user machines:
+Discover 安装功能在用户机器上需要：
 
 - Node.js / `npx`
 - Git
-- Network access to skills.sh and GitHub
+- 能访问 skills.sh 和 GitHub 的网络环境
 
-## Install Dependencies
+## 安装依赖
 
 ```bash
 npm install
 ```
 
-If your local `package-lock.json` points to an internal registry, regenerate it with your desired npm registry before sharing development setup:
+如果本地 `package-lock.json` 指向内部 npm 源，分享给外部开发者前可以重新生成：
 
 ```bash
 rm package-lock.json
 npm install --registry=https://registry.npmjs.org/
 ```
 
-## Run In Development
+## 本地开发
 
 ```bash
 npm run start
 ```
 
-This starts Vite and Electron together.
+这个命令会同时启动 Vite 和 Electron。
 
-## Build Frontend
+## 构建前端
 
 ```bash
 npm run build
 ```
 
-The web assets are generated into `dist/`.
+构建产物会输出到 `dist/`。
 
-## Package For macOS
+## 打包 macOS 应用
 
-The current package script builds a macOS DMG:
+普通 macOS DMG 构建：
 
 ```bash
 npm run dist:mac
 ```
 
-Output:
+输出示例：
 
 ```text
 release/Skill Manager-<version>-arm64.dmg
 ```
 
-The app icon is configured from:
+应用图标配置在：
 
 ```text
 build/icon.icns
 ```
 
-macOS builds are configured for Developer ID signing and optional Apple notarization.
-
-Local signing uses the configured certificate:
+macOS 构建已经配置 Developer ID 签名和 Apple 公证。当前签名身份：
 
 ```text
 JUNDE WU (A8DZ968K75)
 ```
 
-Build a signed DMG on the Mac that has this certificate installed:
+在已经安装证书的 Mac 上构建签名并公证的 DMG：
 
 ```bash
 npm run dist:mac:signed
 ```
 
-To notarize the signed app, set App Store Connect API key environment variables before building:
+本地公证默认使用 Keychain profile：
 
-```bash
-export APPLE_API_KEY="/absolute/path/to/AuthKey_XXXXXXXXXX.p8"
-export APPLE_API_KEY_ID="XXXXXXXXXX"
-export APPLE_API_ISSUER="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-
-npm run dist:mac:signed
+```text
+skill-manager-notary
 ```
 
-If these Apple variables are not set, the build still signs the app but skips notarization. For public distribution outside the Mac App Store, notarization is recommended so other Macs can open the app without Gatekeeper reporting that it is damaged.
+Apple 签名和公证的完整配置说明见：
 
-To verify a DMG:
+[docs/apple-notarization.md](docs/apple-notarization.md)
+
+验证 DMG：
 
 ```bash
 hdiutil verify "release/Skill Manager-<version>-arm64.dmg"
 ```
 
-To verify the app signature:
+验证 App 签名和 Gatekeeper 状态：
 
 ```bash
 codesign --verify --deep --strict --verbose=2 "release/mac-arm64/Skill Manager.app"
 spctl --assess --type execute --verbose "release/mac-arm64/Skill Manager.app"
 ```
 
-## Package For Windows
+## 打包 Windows 应用
 
-Windows NSIS packaging is configured in `package.json`. The app icon is:
+Windows 使用 NSIS 安装包，配置在 `package.json`。图标文件：
 
 ```text
 build/icon.ico
 ```
 
-Build on a Windows machine:
+在 Windows 机器上构建：
 
 ```bash
 npm install
 npm run dist:win
 ```
 
-The output will be written to `release/`.
+构建产物输出到 `release/`。
 
-You can also run the same command in a GitHub Actions Windows runner.
+也可以通过 GitHub Actions 的 Windows runner 构建。
 
-Recommended Windows validation:
+建议在 Windows 上重点验证：
 
-- Agent directory detection and path handling.
-- Install, uninstall, restore, and update flows.
-- Opening files and revealing folders.
-- `npx skills add` execution.
-- Git availability.
-- Settings, logs, and events persistence.
+- Agent 目录识别和路径处理。
+- 安装、卸载、恢复、更新流程。
+- 打开文件和定位目录。
+- `npx skills add` 执行。
+- Git 是否可用。
+- 设置、日志和事件是否持久化。
 
-Unsigned Windows builds may trigger SmartScreen warnings. For public distribution, use a code signing certificate.
+未签名的 Windows 安装包可能触发 SmartScreen 提示。如需公开分发，建议配置 Windows 代码签名证书。
 
-## GitHub Actions Builds
+## GitHub Actions 构建
 
-The repository includes a workflow at `.github/workflows/build.yml`.
+仓库包含 GitHub Actions workflow：
 
-Regular pushes to `master` or `main` build installer artifacts:
+```text
+.github/workflows/build.yml
+```
+
+推送到 `master` 或 `main` 会构建安装包：
 
 - macOS arm64 DMG
 - macOS Intel/x64 DMG
-- Windows x64 NSIS installer
+- Windows x64 NSIS 安装包
 
-Download them from the completed workflow run under **Actions -> Build Installers -> Artifacts**.
+可以在 GitHub 的 **Actions -> Build Installers -> Artifacts** 下载。
 
-For `push` and `tag` builds, macOS artifacts are signed and notarized when the following GitHub repository secrets are configured:
+对于 push 和 tag 构建，如果仓库配置了以下 secrets，macOS 产物会自动签名并公证：
 
-| Secret | Purpose |
+| Secret | 用途 |
 | --- | --- |
-| `MAC_CERTIFICATE_BASE64` | Base64 encoded Developer ID Application `.p12` certificate. |
-| `MAC_CERTIFICATE_PASSWORD` | Password used when exporting the `.p12`. |
-| `KEYCHAIN_PASSWORD` | Temporary CI keychain password, any strong random value. |
-| `APPLE_API_KEY_BASE64` | Base64 encoded App Store Connect `AuthKey_*.p8`. |
-| `APPLE_API_KEY_ID` | App Store Connect API Key ID. |
-| `APPLE_API_ISSUER` | App Store Connect Issuer ID. |
+| `MAC_CERTIFICATE_BASE64` | Developer ID Application `.p12` 证书的 base64 内容 |
+| `MAC_CERTIFICATE_PASSWORD` | 导出 `.p12` 时设置的密码 |
+| `KEYCHAIN_PASSWORD` | CI 临时 Keychain 密码，使用强随机值即可 |
+| `APPLE_API_KEY_BASE64` | App Store Connect `AuthKey_*.p8` 的 base64 内容 |
+| `APPLE_API_KEY_ID` | App Store Connect API Key ID |
+| `APPLE_API_ISSUER` | App Store Connect Issuer ID |
 
-Create the base64 values on macOS:
+在 macOS 上生成 base64：
 
 ```bash
 base64 -i /path/to/DeveloperIDApplication.p12 | pbcopy
 base64 -i /path/to/AuthKey_XXXXXXXXXX.p8 | pbcopy
 ```
 
-Add them under **GitHub -> Repository -> Settings -> Secrets and variables -> Actions -> New repository secret**.
+在 GitHub 仓库设置中添加：
 
-Pull request builds intentionally use unsigned macOS artifacts because GitHub does not expose signing secrets to untrusted PR contexts.
+```text
+Settings -> Secrets and variables -> Actions -> New repository secret
+```
 
-## Publish A Release
+PR 构建默认不使用签名证书，因为 GitHub 不会把 secrets 暴露给不受信任的 PR 上下文。
 
-Formal releases are tag based. Update the version, push the commit, then push the tag:
+## 发布正式版本
+
+正式版本通过 tag 发布。先更新版本号并提交，再推送 tag：
 
 ```bash
 npm version patch
@@ -242,36 +246,37 @@ git push
 git push origin v<version>
 ```
 
-Any tag matching `v*` triggers the release job. The workflow builds all installers, creates a GitHub Release, and uploads the `.dmg` and `.exe` files.
+任何匹配 `v*` 的 tag 都会触发 release job。workflow 会构建全部安装包，创建 GitHub Release，并上传 `.dmg` 和 `.exe`。
 
-The package scripts use `--publish never` so `electron-builder` only creates local installers. GitHub Release publishing is handled by the release job with the built-in `GITHUB_TOKEN`.
+项目里的 `electron-builder` 使用 `--publish never`，它只负责生成本地安装包；GitHub Release 发布由 workflow 里的 release job 负责。
 
-## Project Structure
+## 项目结构
 
 ```text
 electron/
-  main.cjs       Electron main process, filesystem operations, install/uninstall, events.
-  preload.cjs    Safe IPC bridge exposed to React.
-  scanner.cjs    Local skill scanner, default sources, ignore rules.
+  main.cjs       Electron 主进程，处理文件系统、安装/卸载、事件等。
+  preload.cjs    安全 IPC bridge，暴露给 React。
+  scanner.cjs    本地 skill 扫描、默认来源、ignore 规则。
 
 src/
-  App.jsx        Main React app.
-  styles.css     UI styles.
+  App.jsx        React 主应用。
+  styles.css     UI 样式。
 
 build/
-  icon.svg       Source app icon.
-  icon.png       Runtime icon.
-  icon.icns      macOS app icon.
-  icon.ico       Windows app icon.
+  icon.svg       图标源文件。
+  icon.png       运行时图标。
+  icon.icns      macOS 应用图标。
+  icon.ico       Windows 应用图标。
 
-dist/            Built frontend assets.
-release/         Packaged installers.
+dist/            前端构建产物。
+release/         本地打包输出。
+docs/            文档和截图。
 ```
 
-## Notes
+## 说明
 
-- Installed skills are not deleted by uninstall. They are moved into the app-managed uninstalled directory.
-- Settings support both visual editing and JSON editing.
-- Operation Logs and Operation Events have configurable retention. By default they are kept forever.
-- Tags are computed from local skill metadata and can be used to browse related installed skills.
-- The app currently focuses on macOS, but the Electron codebase is portable with Windows packaging and path testing.
+- 卸载 skill 不会直接删除文件，而是移动到应用管理的 uninstalled 目录。
+- 设置支持可视化编辑和 JSON 编辑。
+- Logs 和 Events 支持配置保留时间，默认永久保留。
+- 标签从本地 skill 元数据里计算，可用于浏览相关 skill。
+- 当前主要体验聚焦 macOS，同时已配置 Windows 打包流程。
