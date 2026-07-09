@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Activity,
@@ -337,18 +337,24 @@ function useGithubTrends(source) {
   const [meta, setMeta] = useState({});
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const cacheRef = useRef(new Map());
 
   async function refresh() {
     setLoading(true);
     setError("");
+    setItems(cacheRef.current.get(source)?.items || []);
+    setMeta(cacheRef.current.get(source)?.meta || {});
     try {
       const result = await window.skillStudio.githubTrends(source);
       if (Array.isArray(result)) {
         setItems(result);
         setMeta({});
+        cacheRef.current.set(source, { items: result, meta: {} });
       } else {
-        setItems(result.items || []);
+        setItems((current) => result.items?.length ? result.items : current);
         setMeta(result);
+        if (result.items?.length) cacheRef.current.set(source, { items: result.items, meta: result });
+        if (result.stale && result.error) setError(result.error);
       }
     } catch (err) {
       setError(err.message || String(err));
@@ -1781,7 +1787,6 @@ function App() {
   const [selectedInstallTargets, setSelectedInstallTargets] = useState(["agents"]);
   const [dialogTargetIds, setDialogTargetIds] = useState(["agents"]);
   const [pendingInstall, setPendingInstall] = useState(null);
-  const [discoverVisibleLimit, setDiscoverVisibleLimit] = useState(80);
   const [starredMap, setStarredMap] = useState({});
   const [operationLogs, setOperationLogs] = useState([]);
   const [operationEvents, setOperationEvents] = useState([]);
@@ -2222,7 +2227,7 @@ function App() {
     return discoverInstalledMap.get(normalizeSkillName(item?.name)) || [];
   }
 
-  const visibleDiscoverItems = useMemo(() => discoverItems.slice(0, discoverVisibleLimit), [discoverItems, discoverVisibleLimit]);
+  const visibleDiscoverItems = discoverItems;
   const starredItems = useMemo(() => Object.values(starredMap), [starredMap]);
   const starredFiltered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -2255,18 +2260,6 @@ function App() {
     }));
     return [...discoverEntries, ...groupedInstalled, ...groupedUninstalled];
   }, [starredItems, query, searchOptions, settings, data, uninstalledData]);
-
-  useEffect(() => {
-    setDiscoverVisibleLimit(80);
-  }, [discoverSort, query]);
-
-  function handleListScroll(event) {
-    if (listMode !== "discover") return;
-    const element = event.currentTarget;
-    if (element.scrollTop + element.clientHeight >= element.scrollHeight - 180) {
-      setDiscoverVisibleLimit((limit) => Math.min(discoverItems.length, limit + 80));
-    }
-  }
 
   useEffect(() => {
     if (listMode === "settings" || listMode === "logs" || listMode === "events" || listMode === "tags") {
@@ -2465,6 +2458,15 @@ function App() {
                     <button className={discoverSort === "trending" ? "on" : ""} onClick={() => setDiscoverSort("trending")}>Trending (24h)</button>
                     <button className={discoverSort === "hot" ? "on" : ""} onClick={() => setDiscoverSort("hot")}>Hot</button>
                   </div>
+                  {(githubTrends.loading || githubTrends.error || githubTrends.meta?.stale) ? (
+                    <div className={`discover-status ${githubTrends.error ? "warn" : ""}`}>
+                      {githubTrends.loading
+                        ? "正在加载 skills.sh..."
+                        : githubTrends.meta?.stale
+                          ? `skills.sh 暂时不可用，正在显示缓存${githubTrends.meta?.cachedAt ? ` · ${formatDate(githubTrends.meta.cachedAt)}` : ""}`
+                          : `Discover 加载失败：${githubTrends.error}`}
+                    </div>
+                  ) : null}
                 </>
               ) : null}
             </div>
@@ -2477,7 +2479,7 @@ function App() {
               <button onClick={() => setActiveTags([])}>清除</button>
             </div>
           ) : null}
-          <div className="skill-list" onScroll={handleListScroll}>
+          <div className="skill-list">
             {visibleCount === 0 ? <EmptyList mode={listMode} /> : null}
             {listMode === "tags" ? (
               <div className="tag-overview">
@@ -2563,9 +2565,6 @@ function App() {
                 onStar={(starItem) => toggleStar("installed", starItem)}
               />
             ))}
-            {listMode === "discover" && visibleDiscoverItems.length < discoverItems.length ? (
-              <div className="load-more-row">继续向下滚动加载更多 · {visibleDiscoverItems.length}/{discoverItems.length}</div>
-            ) : null}
           </div>
         </section>
 

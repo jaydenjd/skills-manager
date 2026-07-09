@@ -510,6 +510,23 @@ button {
   box-shadow: 0 1px 4px rgba(31, 33, 29, 0.08);
 }
 
+.discover-status {
+  margin-top: 8px;
+  padding: 7px 10px;
+  border: 1px solid #ded7c8;
+  border-radius: 8px;
+  background: #fffdf7;
+  color: #62675e;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.discover-status.warn {
+  border-color: #e3c46b;
+  background: #fff8df;
+  color: #6a5314;
+}
+
 .result-controls select {
   width: 122px;
   height: 34px;

@@ -14,6 +14,7 @@ let storeCache = {};
 let historyDir = "";
 const uninstallMetaFile = ".skill-manager-uninstall.json";
 const legacyUninstallMetaFile = ".skill-studio-uninstall.json";
+const discoverPageSize = 80;
 const removedDefaultSourceIds = new Set([
   "codex-system",
   "codex-plugins",
@@ -430,6 +431,41 @@ function fetchJson(url) {
   });
 }
 
+function fetchJsonApi(url, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const request = https.get(url, {
+      headers: {
+        "User-Agent": "Skill-Manager",
+        "Accept": "application/json",
+        ...headers
+      }
+    }, (response) => {
+      let body = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => {
+        body += chunk;
+      });
+      response.on("end", () => {
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          const error = new Error(`HTTP ${response.statusCode}: ${body.slice(0, 180)}`);
+          error.statusCode = response.statusCode;
+          reject(error);
+          return;
+        }
+        try {
+          resolve(JSON.parse(body));
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+    request.setTimeout(12000, () => {
+      request.destroy(new Error("Request timed out"));
+    });
+    request.on("error", reject);
+  });
+}
+
 function fetchText(url) {
   return new Promise((resolve, reject) => {
     const request = https.get(url, { headers: { "User-Agent": "Skill-Manager" } }, (response) => {
@@ -451,6 +487,19 @@ function fetchText(url) {
     });
     request.on("error", reject);
   });
+}
+
+async function fetchTextWithRetry(url, attempts = 2) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await fetchText(url);
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, 350 * attempt));
+    }
+  }
+  throw lastError;
 }
 
 function fetchBuffer(url, redirects = 0) {
@@ -637,6 +686,66 @@ function skillFromSkillsShRecord(record, index, mode) {
   };
 }
 
+function skillsShViewForMode(mode) {
+  if (mode === "trending") return "trending";
+  if (mode === "hot") return "hot";
+  return "all-time";
+}
+
+function skillFromSkillsShApiRecord(record, index, mode) {
+  const fullName = record.source || "";
+  const name = record.slug || record.skillId || record.name || "";
+  const url = record.url || `https://www.skills.sh/${fullName}/${name}`;
+  const repositoryUrl = record.installUrl || (fullName.includes("/") ? `https://github.com/${fullName}` : url);
+  return {
+    id: `skillssh:${record.id || `${fullName}/${name}`}`,
+    name,
+    fullName,
+    description: record.description || `${name} from ${fullName}`,
+    url,
+    repositoryUrl,
+    source: "skillssh",
+    sourceLabel: "skills.sh",
+    sourceName: fullName,
+    sourceUrl: "https://www.skills.sh/",
+    discoverMode: mode,
+    rank: index + 1,
+    installsLabel: compactNumber(Number(record.installs || 0)),
+    weeklyLabel: "",
+    changeLabel: "",
+    stars: 0,
+    language: "Agent skill",
+    updatedAt: new Date().toISOString(),
+    installCommand: `npx --yes skills add ${repositoryUrl} --skill ${name}`,
+    installMethod: "skills-cli",
+    official: Boolean(record.isOfficial)
+  };
+}
+
+async function fetchSkillsShApiPage(mode) {
+  const token = process.env.VERCEL_OIDC_TOKEN || process.env.SKILLS_SH_TOKEN || "";
+  if (!token) return null;
+  const url = `https://www.skills.sh/api/v1/skills?view=${encodeURIComponent(skillsShViewForMode(mode))}&page=0&per_page=${discoverPageSize}`;
+  const result = await fetchJsonApi(url, { Authorization: `Bearer ${token}` });
+  const pagination = result?.pagination || {};
+  const total = Number(pagination.total || 0);
+  const items = (Array.isArray(result?.data) ? result.data : [])
+    .map((record, index) => skillFromSkillsShApiRecord(record, index, mode))
+    .filter((item) => item.name && item.fullName);
+  if (!items.length) return null;
+  return {
+    source: "skills.sh",
+    mode,
+    page: Number(pagination.page || 0),
+    perPage: Number(pagination.perPage || discoverPageSize),
+    total,
+    totalLabel: total ? total.toLocaleString("en-US") : "",
+    tabLabels: { alltime: total && mode === "alltime" ? total.toLocaleString("en-US") : "", trending: "24h", hot: "" },
+    hasMore: Boolean(pagination.hasMore),
+    items
+  };
+}
+
 async function findSkillDirectory(root, skillName) {
   const wanted = String(skillName || "").toLowerCase();
   const candidates = [];
@@ -722,10 +831,49 @@ function parseSkillsShLeaderboard(html, mode = "alltime") {
   return {
     source: "skills.sh",
     mode,
+    page: 0,
+    perPage: discoverPageSize,
     totalLabel: mode === "alltime" ? tabLabels.alltime : "",
     tabLabels,
-    items
+    hasMore: items.length > discoverPageSize,
+    items: items.slice(0, discoverPageSize)
   };
+}
+
+async function loadSkillsShLeaderboard(url, mode) {
+  const cacheKey = `discoverCache:${mode}`;
+  try {
+    let parsed = null;
+    try {
+      parsed = await fetchSkillsShApiPage(mode);
+    } catch {
+      parsed = null;
+    }
+    parsed = parsed || parseSkillsShLeaderboard(await fetchTextWithRetry(url, 2), mode);
+    if (!parsed.items.length) throw new Error("skills.sh 返回内容为空，暂时无法解析 Discover 列表。");
+    const cached = {
+      ...parsed,
+      cachedAt: new Date().toISOString(),
+      stale: false,
+      error: ""
+    };
+    setStoreValue(cacheKey, cached);
+    return cached;
+  } catch (error) {
+    const cached = getStoreValue(cacheKey, null);
+    if (cached?.items?.length) {
+      return {
+        ...cached,
+        page: Number(cached.page || 0),
+        perPage: Number(cached.perPage || discoverPageSize),
+        hasMore: Boolean(cached.hasMore || cached.items.length > discoverPageSize),
+        items: cached.items.slice(0, discoverPageSize),
+        stale: true,
+        error: error.message || String(error)
+      };
+    }
+    throw error;
+  }
 }
 
 function parseSkillsShDetail(html, item = {}) {
@@ -985,7 +1133,7 @@ ipcMain.handle("github:trends", async (_event, source = "alltime") => {
     trending: "https://www.skills.sh/trending",
     hot: "https://www.skills.sh/hot"
   };
-  if (skillsShUrls[source]) return parseSkillsShLeaderboard(await fetchText(skillsShUrls[source]), source);
+  if (skillsShUrls[source]) return loadSkillsShLeaderboard(skillsShUrls[source], source);
   const queries = {
     all: "agent skill SKILL.md",
     anthropic: "anthropic skills SKILL.md",
