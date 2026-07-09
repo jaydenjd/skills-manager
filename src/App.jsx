@@ -88,12 +88,28 @@ function normalizeSkillName(value = "") {
 
 function isDiscoverUpdateAvailable(item, installedSkills = []) {
   if (!installedSkills.length) return false;
-  const remoteVersion = item.version || item.latestVersion || item.metadata?.version || "";
+  const remoteVersion = skillVersion(item);
   if (!remoteVersion) return false;
   return installedSkills.some((skill) => {
-    const localVersion = skill.frontmatter?.version || skill.frontmatter?.Version || "";
+    const localVersion = skillVersion(skill);
     return localVersion && localVersion !== remoteVersion;
   });
+}
+
+function skillVersion(item = {}) {
+  const value = item.version
+    || item.latestVersion
+    || item.metadata?.version
+    || item.frontmatter?.version
+    || item.frontmatter?.Version
+    || item.frontmatter?.metadata?.version
+    || "";
+  return value === undefined || value === null ? "" : String(value).trim();
+}
+
+function formatNumber(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? number.toLocaleString() : "0";
 }
 
 function matchesSearchFields(values, query) {
@@ -451,6 +467,7 @@ function SkillRow({ skill, selected, onSelect, actionLabel, onAction, busy, star
   const actionClass = actionLabel === "Uninstall" ? "action-uninstall" : "action-install";
   const copies = skill.installations || [skill];
   const copyAgents = [...new Set(copies.map((copy) => copy.client))];
+  const version = skillVersion(skill);
   return (
     <div className={`skill-row ${selected ? "selected" : ""}`} onClick={() => onSelect(skill)}>
       <StarButton active={starred} className="row-star" onClick={(event) => { event.stopPropagation(); onStar(skill); }} />
@@ -459,6 +476,7 @@ function SkillRow({ skill, selected, onSelect, actionLabel, onAction, busy, star
         <div>
           <div className="row-title">
             <strong>{skill.name}</strong>
+            {version ? <span className="version-badge">v{version}</span> : null}
           </div>
           <div className="row-source">{skill.merged ? `${copyAgents.join(", ")} · ${copies.length} copies` : skill.client}</div>
           <p>{skill.description || "暂无描述"}</p>
@@ -477,8 +495,9 @@ function SkillRow({ skill, selected, onSelect, actionLabel, onAction, busy, star
 }
 
 function DiscoverRow({ item, index, selected, onSelect, onInstall, onUninstall, busy, starred, onStar, installedSkills = [] }) {
-  const popularity = item.installsLabel ? `${item.installsLabel} installs` : `★ ${item.stars.toLocaleString()}`;
+  const popularity = item.installsLabel ? `${item.installsLabel} installs` : `★ ${formatNumber(item.stars)}`;
   const sourceName = item.sourceName || item.fullName;
+  const version = skillVersion(item);
   const installedAgents = [...new Set(installedSkills.map((skill) => skill.client))];
   const updateAvailable = isDiscoverUpdateAvailable(item, installedSkills);
   const actionLabel = installedSkills.length ? (updateAvailable ? "Update" : "Uninstall") : "Install";
@@ -490,6 +509,7 @@ function DiscoverRow({ item, index, selected, onSelect, onInstall, onUninstall, 
       <div>
         <div className="row-title">
           <strong>{item.name}</strong>
+          {version ? <span className="version-badge">v{version}</span> : null}
         </div>
         <div className="row-source">{sourceName}</div>
         <p>{item.description || "暂无描述"}</p>
@@ -558,6 +578,7 @@ function DiscoverDetail({ item, onInstall, onUninstall, busy, starred, onStar, i
   const installCommand = detail?.installCommand || item.installCommand || `git clone --depth 1 ${item.url}`;
   const installedAgents = [...new Set(installedSkills.map((skill) => skill.client))];
   const updateAvailable = isDiscoverUpdateAvailable(item, installedSkills);
+  const version = skillVersion(item);
 
   return (
     <section className="detail discover-detail">
@@ -597,8 +618,9 @@ function DiscoverDetail({ item, onInstall, onUninstall, busy, starred, onStar, i
         className="discover-meta"
         items={[
           { label: "安装状态", value: installedAgents.length ? installedAgents.join(", ") : "未安装" },
+          { label: "版本", value: version ? `v${version}` : "" },
           { label: "来源", value: sourceName },
-          { label: item.installsLabel ? "Installs" : "Stars", value: item.installsLabel || item.stars.toLocaleString() },
+          { label: item.installsLabel ? "Installs" : "Stars", value: item.installsLabel || formatNumber(item.stars) },
           { label: "8W Activity", value: item.weeklyLabel || "-" },
           { label: "Rank", value: item.rank ? `#${item.rank}` : "-" }
         ]}
@@ -1038,6 +1060,7 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
   const installationAgents = [...new Set(installations.map((copy) => copy.client))];
   const isUninstalledSkill = skill.sourceId === "uninstalled";
   const uninstallSource = skill.uninstallMeta?.sourceClient || skill.uninstallMeta?.sourceLabel || "未知";
+  const activeVersion = skillVersion(activeCopy || skill);
 
   function selectSkillBaseline(sourceId) {
     const next = { ...baselineOverrides, [baselineKey]: sourceId };
@@ -1088,6 +1111,7 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
       <MetaStrip
         items={[
           { label: isUninstalledSkill ? "卸载来源" : "已安装", value: isUninstalledSkill ? uninstallSource : installationAgents.join(", ") },
+          { label: "版本", value: activeVersion ? `v${activeVersion}` : "" },
           { label: "基准", value: baselineCopy.client },
           { label: "当前副本", value: activeCopy.client },
           { label: "行数", value: activeCopy.lines },

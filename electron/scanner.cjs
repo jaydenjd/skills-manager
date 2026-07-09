@@ -200,6 +200,7 @@ async function readSkill(filePath, source, ignore) {
     dir,
     filePath,
     license: data.license || "",
+    version: data.version || data.Version || data.metadata?.version || "",
     frontmatter: data,
     uninstallMeta,
     content: parsed.content.trim(),
