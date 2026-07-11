@@ -6,7 +6,8 @@ const fsp = require("node:fs/promises");
 const https = require("node:https");
 const path = require("node:path");
 const AdmZip = require("adm-zip");
-const { scanSkills, defaultSources, defaultIgnorePatterns, expandHome } = require("./scanner.cjs");
+const matter = require("gray-matter");
+const { scanSkills, scanSkillDirectory, defaultSources, defaultIgnorePatterns, expandHome } = require("./scanner.cjs");
 
 const isDev = !app.isPackaged;
 let storeFile = "";
@@ -40,6 +41,10 @@ function uninstalledSkillsDir() {
   return path.join(managedDataDir(), "uninstalled");
 }
 
+function skillVersionsDir() {
+  return path.join(managedDataDir(), "versions");
+}
+
 function legacyManagedSkillsDir() {
   return path.join(app.getPath("home"), ".skills-manager", "skills");
 }
@@ -56,6 +61,7 @@ function defaultSettings() {
     baselineSourceId: "agents",
     installTargetMode: "remember-last",
     mergeDuplicateSkills: true,
+    skillVersionRetentionDays: 30,
     logRetentionDays: null,
     eventRetentionDays: null
   };
@@ -83,6 +89,7 @@ function getSettings() {
     baselineSourceId: sources.some((source) => source.id === baselineSourceId) ? baselineSourceId : "agents",
     installTargetMode: getStoreValue("installTargetMode", "remember-last"),
     mergeDuplicateSkills: getStoreValue("mergeDuplicateSkills", true),
+    skillVersionRetentionDays: normalizeRetentionDays(getStoreValue("skillVersionRetentionDays", 30)) || 30,
     logRetentionDays: normalizeRetentionDays(getStoreValue("logRetentionDays", null)),
     eventRetentionDays: normalizeRetentionDays(getStoreValue("eventRetentionDays", null))
   };
@@ -97,6 +104,7 @@ function saveSettings(settings) {
     baselineSourceId: sources.some((source) => source.id === settings?.baselineSourceId) ? settings.baselineSourceId : "agents",
     installTargetMode: settings?.installTargetMode === "always-default" ? "always-default" : "remember-last",
     mergeDuplicateSkills: settings?.mergeDuplicateSkills !== false,
+    skillVersionRetentionDays: normalizeRetentionDays(settings?.skillVersionRetentionDays) || 30,
     logRetentionDays: normalizeRetentionDays(settings?.logRetentionDays),
     eventRetentionDays: normalizeRetentionDays(settings?.eventRetentionDays)
   };
@@ -106,6 +114,7 @@ function saveSettings(settings) {
   setStoreValue("baselineSourceId", next.baselineSourceId);
   setStoreValue("installTargetMode", next.installTargetMode);
   setStoreValue("mergeDuplicateSkills", next.mergeDuplicateSkills);
+  setStoreValue("skillVersionRetentionDays", next.skillVersionRetentionDays);
   setStoreValue("logRetentionDays", next.logRetentionDays);
   setStoreValue("eventRetentionDays", next.eventRetentionDays);
   pruneOperationStores(next);
@@ -133,6 +142,9 @@ function summarizeSettingsChange(before, after) {
   }
   if (before.mergeDuplicateSkills !== after.mergeDuplicateSkills) {
     changes.push(`All Agents 同名合并：${before.mergeDuplicateSkills ? "开启" : "关闭"} -> ${after.mergeDuplicateSkills ? "开启" : "关闭"}`);
+  }
+  if (before.skillVersionRetentionDays !== after.skillVersionRetentionDays) {
+    changes.push(`Skill 版本保留：${before.skillVersionRetentionDays} 天 -> ${after.skillVersionRetentionDays} 天`);
   }
 
   const beforeIgnore = (before.ignorePatterns || []).join("\n");
@@ -353,6 +365,591 @@ function historyPaths(filePath) {
 
 function contentHash(buffer) {
   return crypto.createHash("sha256").update(buffer).digest("hex");
+}
+
+function directoryHash(root) {
+  const hash = crypto.createHash("sha256");
+  function walk(dir) {
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    entries
+      .filter((entry) => ![".git", "node_modules", "__pycache__", uninstallMetaFile, legacyUninstallMetaFile].includes(entry.name))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .forEach((entry) => {
+        const fullPath = path.join(dir, entry.name);
+        const relPath = path.relative(root, fullPath).split(path.sep).join("/");
+        hash.update(relPath);
+        if (entry.isDirectory()) {
+          hash.update("dir");
+          walk(fullPath);
+        } else if (entry.isFile()) {
+          hash.update("file");
+          hash.update(fs.readFileSync(fullPath));
+        }
+      });
+  }
+  walk(root);
+  return hash.digest("hex");
+}
+
+function readSkillPackageMeta(skillDir) {
+  const skillFile = path.join(skillDir, "SKILL.md");
+  let raw = "";
+  let data = {};
+  try {
+    raw = fs.readFileSync(skillFile, "utf8");
+    data = matter(raw).data || {};
+  } catch {
+    data = {};
+  }
+  const name = data.name || path.basename(skillDir);
+  const version = data.version || data.Version || data.metadata?.version || "";
+  return {
+    name,
+    version: version ? String(version) : "",
+    skillKey: safeName(name).toLowerCase(),
+    skillFile,
+    raw
+  };
+}
+
+function bumpSkillVersion(version = "") {
+  const value = String(version || "").trim();
+  const semver = value.match(/^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(.*)$/);
+  if (semver) {
+    const major = Number(semver[1] || 0);
+    const minor = Number(semver[2] || 0);
+    const patch = Number(semver[3] || 0) + 1;
+    return `${major}.${minor}.${patch}`;
+  }
+  const trailing = value.match(/^(.*?)(\d+)$/);
+  if (trailing) return `${trailing[1]}${Number(trailing[2]) + 1}`;
+  return "0.1.0";
+}
+
+function updateSkillMarkdownVersion(content, nextVersion) {
+  const value = String(nextVersion || "").trim();
+  if (!value) return content;
+  if (content.startsWith("---")) {
+    const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+    if (match) {
+      const frontmatter = match[1];
+      const eol = match[0].includes("\r\n") ? "\r\n" : "\n";
+      let nextFrontmatter = "";
+      if (/^version\s*:/im.test(frontmatter)) {
+        nextFrontmatter = frontmatter.replace(/^version\s*:.*$/im, `version: "${value}"`);
+      } else if (/^name\s*:/im.test(frontmatter)) {
+        nextFrontmatter = frontmatter.replace(/^(name\s*:.*)$/im, `$1${eol}version: "${value}"`);
+      } else {
+        nextFrontmatter = `version: "${value}"${eol}${frontmatter}`;
+      }
+      return `---${eol}${nextFrontmatter}${eol}---${eol}${content.slice(match[0].length)}`;
+    }
+  }
+  return `---\nversion: "${value}"\n---\n${content}`;
+}
+
+function versionFromSkillMarkdown(content = "") {
+  try {
+    const parsed = matter(content);
+    const version = parsed.data?.version || parsed.data?.Version || parsed.data?.metadata?.version || "";
+    return version ? String(version) : "";
+  } catch {
+    return "";
+  }
+}
+
+function versionStore() {
+  return getStoreValue("skillVersionState", { installations: {} });
+}
+
+function setVersionStore(next) {
+  setStoreValue("skillVersionState", {
+    installations: next?.installations || {}
+  });
+}
+
+function installVersionKey(sourceId, skillKey) {
+  return `${sourceId || "unknown"}:${skillKey}`;
+}
+
+function versionManifestPath(skillKey, archiveId) {
+  return path.join(skillVersionsDir(), skillKey, archiveId, "manifest.json");
+}
+
+function publicManifest(manifest) {
+  if (!manifest) return null;
+  const { archivePath, ...rest } = manifest;
+  return rest;
+}
+
+async function readVersionManifest(skillKey, archiveId) {
+  try {
+    return JSON.parse(await fsp.readFile(versionManifestPath(skillKey, archiveId), "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+async function listSkillVersions(skillKey) {
+  const root = path.join(skillVersionsDir(), skillKey);
+  let entries = [];
+  try {
+    entries = await fsp.readdir(root, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const manifests = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const manifest = await readVersionManifest(skillKey, entry.name);
+    if (manifest) manifests.push(publicManifest(manifest));
+  }
+  const activeStates = Object.values(versionStore().installations || {})
+    .filter((state) => state.skillKey === skillKey && state.activeArchiveId);
+  const activeIds = new Set(activeStates.map((state) => state.activeArchiveId));
+  const activeClientsById = new Map();
+  activeStates.forEach((state) => {
+    const clients = activeClientsById.get(state.activeArchiveId) || [];
+    clients.push(state.sourceClient || state.sourceId || "Agent");
+    activeClientsById.set(state.activeArchiveId, clients);
+  });
+  const retentionDays = getSettings().skillVersionRetentionDays;
+  const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+  const visible = [];
+  for (const manifest of manifests) {
+    const createdAt = new Date(manifest.createdAt || 0).getTime();
+    const expired = Number.isFinite(createdAt) && createdAt > 0 && createdAt < cutoff;
+    if (expired && !activeIds.has(manifest.id)) {
+      await fsp.rm(path.join(root, manifest.id), { recursive: true, force: true }).catch(() => {});
+    } else {
+      visible.push({
+        ...manifest,
+        active: activeIds.has(manifest.id),
+        activeClients: activeClientsById.get(manifest.id) || []
+      });
+    }
+  }
+  return dedupeSkillVersionManifests(visible).sort(compareSkillVersionManifests);
+}
+
+function versionGroupKey(manifest = {}) {
+  const version = String(manifest.version || manifest.label || "").replace(/^v/i, "").trim();
+  return version || manifest.label || manifest.id;
+}
+
+function dedupeSkillVersionManifests(manifests = []) {
+  const groups = new Map();
+  for (const manifest of manifests) {
+    const key = versionGroupKey(manifest);
+    const list = groups.get(key) || [];
+    list.push(manifest);
+    groups.set(key, list);
+  }
+  return [...groups.values()].map((list) => {
+    const sorted = [...list].sort((a, b) => {
+      if (a.active !== b.active) return a.active ? -1 : 1;
+      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+    });
+    const primary = sorted[0];
+    const duplicateIds = sorted.map((item) => item.id);
+    const activeClients = [...new Set(sorted.flatMap((item) => item.activeClients || []))];
+    const sourceIds = [...new Set(sorted.map((item) => item.sourceId).filter(Boolean))];
+    const sourceClients = [...new Set(sorted.map((item) => item.sourceClient).filter(Boolean))];
+    return {
+      ...primary,
+      duplicateIds,
+      active: sorted.some((item) => item.active),
+      activeClients,
+      sourceIds,
+      sourceClients
+    };
+  });
+}
+
+function semanticVersionParts(value = "") {
+  const text = String(value || "").replace(/^v/i, "").trim();
+  const match = text.match(/^(\d+(?:\.\d+)*)(?:[-+].*)?$/);
+  if (!match) return null;
+  return match[1].split(".").map((part) => Number(part));
+}
+
+function compareSemanticVersionDesc(a, b) {
+  const left = semanticVersionParts(a);
+  const right = semanticVersionParts(b);
+  if (!left || !right) return null;
+  const length = Math.max(left.length, right.length);
+  for (let index = 0; index < length; index += 1) {
+    const diff = (right[index] || 0) - (left[index] || 0);
+    if (diff) return diff;
+  }
+  return 0;
+}
+
+function compareSkillVersionManifests(a, b) {
+  const versionCompare = compareSemanticVersionDesc(a.version || a.label, b.version || b.label);
+  if (versionCompare !== null && versionCompare !== 0) return versionCompare;
+  return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+}
+
+async function archiveSkillDirectory(skillDir, metadata = {}) {
+  if (!skillDir || !fs.existsSync(skillDir)) return null;
+  const stats = await fsp.stat(skillDir);
+  if (!stats.isDirectory()) return null;
+  const meta = readSkillPackageMeta(skillDir);
+  const skillKey = metadata.skillKey || meta.skillKey;
+  const hash = directoryHash(skillDir);
+  const now = new Date().toISOString();
+  const label = meta.version ? `v${meta.version}` : `local ${now.slice(0, 16).replace("T", " ")}`;
+  const existing = (await listSkillVersions(skillKey)).find((entry) => entry.hash === hash && entry.label === label);
+  if (existing) return existing;
+  let archiveId = `${safeName(label).toLowerCase()}-${hash.slice(0, 8)}`;
+  let archiveRoot = path.join(skillVersionsDir(), skillKey, archiveId);
+  if (fs.existsSync(archiveRoot)) {
+    archiveId = `${archiveId}-${Date.now()}`;
+    archiveRoot = path.join(skillVersionsDir(), skillKey, archiveId);
+  }
+  const archivePath = path.join(skillVersionsDir(), skillKey, archiveId, "files");
+  await fsp.mkdir(path.dirname(archivePath), { recursive: true });
+  await fsp.cp(skillDir, archivePath, { recursive: true, force: true });
+  const manifest = {
+    id: archiveId,
+    skillKey,
+    name: meta.name,
+    version: meta.version,
+    label,
+    hash,
+    sourceDir: skillDir,
+    sourceId: metadata.sourceId || "",
+    sourceClient: metadata.client || metadata.sourceClient || "",
+    sourceLabel: metadata.sourceLabel || "",
+    reason: metadata.reason || "archive",
+    archivePath,
+    createdAt: now
+  };
+  await fsp.writeFile(versionManifestPath(skillKey, archiveId), JSON.stringify(manifest, null, 2));
+  return publicManifest(manifest);
+}
+
+async function ensureInstallVersionState(skill) {
+  const meta = readSkillPackageMeta(skill.dir);
+  const key = installVersionKey(skill.sourceId, meta.skillKey);
+  const store = versionStore();
+  let state = store.installations[key];
+  const currentHash = directoryHash(skill.dir);
+  const currentLabel = meta.version ? `v${meta.version}` : "";
+  let activeManifest = state?.activeArchiveId ? await readVersionManifest(meta.skillKey, state.activeArchiveId) : null;
+  if (!state?.activeArchiveId || !activeManifest) {
+    const archived = await archiveSkillDirectory(skill.dir, { ...skill, skillKey: meta.skillKey, reason: "initial-active" });
+    state = {
+      installKey: key,
+      skillKey: meta.skillKey,
+      sourceId: skill.sourceId,
+      sourceClient: skill.client,
+      path: skill.dir,
+      activeArchiveId: archived?.id || "",
+      activeLabel: archived?.label || (meta.version ? `v${meta.version}` : ""),
+      updatedAt: new Date().toISOString()
+    };
+    store.installations[key] = state;
+    setVersionStore(store);
+    activeManifest = archived;
+  }
+  const versions = await listSkillVersions(meta.skillKey);
+  return {
+    skillKey: meta.skillKey,
+    activeArchiveId: state.activeArchiveId || "",
+    activeLabel: state.activeLabel || "",
+    currentHash,
+    currentVersion: meta.version || "",
+    currentLabel: currentLabel || state.activeLabel || "",
+    versions
+  };
+}
+
+async function setActiveVersionState(skillDir, sourceInfo, manifest) {
+  const meta = readSkillPackageMeta(skillDir);
+  const key = installVersionKey(sourceInfo?.sourceId, meta.skillKey);
+  const store = versionStore();
+  store.installations[key] = {
+    installKey: key,
+    skillKey: meta.skillKey,
+    sourceId: sourceInfo?.sourceId || "",
+    sourceClient: sourceInfo?.client || sourceInfo?.sourceClient || "",
+    path: skillDir,
+    activeArchiveId: manifest?.id || "",
+    activeLabel: manifest?.label || (meta.version ? `v${meta.version}` : ""),
+    updatedAt: new Date().toISOString()
+  };
+  setVersionStore(store);
+}
+
+async function enrichSkillVersionInfo(data) {
+  const skills = [];
+  for (const skill of data.skills || []) {
+    if (!skill?.dir || !skill?.sourceId || skill.sourceId === "uninstalled") {
+      skills.push(skill);
+      continue;
+    }
+    try {
+      const versionInfo = await ensureInstallVersionState(skill);
+      skills.push({ ...skill, versionInfo });
+    } catch {
+      skills.push(skill);
+    }
+  }
+  return { ...data, skills };
+}
+
+async function activateSkillVersion(payload = {}) {
+  const { skillDir, sourceInfo = {}, archiveId } = payload;
+  if (!skillDir || !archiveId) throw new Error("缺少要回滚的 skill 或版本。");
+  const activeMeta = readSkillPackageMeta(skillDir);
+  const manifest = await readVersionManifest(activeMeta.skillKey, archiveId);
+  if (!manifest?.archivePath || !fs.existsSync(manifest.archivePath)) throw new Error("找不到这个 skill 版本的归档文件。");
+  const store = versionStore();
+  const currentState = store.installations[installVersionKey(sourceInfo?.sourceId, activeMeta.skillKey)];
+  const currentManifest = currentState?.activeArchiveId ? await readVersionManifest(activeMeta.skillKey, currentState.activeArchiveId) : null;
+  const currentHash = directoryHash(skillDir);
+  if (currentManifest?.hash !== currentHash) {
+    await archiveSkillDirectory(skillDir, { ...sourceInfo, skillKey: activeMeta.skillKey, reason: "before-activate" });
+  }
+  await fsp.rm(skillDir, { recursive: true, force: true });
+  await fsp.cp(manifest.archivePath, skillDir, { recursive: true, force: true });
+  await setActiveVersionState(skillDir, sourceInfo, manifest);
+  const snapshot = await scanSkillDirectory(skillDir, {
+    id: sourceInfo?.sourceId || manifest.sourceId || "local",
+    client: sourceInfo?.client || sourceInfo?.sourceClient || manifest.sourceClient || "Local",
+    label: sourceInfo?.sourceLabel || manifest.sourceLabel || "Local",
+    root: path.dirname(skillDir)
+  }, { ignorePatterns: getSettings().ignorePatterns });
+  const versionInfo = await ensureInstallVersionState(snapshot);
+  appendOperationLog({
+    type: "version",
+    status: "success",
+    title: manifest.name || path.basename(skillDir),
+    message: `已切换到 ${manifest.label || manifest.id}。`,
+    detail: `${manifest.archivePath} -> ${skillDir}`
+  });
+  return {
+    path: skillDir,
+    activeVersion: publicManifest(manifest),
+    skill: { ...snapshot, versionInfo }
+  };
+}
+
+async function deleteSkillVersions(payload = {}) {
+  const { skillDir, archiveIds = [] } = payload;
+  if (!skillDir || !fs.existsSync(skillDir)) throw new Error("缺少 skill 目录。");
+  const ids = [...new Set((archiveIds || []).map((id) => String(id || "").trim()).filter(Boolean))];
+  if (!ids.length) throw new Error("请选择要删除的版本。");
+  const meta = readSkillPackageMeta(skillDir);
+  const store = versionStore();
+  const activeStates = Object.values(store.installations || {})
+    .filter((state) => state.skillKey === meta.skillKey && state.activeArchiveId);
+  const activeIds = new Set(activeStates.map((state) => state.activeArchiveId));
+  const activeClientsById = new Map();
+  activeStates.forEach((state) => {
+    const clients = activeClientsById.get(state.activeArchiveId) || [];
+    clients.push(state.sourceClient || state.sourceId || "Agent");
+    activeClientsById.set(state.activeArchiveId, clients);
+  });
+  const deleted = [];
+  const skipped = [];
+  for (const id of ids) {
+    if (activeIds.has(id)) {
+      skipped.push({ id, reason: "active", activeClients: activeClientsById.get(id) || [] });
+      continue;
+    }
+    const manifest = await readVersionManifest(meta.skillKey, id);
+    if (!manifest) {
+      skipped.push({ id, reason: "missing" });
+      continue;
+    }
+    await fsp.rm(path.join(skillVersionsDir(), meta.skillKey, id), { recursive: true, force: true });
+    deleted.push(id);
+  }
+  appendOperationLog({
+    type: "version",
+    status: "success",
+    title: meta.name || path.basename(skillDir),
+    message: `已删除 ${deleted.length} 个历史版本。`,
+    detail: skipped.length ? `跳过 ${skipped.length} 个当前使用或不存在的版本。` : skillDir
+  });
+  return {
+    deleted,
+    skipped,
+    versions: await listSkillVersions(meta.skillKey)
+  };
+}
+
+function collectTextFilesSync(root, options = {}) {
+  const includeContent = options.includeContent !== false;
+  const files = new Map();
+  function walk(dir) {
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+      if ([".git", "node_modules", "__pycache__", uninstallMetaFile, legacyUninstallMetaFile].includes(entry.name)) continue;
+      const fullPath = path.join(dir, entry.name);
+      const relPath = path.relative(root, fullPath).split(path.sep).join("/");
+      if (entry.isDirectory()) {
+        walk(fullPath);
+      } else if (entry.isFile()) {
+        try {
+          const stats = fs.statSync(fullPath);
+          if (stats.size > 2 * 1024 * 1024) {
+            files.set(relPath, { path: relPath, binary: true, content: "", hash: `large:${stats.size}` });
+            continue;
+          }
+          const buffer = fs.readFileSync(fullPath);
+          const binary = buffer.includes(0);
+          files.set(relPath, {
+            path: relPath,
+            fullPath,
+            binary,
+            content: binary || !includeContent ? "" : buffer.toString("utf8"),
+            hash: contentHash(buffer)
+          });
+        } catch {
+          // Ignore unreadable files in diff.
+        }
+      }
+    }
+  }
+  walk(root);
+  return files;
+}
+
+function collectedFileContent(file) {
+  if (!file || file.binary) return "";
+  if (file.content) return file.content;
+  if (!file.fullPath) return "";
+  try {
+    return fs.readFileSync(file.fullPath, "utf8");
+  } catch {
+    return "";
+  }
+}
+
+async function diffSkillVersion(payload = {}) {
+  const { skillDir, archiveId } = payload;
+  if (!skillDir || !archiveId) throw new Error("缺少 skill 目录或版本。");
+  const meta = readSkillPackageMeta(skillDir);
+  const manifest = await readVersionManifest(meta.skillKey, archiveId);
+  if (!manifest?.archivePath || !fs.existsSync(manifest.archivePath)) throw new Error("找不到这个 skill 版本的归档文件。");
+  const oldFiles = collectTextFilesSync(manifest.archivePath, { includeContent: false });
+  const currentFiles = collectTextFilesSync(skillDir, { includeContent: false });
+  const paths = [...new Set([...oldFiles.keys(), ...currentFiles.keys()])].sort();
+  const files = paths.flatMap((relPath) => {
+    const before = oldFiles.get(relPath);
+    const after = currentFiles.get(relPath);
+    if (before?.hash === after?.hash) return [];
+    return [{
+      path: relPath,
+      type: before && after ? "modified" : before ? "deleted" : "added",
+      binary: Boolean(before?.binary || after?.binary),
+      content: collectedFileContent(before),
+      current: collectedFileContent(after)
+    }];
+  });
+  return {
+    version: publicManifest(manifest),
+    files
+  };
+}
+
+function buildFileDiff(beforeFiles, afterFiles) {
+  const paths = [...new Set([...beforeFiles.keys(), ...afterFiles.keys()])].sort();
+  return paths.flatMap((relPath) => {
+    const before = beforeFiles.get(relPath);
+    const after = afterFiles.get(relPath);
+    if (before?.hash === after?.hash) return [];
+    return [{
+      path: relPath,
+      type: before && after ? "modified" : before ? "deleted" : "added",
+      binary: Boolean(before?.binary || after?.binary),
+      content: collectedFileContent(before),
+      current: collectedFileContent(after)
+    }];
+  });
+}
+
+async function previewSkillUpgrade(payload = {}) {
+  const { skillDir, activeArchiveId, nextVersion } = payload;
+  if (!skillDir || !fs.existsSync(skillDir)) throw new Error("缺少 skill 目录。");
+  const meta = readSkillPackageMeta(skillDir);
+  const currentVersion = meta.version || "0.0.0";
+  const targetVersion = String(nextVersion || bumpSkillVersion(currentVersion)).trim();
+  if (!targetVersion) throw new Error("请输入要升级到的版本。");
+  const activeManifest = activeArchiveId ? await readVersionManifest(meta.skillKey, activeArchiveId) : null;
+  const beforeRoot = activeManifest?.archivePath && fs.existsSync(activeManifest.archivePath) ? activeManifest.archivePath : skillDir;
+  const beforeFiles = collectTextFilesSync(beforeRoot, { includeContent: false });
+  const currentFiles = collectTextFilesSync(skillDir, { includeContent: false });
+  const afterFiles = new Map(currentFiles);
+  const currentSkill = currentFiles.get("SKILL.md");
+  const beforeContent = collectedFileContent(currentSkill) || meta.raw || "";
+  const afterContent = updateSkillMarkdownVersion(beforeContent, targetVersion);
+  afterFiles.set("SKILL.md", {
+    path: "SKILL.md",
+    binary: false,
+    content: afterContent,
+    hash: contentHash(Buffer.from(afterContent, "utf8"))
+  });
+  return {
+    version: {
+      id: "upgrade-preview",
+      label: `v${targetVersion}`,
+      reason: "manual-upgrade-preview",
+      createdAt: new Date().toISOString()
+    },
+    fromVersion: activeManifest?.version || currentVersion,
+    toVersion: targetVersion,
+    files: buildFileDiff(beforeFiles, afterFiles)
+  };
+}
+
+async function commitSkillUpgrade(payload = {}) {
+  const { skillDir, sourceInfo = {}, nextVersion } = payload;
+  if (!skillDir || !fs.existsSync(skillDir)) throw new Error("缺少 skill 目录。");
+  const meta = readSkillPackageMeta(skillDir);
+  const skillFilePath = path.join(skillDir, "SKILL.md");
+  if (!fs.existsSync(skillFilePath)) throw new Error("找不到 SKILL.md。");
+  const currentContent = await fsp.readFile(skillFilePath, "utf8");
+  const currentVersion = versionFromSkillMarkdown(currentContent) || meta.version || "0.0.0";
+  const targetVersion = String(nextVersion || bumpSkillVersion(currentVersion)).trim();
+  if (!targetVersion) throw new Error("请输入要升级到的版本。");
+  const nextContent = updateSkillMarkdownVersion(currentContent, targetVersion);
+  if (nextContent === currentContent) throw new Error("目标版本与当前版本一致。");
+  await createVersionSnapshot(skillFilePath, "手动升级前");
+  await fsp.writeFile(skillFilePath, nextContent, "utf8");
+  const activeVersion = await archiveSkillDirectory(skillDir, { ...sourceInfo, skillKey: meta.skillKey, reason: "manual-upgrade-active" });
+  await setActiveVersionState(skillDir, sourceInfo, activeVersion);
+  appendOperationLog({
+    type: "version",
+    status: "success",
+    title: meta.name || path.basename(skillDir),
+    message: `已升级到 v${targetVersion}。`,
+    detail: skillDir
+  });
+  const stats = await fsp.stat(skillFilePath);
+  return {
+    path: skillFilePath,
+    content: nextContent,
+    size: stats.size,
+    updatedAt: stats.mtime.toISOString(),
+    activeVersion,
+    fromVersion: currentVersion,
+    toVersion: targetVersion
+  };
 }
 
 async function readHistoryIndex(filePath) {
@@ -929,13 +1526,38 @@ function createWindow() {
 
 ipcMain.handle("skills:scan", async () => {
   const settings = getSettings();
-  return scanSkills(settings.sources, { ignorePatterns: settings.ignorePatterns });
+  return scanSkills(settings.sources, { ignorePatterns: settings.ignorePatterns, includeTree: false, fastStats: true });
+});
+
+ipcMain.handle("clipboard:write", async (_event, text) => {
+  const { clipboard } = require("electron");
+  clipboard.writeText(String(text || ""));
+  return true;
 });
 
 ipcMain.handle("skills:uninstalled", async () => {
   return scanSkills([
     { id: "uninstalled", client: "Uninstalled", label: "Uninstalled", root: uninstalledSkillsDir(), enabled: true }
-  ], { ignorePatterns: getSettings().ignorePatterns });
+  ], { ignorePatterns: getSettings().ignorePatterns, includeTree: false, fastStats: true });
+});
+
+ipcMain.handle("skills:detail", async (_event, payload = {}) => {
+  const { skillDir, source = {} } = payload;
+  if (!skillDir) throw new Error("缺少 skill 目录。");
+  const settings = getSettings();
+  const snapshot = await scanSkillDirectory(skillDir, {
+    id: source.id || source.sourceId || "local",
+    client: source.client || source.sourceClient || "Local",
+    label: source.label || source.sourceLabel || source.client || "Local",
+    root: source.root || path.dirname(skillDir)
+  }, { ignorePatterns: settings.ignorePatterns });
+  if (!snapshot?.dir || snapshot.sourceId === "uninstalled") return snapshot;
+  try {
+    const versionInfo = await ensureInstallVersionState(snapshot);
+    return { ...snapshot, versionInfo };
+  } catch {
+    return snapshot;
+  }
 });
 
 async function performUninstallSkill(skillDir, sourceInfo = {}) {
@@ -946,6 +1568,7 @@ async function performUninstallSkill(skillDir, sourceInfo = {}) {
     }
     const stats = await fsp.stat(skillDir);
     if (!stats.isDirectory()) throw new Error("只能卸载 skill 目录。");
+    await archiveSkillDirectory(skillDir, { ...sourceInfo, reason: "before-uninstall" });
     await fsp.mkdir(uninstalledSkillsDir(), { recursive: true });
     const target = path.join(uninstalledSkillsDir(), `${safeName(path.basename(skillDir))}-${Date.now()}`);
     await fsp.rename(skillDir, target);
@@ -986,6 +1609,15 @@ async function performRestoreSkill(skillDir, targetSourceId) {
     await fsp.rename(skillDir, finalTarget);
     await fsp.rm(path.join(finalTarget, uninstallMetaFile), { force: true }).catch(() => {});
     await fsp.rm(path.join(finalTarget, legacyUninstallMetaFile), { force: true }).catch(() => {});
+    const restoredManifest = await archiveSkillDirectory(finalTarget, {
+      sourceId: targetSourceId || getSettings().installSourceId,
+      client: sourceLabelById(getSettings(), targetSourceId || getSettings().installSourceId),
+      reason: "restore-active"
+    });
+    await setActiveVersionState(finalTarget, {
+      sourceId: targetSourceId || getSettings().installSourceId,
+      client: sourceLabelById(getSettings(), targetSourceId || getSettings().installSourceId)
+    }, restoredManifest);
     appendOperationLog({ type: "restore", status: "success", title: path.basename(finalTarget), message: "已恢复安装。", detail: `${skillDir} -> ${finalTarget}` });
     return { path: finalTarget };
   } catch (error) {
@@ -1018,6 +1650,15 @@ async function performInstallLocalSkill(skillDir, targetSourceId) {
     await fsp.cp(skillDir, target, { recursive: true, force: true });
     await fsp.rm(path.join(target, uninstallMetaFile), { force: true }).catch(() => {});
     await fsp.rm(path.join(target, legacyUninstallMetaFile), { force: true }).catch(() => {});
+    const manifest = await archiveSkillDirectory(target, {
+      sourceId: targetSourceId || getSettings().installSourceId,
+      client: sourceLabelById(getSettings(), targetSourceId || getSettings().installSourceId),
+      reason: "install-local-active"
+    });
+    await setActiveVersionState(target, {
+      sourceId: targetSourceId || getSettings().installSourceId,
+      client: sourceLabelById(getSettings(), targetSourceId || getSettings().installSourceId)
+    }, manifest);
     appendOperationLog({ type: "install", status: "success", title: path.basename(skillDir), message: "已复制安装到指定 Agent。", detail: `${skillDir} -> ${target}` });
     return { path: target, installed: true };
   } catch (error) {
@@ -1063,16 +1704,72 @@ ipcMain.handle("files:read", async (_event, filePath) => {
   };
 });
 
-ipcMain.handle("files:save", async (_event, filePath, content) => {
+ipcMain.handle("files:create", async (_event, payload = {}) => {
+  const baseDir = path.resolve(payload.baseDir || "");
+  const rawName = String(payload.name || "").trim();
+  const type = payload.type === "directory" ? "directory" : "file";
+  if (!baseDir || !fs.existsSync(baseDir)) throw new Error("目标目录不存在。");
+  if (!rawName || rawName.includes("\0")) throw new Error("请输入有效名称。");
+  const target = path.resolve(baseDir, rawName);
+  if (!target.startsWith(`${baseDir}${path.sep}`) && target !== baseDir) throw new Error("不能在 skill 目录外创建文件。");
+  if (fs.existsSync(target)) throw new Error("目标已存在。");
+  await fsp.mkdir(path.dirname(target), { recursive: true });
+  if (type === "directory") {
+    await fsp.mkdir(target, { recursive: true });
+  } else {
+    await fsp.writeFile(target, "", "utf8");
+  }
+  return { path: target, name: path.basename(target), type };
+});
+
+ipcMain.handle("files:rename", async (_event, payload = {}) => {
+  const source = path.resolve(payload.path || "");
+  const rawName = String(payload.name || "").trim();
+  if (!source || !fs.existsSync(source)) throw new Error("要重命名的文件不存在。");
+  if (!rawName || rawName.includes("\0") || rawName.includes("/") || rawName.includes("\\")) throw new Error("请输入有效名称。");
+  const stats = await fsp.stat(source);
+  const target = path.resolve(path.dirname(source), rawName);
+  if (target === source) return { path: source, name: path.basename(source), type: stats.isDirectory() ? "directory" : "file", unchanged: true };
+  if (target !== path.join(path.dirname(source), rawName)) throw new Error("不能重命名到当前目录外。");
+  if (fs.existsSync(target)) throw new Error("目标名称已存在。");
+  const skillRoot = payload.skillDir ? path.resolve(payload.skillDir) : "";
+  const isSkillPackageRename = Boolean(skillRoot && (source === skillRoot || source.startsWith(`${skillRoot}${path.sep}`)));
+  if (isSkillPackageRename && source === skillRoot) throw new Error("不能重命名 skill 根目录。");
+  await fsp.rename(source, target);
+  return { path: target, name: path.basename(target), type: stats.isDirectory() ? "directory" : "file" };
+});
+
+ipcMain.handle("files:delete", async (_event, payload = {}) => {
+  const target = path.resolve(payload.path || "");
+  const skillRoot = payload.skillDir ? path.resolve(payload.skillDir) : "";
+  if (!target || !fs.existsSync(target)) throw new Error("要删除的文件不存在。");
+  if (!skillRoot || !(target === skillRoot || target.startsWith(`${skillRoot}${path.sep}`))) throw new Error("只能删除当前 skill 目录内的文件。");
+  if (target === skillRoot) throw new Error("不能删除 skill 根目录。");
+  if (target === path.join(skillRoot, "SKILL.md")) throw new Error("不能删除 SKILL.md。");
+  const stats = await fsp.stat(target);
+  if (stats.isFile()) await createVersionSnapshot(target, "删除前");
+  await fsp.rm(target, { recursive: true, force: true });
+  return {
+    path: target,
+    parentDir: path.dirname(target),
+    name: path.basename(target),
+    type: stats.isDirectory() ? "directory" : "file"
+  };
+});
+
+ipcMain.handle("files:save", async (_event, filePath, content, context = {}) => {
   const current = await fsp.readFile(filePath);
   if (contentHash(current) === contentHash(Buffer.from(content, "utf8"))) {
     const stats = await fsp.stat(filePath);
-    return { path: filePath, size: stats.size, updatedAt: stats.mtime.toISOString(), unchanged: true };
+    return { path: filePath, content, size: stats.size, updatedAt: stats.mtime.toISOString(), unchanged: true };
   }
+  const skillRoot = context?.skillDir ? path.resolve(context.skillDir) : "";
+  const resolvedFilePath = path.resolve(filePath);
+  const isSkillPackageSave = Boolean(skillRoot && (resolvedFilePath === skillRoot || resolvedFilePath.startsWith(`${skillRoot}${path.sep}`)));
   await createVersionSnapshot(filePath, "保存前");
   await fsp.writeFile(filePath, content, "utf8");
   const stats = await fsp.stat(filePath);
-  return { path: filePath, size: stats.size, updatedAt: stats.mtime.toISOString() };
+  return { path: filePath, content, size: stats.size, updatedAt: stats.mtime.toISOString(), packageChanged: isSkillPackageSave };
 });
 
 ipcMain.handle("files:history", async (_event, filePath) => {
@@ -1128,6 +1825,12 @@ ipcMain.handle("files:restore", async (_event, filePath, versionId) => {
     updatedAt: stats.mtime.toISOString()
   };
 });
+
+ipcMain.handle("skill-versions:activate", async (_event, payload) => activateSkillVersion(payload));
+ipcMain.handle("skill-versions:delete", async (_event, payload) => deleteSkillVersions(payload));
+ipcMain.handle("skill-versions:diff", async (_event, payload) => diffSkillVersion(payload));
+ipcMain.handle("skill-versions:preview-upgrade", async (_event, payload) => previewSkillUpgrade(payload));
+ipcMain.handle("skill-versions:commit-upgrade", async (_event, payload) => commitSkillUpgrade(payload));
 
 ipcMain.handle("github:trends", async (_event, source = "alltime") => {
   const skillsShUrls = {
@@ -1188,7 +1891,14 @@ async function performInstallDiscoverSkill(item, targetSourceId, forceUpdate = f
       appendOperationLog({ type: "install", status: "skipped", title: item.name, message: "目标 Agent 已存在同名 skill。", detail: target });
       return { path: target, installed: true, alreadyInstalled: true };
     }
-    if (fs.existsSync(target) && forceUpdate) await fsp.rm(target, { recursive: true, force: true });
+    if (fs.existsSync(target) && forceUpdate) {
+      await archiveSkillDirectory(target, {
+        sourceId: targetSourceId || getSettings().installSourceId,
+        client: sourceLabelById(getSettings(), targetSourceId || getSettings().installSourceId),
+        reason: "before-update"
+      });
+      await fsp.rm(target, { recursive: true, force: true });
+    }
 
     if (item.installMethod === "skills-cli" || item.source === "skillssh") {
       tempRoot = await fsp.mkdtemp(path.join(app.getPath("temp"), "skill-manager-install-"));
@@ -1196,6 +1906,15 @@ async function performInstallDiscoverSkill(item, targetSourceId, forceUpdate = f
       const cloneResult = await cloneGithubRepoWithFallback(repoUrl, repoDir, tempRoot);
       const skillDir = await findSkillDirectory(cloneResult.repoDir, item.name);
       await fsp.cp(skillDir, target, { recursive: true, force: true });
+      const manifest = await archiveSkillDirectory(target, {
+        sourceId: targetSourceId || getSettings().installSourceId,
+        client: sourceLabelById(getSettings(), targetSourceId || getSettings().installSourceId),
+        reason: forceUpdate ? "update-active" : "install-discover-active"
+      });
+      await setActiveVersionState(target, {
+        sourceId: targetSourceId || getSettings().installSourceId,
+        client: sourceLabelById(getSettings(), targetSourceId || getSettings().installSourceId)
+      }, manifest);
       const message = cloneResult.method === "github-zip" ? "git 失败后，已通过 GitHub zip 安装到指定 Agent。" : "已安装到指定 Agent。";
       appendOperationLog({ type: "install", status: "success", title: item.name, message, detail: `${repoUrl} -> ${target}` });
       return { path: target, installed: true, command: item.installCommand, method: cloneResult.method === "github-zip" ? "github-zip-fallback" : "copy-from-repo" };
@@ -1203,6 +1922,15 @@ async function performInstallDiscoverSkill(item, targetSourceId, forceUpdate = f
 
     try {
       await execFileAsync("git", ["clone", "--depth", "1", item.url, target], { timeout: 120000 });
+      const manifest = await archiveSkillDirectory(target, {
+        sourceId: targetSourceId || getSettings().installSourceId,
+        client: sourceLabelById(getSettings(), targetSourceId || getSettings().installSourceId),
+        reason: forceUpdate ? "update-active" : "install-discover-active"
+      });
+      await setActiveVersionState(target, {
+        sourceId: targetSourceId || getSettings().installSourceId,
+        client: sourceLabelById(getSettings(), targetSourceId || getSettings().installSourceId)
+      }, manifest);
       appendOperationLog({ type: "install", status: "success", title: item.name, message: "已安装到指定 Agent。", detail: `${item.url} -> ${target}` });
       return { path: target, installed: true, method: "git-clone" };
     } catch (gitError) {
@@ -1213,6 +1941,15 @@ async function performInstallDiscoverSkill(item, targetSourceId, forceUpdate = f
       const repoDir = await downloadGithubRepoZip(repoFullName, path.join(tempRoot, "zip"));
       const skillDir = await findSkillDirectory(repoDir, item.name);
       await fsp.cp(skillDir, target, { recursive: true, force: true });
+      const manifest = await archiveSkillDirectory(target, {
+        sourceId: targetSourceId || getSettings().installSourceId,
+        client: sourceLabelById(getSettings(), targetSourceId || getSettings().installSourceId),
+        reason: forceUpdate ? "update-active" : "install-discover-active"
+      });
+      await setActiveVersionState(target, {
+        sourceId: targetSourceId || getSettings().installSourceId,
+        client: sourceLabelById(getSettings(), targetSourceId || getSettings().installSourceId)
+      }, manifest);
       appendOperationLog({ type: "install", status: "success", title: item.name, message: "git 失败后，已通过 GitHub zip 安装到指定 Agent。", detail: `${item.url} -> ${target}` });
       return { path: target, installed: true, method: "github-zip-fallback" };
     }

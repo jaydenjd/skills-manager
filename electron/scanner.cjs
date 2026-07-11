@@ -77,26 +77,40 @@ async function readJsonIfExists(filePath) {
   }
 }
 
+async function mapLimit(items, limit, worker) {
+  const results = new Array(items.length);
+  let index = 0;
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (index < items.length) {
+      const current = index;
+      index += 1;
+      results[current] = await worker(items[current], current);
+    }
+  });
+  await Promise.all(runners);
+  return results;
+}
+
 async function walkForSkillFiles(root, ignore, limit = 900) {
   const found = [];
-  const queue = [root];
-  while (queue.length && found.length < limit) {
-    const current = queue.shift();
-    let entries = [];
-    try {
-      entries = await fs.readdir(current, { withFileTypes: true });
-    } catch {
-      continue;
-    }
+  const rootSkillFile = path.join(root, "SKILL.md");
+  if (await exists(rootSkillFile)) found.push(rootSkillFile);
 
-    for (const entry of entries) {
-      const fullPath = path.join(current, entry.name);
-      const relPath = path.relative(root, fullPath) || entry.name;
-      if (ignore(entry.name, relPath, entry.isDirectory())) continue;
-      if (entry.isDirectory()) queue.push(fullPath);
-      if (entry.isFile() && entry.name === "SKILL.md") found.push(fullPath);
-      if (found.length >= limit) break;
-    }
+  let entries = [];
+  try {
+    entries = await fs.readdir(root, { withFileTypes: true });
+  } catch {
+    return found;
+  }
+
+  for (const entry of entries) {
+    if (found.length >= limit) break;
+    if (!entry.isDirectory()) continue;
+    const fullPath = path.join(root, entry.name);
+    const relPath = entry.name;
+    if (ignore(entry.name, relPath, true)) continue;
+    const skillFile = path.join(fullPath, "SKILL.md");
+    if (await exists(skillFile)) found.push(skillFile);
   }
   return found;
 }
@@ -143,6 +157,74 @@ async function collectDirectoryTree(root, ignore, limit = 1200) {
   return { tree, count, truncated: count >= limit };
 }
 
+async function collectDirectoryStats(root, ignore, options = {}) {
+  const readLines = options.readLines !== false;
+  const summary = {
+    bytes: 0,
+    lines: 0,
+    mtimeMs: 0,
+    birthtimeMs: Number.POSITIVE_INFINITY,
+    mtime: new Date(0),
+    birthtime: new Date()
+  };
+
+  async function walk(dir) {
+    let entries = [];
+    try {
+      entries = await fs.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      const relPath = path.relative(root, fullPath) || entry.name;
+      if (ignore(entry.name, relPath, entry.isDirectory())) continue;
+      let stats = null;
+      try {
+        stats = await fs.stat(fullPath);
+      } catch {
+        continue;
+      }
+      if (stats.mtimeMs > summary.mtimeMs) {
+        summary.mtimeMs = stats.mtimeMs;
+        summary.mtime = stats.mtime;
+      }
+      if (stats.birthtimeMs < summary.birthtimeMs) {
+        summary.birthtimeMs = stats.birthtimeMs;
+        summary.birthtime = stats.birthtime;
+      }
+      if (entry.isDirectory()) {
+        await walk(fullPath);
+      } else if (entry.isFile()) {
+        summary.bytes += stats.size;
+        if (readLines && stats.size <= 1024 * 1024) {
+          try {
+            const buffer = await fs.readFile(fullPath);
+            if (!buffer.includes(0)) summary.lines += buffer.toString("utf8").split(/\r?\n/).length;
+          } catch {
+            summary.lines += 0;
+          }
+        }
+      }
+    }
+  }
+
+  await walk(root);
+  if (!Number.isFinite(summary.birthtimeMs)) {
+    try {
+      const stats = await fs.stat(root);
+      summary.birthtime = stats.birthtime;
+      summary.birthtimeMs = stats.birthtimeMs;
+      summary.mtime = stats.mtime;
+      summary.mtimeMs = stats.mtimeMs;
+    } catch {
+      summary.birthtime = new Date();
+      summary.mtime = new Date();
+    }
+  }
+  return summary;
+}
+
 function firstParagraph(content) {
   return content
     .replace(/^---[\s\S]*?---/, "")
@@ -152,6 +234,18 @@ function firstParagraph(content) {
 }
 
 function extractTags(text, data) {
+  const explicitTags = [data.tags, data.keywords, data.categories, data.category]
+    .flatMap((value) => {
+      if (Array.isArray(value)) return value;
+      if (typeof value === "string") return value.split(/[,，;；\n]/);
+      return [];
+    })
+    .map((tag) => String(tag || "").trim())
+    .filter(Boolean);
+  if (explicitTags.length) {
+    return [...new Set(explicitTags)].slice(0, 12);
+  }
+
   const pool = `${data.name || ""} ${data.description || ""} ${text}`.toLowerCase();
   const dictionary = [
     "frontend", "design", "browser", "chrome", "pdf", "docx", "pptx", "spreadsheet",
@@ -172,7 +266,8 @@ function computeTrendScore(stats, content, data) {
   return Math.round(recency + newness + completeness + described);
 }
 
-async function readSkill(filePath, source, ignore) {
+async function readSkill(filePath, source, ignore, options = {}) {
+  const includeTree = options.includeTree !== false;
   const raw = await fs.readFile(filePath, "utf8");
   const parsed = matter(raw);
   const stats = await fs.stat(filePath);
@@ -183,10 +278,13 @@ async function readSkill(filePath, source, ignore) {
   const description = data.description || firstParagraph(parsed.content);
   const tags = extractTags(parsed.content, data);
 
-  const directory = await collectDirectoryTree(dir, ignore);
-  const uninstallMeta = source.id === "uninstalled"
-    ? (await readJsonIfExists(path.join(dir, ".skill-manager-uninstall.json")) || await readJsonIfExists(path.join(dir, ".skill-studio-uninstall.json")))
-    : null;
+  const [directory, directoryStats, uninstallMeta] = await Promise.all([
+    includeTree ? collectDirectoryTree(dir, ignore) : Promise.resolve({ tree: [], count: 0, truncated: false }),
+    collectDirectoryStats(dir, ignore, { readLines: options.fastStats !== true }),
+    source.id === "uninstalled"
+      ? readJsonIfExists(path.join(dir, ".skill-manager-uninstall.json")).then((meta) => meta || readJsonIfExists(path.join(dir, ".skill-studio-uninstall.json")))
+      : Promise.resolve(null)
+  ]);
 
   return {
     id: `${source.id}:${filePath}`,
@@ -208,12 +306,13 @@ async function readSkill(filePath, source, ignore) {
     directoryTree: directory.tree,
     directoryCount: directory.count,
     directoryTruncated: directory.truncated,
+    detailLoaded: includeTree,
     tags,
-    bytes: Buffer.byteLength(raw),
-    lines: raw.split(/\r?\n/).length,
-    createdAt: stats.birthtime.toISOString(),
-    updatedAt: stats.mtime.toISOString(),
-    trendScore: computeTrendScore(stats, raw, data),
+    bytes: directoryStats.bytes || Buffer.byteLength(raw),
+    lines: directoryStats.lines || raw.split(/\r?\n/).length,
+    createdAt: directoryStats.birthtime.toISOString(),
+    updatedAt: directoryStats.mtime.toISOString(),
+    trendScore: computeTrendScore({ ...stats, mtimeMs: directoryStats.mtimeMs || stats.mtimeMs, birthtimeMs: directoryStats.birthtimeMs || stats.birthtimeMs }, raw, data),
     excerpt: parsed.content.split(/\r?\n/).slice(0, 18).join("\n")
   };
 }
@@ -236,26 +335,31 @@ async function scanSkills(inputSources, options = {}) {
   const ignore = createIgnoreMatcher(options.ignorePatterns || defaultIgnorePatterns());
   const sources = inputSources.map((source) => ({ ...source, root: expandHome(source.root) }));
   const activeSources = sources.filter((source) => source.enabled);
-  const all = [];
-  const diagnostics = [];
-
-  for (const source of activeSources) {
+  const sourceResults = await mapLimit(activeSources, 4, async (source) => {
+    const sourceDiagnostics = [];
+    const sourceSkills = [];
     const ok = await exists(source.root);
     if (!ok) {
-      diagnostics.push({ sourceId: source.id, label: source.label, status: "missing", root: source.root });
-      continue;
+      sourceDiagnostics.push({ sourceId: source.id, label: source.label, status: "missing", root: source.root });
+      return { diagnostics: sourceDiagnostics, skills: sourceSkills };
     }
     const files = await walkForSkillFiles(source.root, ignore);
-    diagnostics.push({ sourceId: source.id, label: source.label, status: "ok", root: source.root, count: files.length });
-    for (const file of files) {
+    sourceDiagnostics.push({ sourceId: source.id, label: source.label, status: "ok", root: source.root, count: files.length });
+    await mapLimit(files, 8, async (file) => {
       try {
-        all.push(await readSkill(file, source, ignore));
+        sourceSkills.push(await readSkill(file, source, ignore, {
+          includeTree: options.includeTree === true,
+          fastStats: options.fastStats !== false
+        }));
       } catch (error) {
-        diagnostics.push({ sourceId: source.id, label: source.label, status: "error", root: file, message: error.message });
+        sourceDiagnostics.push({ sourceId: source.id, label: source.label, status: "error", root: file, message: error.message });
       }
-    }
-  }
+    });
+    return { diagnostics: sourceDiagnostics, skills: sourceSkills };
+  });
 
+  const diagnostics = sourceResults.flatMap((result) => result.diagnostics);
+  const all = sourceResults.flatMap((result) => result.skills);
   const skills = all.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
   return {
     scannedAt: new Date().toISOString(),
@@ -266,4 +370,17 @@ async function scanSkills(inputSources, options = {}) {
   };
 }
 
-module.exports = { scanSkills, defaultSources, defaultIgnorePatterns, expandHome };
+async function scanSkillDirectory(skillDir, source = {}, options = {}) {
+  const ignore = createIgnoreMatcher(options.ignorePatterns || defaultIgnorePatterns());
+  const expandedDir = expandHome(skillDir);
+  const skillFile = path.join(expandedDir, "SKILL.md");
+  const normalizedSource = {
+    id: source.id || "local",
+    client: source.client || source.sourceClient || "Local",
+    label: source.label || source.sourceLabel || source.client || "Local",
+    root: source.root ? expandHome(source.root) : path.dirname(expandedDir)
+  };
+  return readSkill(skillFile, normalizedSource, ignore, { includeTree: true, fastStats: false });
+}
+
+module.exports = { scanSkills, scanSkillDirectory, defaultSources, defaultIgnorePatterns, expandHome };

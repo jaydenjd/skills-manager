@@ -35,6 +35,7 @@ const legacyStarStorageKey = "skill-studio-stars";
 const installTargetsStorageKey = "skill-manager-last-install-targets";
 const legacyInstallTargetsStorageKey = "skill-studio-last-install-targets";
 const baselineOverridesStorageKey = "skill-manager-baseline-overrides";
+const scanCacheStorageKey = "skill-manager-last-scan";
 
 function readStoredJson(primaryKey, legacyKey, fallback) {
   const primary = localStorage.getItem(primaryKey);
@@ -56,6 +57,12 @@ function formatDate(value) {
 
 function shortPath(path) {
   return path?.replace(/^\/Users\/[^/]+/, "~") || "";
+}
+
+function parentPath(filePath = "") {
+  const normalized = String(filePath || "").replace(/\/+$/, "");
+  const index = normalized.lastIndexOf("/");
+  return index > 0 ? normalized.slice(0, index) : normalized;
 }
 
 function copyRelativePath(copy, filePath) {
@@ -179,6 +186,86 @@ function parseFrontmatterText(raw = "") {
 
 function isMarkdownPath(filePath = "") {
   return /\.(md|markdown|mdx)$/i.test(filePath);
+}
+
+function codeLanguageFromPath(filePath = "") {
+  const ext = filePath.split(".").pop()?.toLowerCase() || "";
+  const map = {
+    py: "python",
+    js: "javascript",
+    jsx: "javascript",
+    ts: "typescript",
+    tsx: "typescript",
+    json: "json",
+    sh: "bash",
+    bash: "bash",
+    zsh: "bash",
+    css: "css",
+    html: "html",
+    yml: "yaml",
+    yaml: "yaml",
+    toml: "toml"
+  };
+  return map[ext] || "text";
+}
+
+function highlightCode(text = "", language = "text") {
+  const source = String(text || "");
+  const patterns = language === "python" ? [
+    ["comment", /#.*/y],
+    ["string", /("""[\s\S]*?"""|'''[\s\S]*?'''|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/y],
+    ["keyword", /\b(?:and|as|assert|async|await|break|class|continue|def|del|elif|else|except|False|finally|for|from|global|if|import|in|is|lambda|None|nonlocal|not|or|pass|raise|return|True|try|while|with|yield)\b/y],
+    ["number", /\b\d+(?:\.\d+)?\b/y],
+    ["function", /\b[A-Za-z_][\w]*(?=\s*\()/y]
+  ] : language === "json" ? [
+    ["string", /"(?:\\.|[^"\\])*"(?=\s*:)?/y],
+    ["number", /-?\b\d+(?:\.\d+)?(?:e[+-]?\d+)?\b/iy],
+    ["keyword", /\b(?:true|false|null)\b/y]
+  ] : language === "bash" ? [
+    ["comment", /#.*/y],
+    ["string", /"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/y],
+    ["keyword", /\b(?:if|then|else|elif|fi|for|while|do|done|case|esac|function|in|export|local)\b/y],
+    ["number", /\b\d+\b/y]
+  ] : [
+    ["comment", /\/\/.*|\/\*[\s\S]*?\*\//y],
+    ["string", /`(?:\\.|[^`\\])*`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/y],
+    ["keyword", /\b(?:async|await|break|case|catch|class|const|continue|default|else|export|extends|finally|for|from|function|if|import|let|new|null|return|switch|throw|try|undefined|var|while|yield|true|false)\b/y],
+    ["number", /\b\d+(?:\.\d+)?\b/y],
+    ["function", /\b[A-Za-z_$][\w$]*(?=\s*\()/y]
+  ];
+  const parts = [];
+  let index = 0;
+  while (index < source.length) {
+    let matched = null;
+    for (const [type, regex] of patterns) {
+      regex.lastIndex = index;
+      const match = regex.exec(source);
+      if (match && match.index === index) {
+        matched = { type, text: match[0] };
+        break;
+      }
+    }
+    if (matched) {
+      parts.push(<span key={index} className={`tok-${matched.type}`}>{matched.text}</span>);
+      index += matched.text.length;
+    } else {
+      parts.push(source[index]);
+      index += 1;
+    }
+  }
+  return parts;
+}
+
+function flattenTreeNodes(items = []) {
+  const result = [];
+  function walk(nodes) {
+    nodes.forEach((node) => {
+      result.push(node);
+      if (node.children?.length) walk(node.children);
+    });
+  }
+  walk(items);
+  return result;
 }
 
 function countTree(nodes = []) {
@@ -324,7 +411,7 @@ function parseMarkdownBlocks(text = "") {
 }
 
 function useSkillData() {
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(() => readStoredJson(scanCacheStorageKey, null, null));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -334,8 +421,11 @@ function useSkillData() {
     try {
       const result = await window.skillStudio.scan();
       setData(result);
+      localStorage.setItem(scanCacheStorageKey, JSON.stringify(result));
+      return result;
     } catch (err) {
       setError(err.message || String(err));
+      return null;
     } finally {
       setLoading(false);
     }
@@ -524,16 +614,59 @@ function DiscoverRow({ item, index, selected, onSelect, onInstall, onUninstall, 
   );
 }
 
-function EmptyList({ mode }) {
+const loadingSayings = [
+  "好 skill 值得多等半拍。",
+  "正在翻目录，顺手把灰尘也吹掉。",
+  "把散落在各个 Agent 里的 skill 排好队。",
+  "本地知识正在集合，马上到齐。",
+  "扫描中：只认一级目录里的 SKILL.md。",
+  "给每个 skill 找到它真正住的地方。",
+  "慢一点点，是为了少一点点误判。",
+  "正在从 skills.sh 捞出新鲜线索。",
+  "让目录树先跑一会儿。",
+  "把版本、标签和来源捋顺中。"
+];
+
+function randomLoadingSaying(seed = "") {
+  let hash = 0;
+  for (const char of seed) hash = ((hash << 5) - hash + char.charCodeAt(0)) | 0;
+  const randomPart = Math.floor(Math.random() * loadingSayings.length);
+  return loadingSayings[Math.abs(hash + randomPart) % loadingSayings.length];
+}
+
+function LoadingMoment({ title, seed = "", compact = false }) {
+  const saying = useMemo(() => randomLoadingSaying(seed), [seed]);
+  return (
+    <div className={`loading-moment ${compact ? "compact" : ""}`}>
+      <div className="loading-orbit" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
+      <div>
+        <strong>{title}</strong>
+        <p>{saying}</p>
+      </div>
+    </div>
+  );
+}
+
+function EmptyList({ mode, scanning = false }) {
+  if (scanning && mode === "installed") {
+    return <LoadingMoment title="本地 skills 扫描中" seed="installed-scan" />;
+  }
+  if (scanning && mode === "discover") {
+    return <LoadingMoment title="正在加载 skills.sh" seed="discover-scan" />;
+  }
   const text = mode === "uninstalled"
     ? "Uninstalled 里还没有可恢复的 skill。"
     : mode === "starred"
       ? "Starred 里还没有收藏的 skill。"
-    : mode === "discover"
-      ? "当前 Discover 条件下没有匹配结果。"
-    : mode === "tags"
-      ? "当前还没有可统计的标签。"
-      : "当前条件下没有本地 skill。";
+      : mode === "discover"
+        ? "当前 Discover 条件下没有匹配结果。"
+        : mode === "tags"
+          ? "当前还没有可统计的标签。"
+          : "当前条件下没有本地 skill。";
   return <div className="list-empty">{text}</div>;
 }
 
@@ -691,29 +824,29 @@ function GithubTrendPanel({ trends }) {
   );
 }
 
-function TreeNode({ node, activePath, onOpenFile }) {
+function DiffFileTreeNode({ node, activePath, onSelect }) {
   const [open, setOpen] = useState(true);
-  const isDirectory = node.type === "directory";
   const selected = activePath === node.path;
   return (
-    <div className="tree-node">
+    <div className="diff-tree-node">
       <button
-        className={`tree-item ${node.type} ${selected ? "selected" : ""}`}
+        className={`diff-tree-item ${node.type} ${selected ? "selected" : ""}`}
         onClick={() => {
-          if (isDirectory) {
+          if (node.type === "directory") {
             setOpen(!open);
           } else {
-            onOpenFile(node);
+            onSelect(node.file);
           }
         }}
       >
-        {isDirectory ? <FolderOpen size={13} /> : <FileText size={13} />}
+        {node.type === "directory" ? <FolderOpen size={13} /> : <FileText size={13} />}
         <span>{node.name}</span>
+        {node.file?.type ? <em>{node.file.type}</em> : null}
       </button>
-      {isDirectory && open ? (
-        <div className="tree-children">
+      {node.type === "directory" && open ? (
+        <div className="diff-tree-children">
           {(node.children || []).map((child) => (
-            <TreeNode key={child.path} node={child} activePath={activePath} onOpenFile={onOpenFile} />
+            <DiffFileTreeNode key={child.path} node={child} activePath={activePath} onSelect={onSelect} />
           ))}
         </div>
       ) : null}
@@ -721,26 +854,198 @@ function TreeNode({ node, activePath, onOpenFile }) {
   );
 }
 
-function DirectoryTree({ skill, activePath, onOpenFile }) {
+function buildDiffTree(files = []) {
+  const rootNode = { name: "skill", path: ".", type: "directory", children: [] };
+  const root = rootNode.children;
+  const directories = new Map();
+  function ensureDir(parts, pathPrefix) {
+    const key = pathPrefix.join("/");
+    if (directories.has(key)) return directories.get(key);
+    const parent = pathPrefix.length > 1 ? ensureDir(parts.slice(0, -1), pathPrefix.slice(0, -1)) : { children: root };
+    const node = { name: parts[parts.length - 1], path: key, type: "directory", children: [] };
+    parent.children.push(node);
+    directories.set(key, node);
+    return node;
+  }
+
+  files.forEach((file) => {
+    const parts = file.path.split("/").filter(Boolean);
+    if (!parts.length) return;
+    const parent = parts.length > 1 ? ensureDir(parts.slice(0, -1), parts.slice(0, -1)) : { children: root };
+    parent.children.push({ name: parts[parts.length - 1], path: file.path, type: "file", file });
+  });
+
+  function sort(nodes) {
+    nodes.sort((a, b) => Number(b.type === "directory") - Number(a.type === "directory") || a.name.localeCompare(b.name));
+    nodes.forEach((node) => node.children && sort(node.children));
+    return nodes;
+  }
+  sort(root);
+  return [rootNode];
+}
+
+function TreeDraftInput({ draft, onChange, onSubmit, onCancel }) {
+  return (
+    <form
+      className="tree-draft-input"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit?.();
+      }}
+    >
+      {draft.type === "directory" ? <FolderOpen size={13} /> : <FileText size={13} />}
+      <input
+        autoFocus
+        value={draft.name}
+        placeholder={draft.type === "directory" ? "目录名" : "文件名.md"}
+        onChange={(event) => onChange?.(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") onCancel?.();
+        }}
+      />
+    </form>
+  );
+}
+
+function TreeNode({ node, activePath, selectedDirPath, selectedPaths, onNodeClick, onOpenFile, onSelectDirectory, onContextMenu, draft, onDraftChange, onDraftSubmit, onDraftCancel }) {
+  const [open, setOpen] = useState(true);
+  const isDirectory = node.type === "directory";
+  const selected = activePath === node.path;
+  const multiSelected = selectedPaths?.includes(node.path);
+  const directorySelected = isDirectory && selectedDirPath === node.path;
+  const isRenameDraft = draft?.mode === "rename" && draft.path === node.path;
+  const isCreateDraft = draft?.mode === "create" && draft.baseDir === node.path;
+  return (
+    <div className="tree-node">
+      {isRenameDraft ? (
+        <TreeDraftInput draft={draft} onChange={onDraftChange} onSubmit={onDraftSubmit} onCancel={onDraftCancel} />
+      ) : (
+        <button
+          className={`tree-item ${node.type} ${selected || directorySelected ? "selected" : ""} ${multiSelected ? "multi-selected" : ""}`}
+          onContextMenu={(event) => onContextMenu?.(event, node)}
+          onClick={(event) => {
+            onNodeClick?.(event, node);
+            if (isDirectory) {
+              onSelectDirectory?.(node.path);
+              setOpen(!open);
+            } else {
+              onOpenFile(node);
+            }
+          }}
+        >
+          {isDirectory ? <FolderOpen size={13} /> : <FileText size={13} />}
+          <span>{node.name}</span>
+        </button>
+      )}
+      {isDirectory && (open || isCreateDraft) ? (
+        <div className="tree-children">
+          {isCreateDraft ? (
+            <TreeDraftInput draft={draft} onChange={onDraftChange} onSubmit={onDraftSubmit} onCancel={onDraftCancel} />
+          ) : null}
+          {(node.children || []).map((child) => (
+            <TreeNode
+              key={child.path}
+              node={child}
+              activePath={activePath}
+              selectedDirPath={selectedDirPath}
+              selectedPaths={selectedPaths}
+              onNodeClick={onNodeClick}
+              onOpenFile={onOpenFile}
+              onSelectDirectory={onSelectDirectory}
+              onContextMenu={onContextMenu}
+              draft={draft}
+              onDraftChange={onDraftChange}
+              onDraftSubmit={onDraftSubmit}
+              onDraftCancel={onDraftCancel}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function DirectoryTree({ skill, activePath, selectedDirPath, selectedPaths, onNodeClick, onOpenFile, onSelectDirectory, onContextMenu, draft, onDraftChange, onDraftSubmit, onDraftCancel }) {
   const items = skill.directoryTree || [];
   const total = skill.directoryCount ?? countTree(items);
+  const rootCreateDraft = draft?.mode === "create" && draft.baseDir === skill.dir;
+  const rootNode = { name: skill.slug, path: skill.dir, relPath: ".", type: "directory" };
   return (
-    <aside className="directory-pane">
+    <aside
+      className="directory-pane"
+      onContextMenu={(event) => {
+        if (event.target.closest(".tree-item, .tree-draft-input")) return;
+        onContextMenu?.(event, rootNode);
+      }}
+    >
       <div className="reader-label">
-        <ListTree size={15} />
-        Skill 目录
+        <span>
+          <ListTree size={15} />
+          Skill 目录
+        </span>
         <em>{total}</em>
       </div>
       <div className="tree-list">
-        <button className="tree-item root" onClick={() => window.skillStudio.reveal(skill.filePath)}>
+        <button
+          className={`tree-item root ${selectedDirPath === skill.dir ? "selected" : ""}`}
+          onClick={() => onSelectDirectory?.(skill.dir)}
+          onContextMenu={(event) => onContextMenu?.(event, rootNode)}
+        >
           <FolderOpen size={14} />
           <span>{skill.slug}</span>
         </button>
+        {rootCreateDraft ? (
+          <TreeDraftInput draft={draft} onChange={onDraftChange} onSubmit={onDraftSubmit} onCancel={onDraftCancel} />
+        ) : null}
         {items.map((item) => (
-          <TreeNode key={item.path} node={item} activePath={activePath} onOpenFile={onOpenFile} />
+          <TreeNode
+            key={item.path}
+            node={item}
+            activePath={activePath}
+            selectedDirPath={selectedDirPath}
+            selectedPaths={selectedPaths}
+            onNodeClick={onNodeClick}
+            onOpenFile={onOpenFile}
+            onSelectDirectory={onSelectDirectory}
+            onContextMenu={onContextMenu}
+            draft={draft}
+            onDraftChange={onDraftChange}
+            onDraftSubmit={onDraftSubmit}
+            onDraftCancel={onDraftCancel}
+          />
         ))}
       </div>
     </aside>
+  );
+}
+
+function CodeBlock({ code, language = "text", plain = false }) {
+  const normalizedLanguage = language || "text";
+  return (
+    <div className={`code-block syntax-block ${plain ? "plain-file" : ""}`}>
+      {normalizedLanguage !== "text" ? <div className="code-lang">{normalizedLanguage}</div> : null}
+      <pre>{highlightCode(code, normalizedLanguage)}</pre>
+    </div>
+  );
+}
+
+function HighlightedEditor({ value, language, onChange }) {
+  const highlightRef = useRef(null);
+  return (
+    <div className="highlight-editor">
+      <pre ref={highlightRef} aria-hidden="true">{highlightCode(value || " ", language)}</pre>
+      <textarea
+        className="file-editor highlight-input"
+        value={value}
+        onChange={onChange}
+        onScroll={(event) => {
+          if (!highlightRef.current) return;
+          highlightRef.current.scrollTop = event.currentTarget.scrollTop;
+          highlightRef.current.scrollLeft = event.currentTarget.scrollLeft;
+        }}
+        spellCheck={false}
+      />
+    </div>
   );
 }
 
@@ -749,13 +1054,12 @@ function SkillReader({ file }) {
   const markdownText = file.isSkillFile ? parsed.body : file.content;
   const blocks = useMemo(() => parseMarkdownBlocks(markdownText), [markdownText]);
   const meta = file.isSkillFile ? frontmatterEntries(parsed.frontmatter) : [];
+  const language = codeLanguageFromPath(file.path || file.name);
 
   if (!file.isMarkdown) {
     return (
       <article className="skill-reader">
-        <div className="code-block plain-file">
-          <pre>{file.content}</pre>
-        </div>
+        <CodeBlock code={file.content} language={language} plain />
       </article>
     );
   }
@@ -780,12 +1084,7 @@ function SkillReader({ file }) {
             return <Heading key={index}>{block.text}</Heading>;
           }
           if (block.type === "code") {
-            return (
-              <div className="code-block" key={index}>
-                {block.lang ? <div className="code-lang">{block.lang}</div> : null}
-                <pre>{block.text}</pre>
-              </div>
-            );
+            return <CodeBlock key={index} code={block.text} language={block.lang || "text"} />;
           }
           if (block.type === "list") {
             return <ul key={index}>{block.items.map((item, itemIndex) => <li key={itemIndex}>{renderInline(item)}</li>)}</ul>;
@@ -828,7 +1127,185 @@ function DiffViewer({ detail }) {
   );
 }
 
-function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, baselineSourceId = "agents" }) {
+function DirectoryDiffViewer({ detail }) {
+  const files = detail?.files || [];
+  const [selectedPath, setSelectedPath] = useState("");
+  const [treeWidth, setTreeWidth] = useState(210);
+  useEffect(() => {
+    setSelectedPath(files[0]?.path || "");
+  }, [detail?.version?.id, files[0]?.path]);
+  const tree = useMemo(() => buildDiffTree(files), [files]);
+  const selectedFile = files.find((file) => file.path === selectedPath) || files[0];
+  if (!files.length) return <div className="diff-empty">这个版本与当前目录没有内容差异。</div>;
+  return (
+    <div className="directory-diff-view" style={{ "--diff-tree-width": `${treeWidth}px` }}>
+      <aside className="diff-file-tree">
+        <div className="diff-file-tree-head">
+          <span>变更文件</span>
+          <em>{files.length}</em>
+        </div>
+        <div className="diff-file-tree-list">
+          {tree.map((node) => (
+            <DiffFileTreeNode key={node.path} node={node} activePath={selectedFile?.path} onSelect={(file) => setSelectedPath(file.path)} />
+          ))}
+        </div>
+      </aside>
+      <div
+        className="history-resizer vertical"
+        onMouseDown={(event) => {
+          event.preventDefault();
+          const startX = event.clientX;
+          const startWidth = treeWidth;
+          const move = (moveEvent) => {
+            setTreeWidth(Math.max(150, Math.min(360, startWidth + moveEvent.clientX - startX)));
+          };
+          const up = () => {
+            window.removeEventListener("mousemove", move);
+            window.removeEventListener("mouseup", up);
+          };
+          window.addEventListener("mousemove", move);
+          window.addEventListener("mouseup", up);
+        }}
+      />
+      <section className="file-diff-card">
+        <div className="file-diff-head">
+          <strong>{selectedFile.path}</strong>
+          <span>{selectedFile.type}</span>
+        </div>
+        {selectedFile.binary ? (
+          <div className="diff-empty">二进制或大文件，仅记录文件状态变化。</div>
+        ) : (
+          <DiffViewer detail={{ content: selectedFile.content, current: selectedFile.current }} />
+        )}
+      </section>
+    </div>
+  );
+}
+
+function SkillVersionPicker({ copy, onActivate, onDelete, busy, showAllVersions = true }) {
+  const allVersions = copy?.versionInfo?.versions || [];
+  const versions = showAllVersions ? allVersions : allVersions.filter((version) => (
+    version.sourceId === copy?.sourceId
+    || (version.sourceIds || []).includes(copy?.sourceId)
+    || version.id === copy?.versionInfo?.activeArchiveId
+    || (version.duplicateIds || []).includes(copy?.versionInfo?.activeArchiveId)
+  ));
+  const [versionMenuOpen, setVersionMenuOpen] = useState(false);
+  const [selectedVersionIds, setSelectedVersionIds] = useState([]);
+  const pickerRef = useRef(null);
+  const currentVersion = skillVersion(copy);
+  const currentLabel = copy?.versionInfo?.currentLabel || (currentVersion ? `v${currentVersion}` : copy?.versionInfo?.activeLabel || "");
+  const currentArchive = versions.find((version) => (
+    version.hash === copy?.versionInfo?.currentHash && (!currentLabel || version.label === currentLabel)
+  ));
+  const selectedId = currentArchive?.id || copy?.versionInfo?.activeArchiveId || "";
+  const latestVersion = versions[0] || null;
+  const isSelectedVersion = (version) => version?.id === selectedId || (version?.duplicateIds || []).includes(selectedId);
+  const stale = Boolean(latestVersion?.id && selectedId && !isSelectedVersion(latestVersion));
+  const deletableVersions = versions.filter((version) => !isSelectedVersion(version) && !version.active);
+  const selectedVersionEntry = versions.find((version) => (
+    version.id === selectedId || (version.duplicateIds || []).includes(selectedId)
+  ));
+  const selectedVersionLabel = selectedVersionEntry?.label || currentLabel || "当前版本";
+  useEffect(() => {
+    setSelectedVersionIds((current) => current.filter((id) => deletableVersions.some((version) => version.id === id)));
+  }, [copy?.id, selectedId, versions.length]);
+  useEffect(() => {
+    if (!versionMenuOpen) return undefined;
+    const closeOnOutside = (event) => {
+      if (!pickerRef.current?.contains(event.target)) {
+        setVersionMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setVersionMenuOpen(false);
+    };
+    window.addEventListener("pointerdown", closeOnOutside);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("pointerdown", closeOnOutside);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [versionMenuOpen]);
+  function toggleVersionDelete(id) {
+    setSelectedVersionIds((current) => (
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+    ));
+  }
+  function deleteSelectedVersions() {
+    if (!selectedVersionIds.length) return;
+    const selectedIds = versions
+      .filter((version) => selectedVersionIds.includes(version.id))
+      .flatMap((version) => version.duplicateIds?.length ? version.duplicateIds : [version.id]);
+    onDelete?.(selectedIds, () => {
+      setSelectedVersionIds([]);
+      setVersionMenuOpen(false);
+    });
+  }
+  if (!copy) return null;
+  if (!versions.length) return null;
+  return (
+    <div ref={pickerRef} className={`version-picker ${stale ? "stale" : ""}`}>
+      <button className="version-dropdown-trigger" onClick={() => setVersionMenuOpen((open) => !open)} disabled={busy} title={stale ? `不是最新版本，最新为 ${latestVersion?.label || latestVersion?.id}` : "选择版本"}>
+        <span>版本</span>
+        <strong>{selectedVersionLabel}</strong>
+      </button>
+      {versionMenuOpen ? (
+        <div className="version-dropdown-menu">
+          <div className="version-dropdown-list">
+            {versions.map((version) => {
+              const active = isSelectedVersion(version);
+              const protectedVersion = active || version.active;
+              const checked = selectedVersionIds.includes(version.id);
+              return (
+                <div key={version.id} className={`version-dropdown-row ${active ? "active" : ""}`}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={busy || protectedVersion}
+                      onChange={() => toggleVersionDelete(version.id)}
+                    />
+                    <strong>{version.label || version.id}</strong>
+                    <small>{active ? "当前" : version.active ? `使用中: ${(version.activeClients || []).join(", ")}` : formatDate(version.createdAt)}</small>
+                  </label>
+                  <button
+                    disabled={busy || active}
+                    onClick={() => {
+                      setVersionMenuOpen(false);
+                      onActivate(version);
+                    }}
+                  >
+                    {active ? "当前" : "切换"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          <div className="version-dropdown-actions">
+            <button onClick={() => setSelectedVersionIds(deletableVersions.map((version) => version.id))} disabled={busy || !deletableVersions.length}>全选</button>
+            <button onClick={() => setSelectedVersionIds([])} disabled={busy || !selectedVersionIds.length}>清空</button>
+            <button className="danger" onClick={deleteSelectedVersions} disabled={busy || !selectedVersionIds.length}>
+              删除选中 {selectedVersionIds.length ? `(${selectedVersionIds.length})` : ""}
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {stale && !versionMenuOpen ? (
+        <button
+          className="version-stale-badge"
+          onClick={() => onActivate(latestVersion)}
+          disabled={busy}
+          title={`点击切换到最新版本 ${latestVersion.label || latestVersion.id}`}
+        >
+          最新
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, baselineSourceId = "agents", agentScope = "all" }) {
   const [activeFile, setActiveFile] = useState(null);
   const [activeCopyId, setActiveCopyId] = useState("");
   const [syncDraft, setSyncDraft] = useState(null);
@@ -841,8 +1318,24 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
   const [historyOpen, setHistoryOpen] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState(null);
   const [versionDetail, setVersionDetail] = useState(null);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [upgradeDetail, setUpgradeDetail] = useState(null);
+  const [upgradeBusy, setUpgradeBusy] = useState(false);
+  const [upgradeTargetOpen, setUpgradeTargetOpen] = useState(false);
+  const [upgradeTargetCopyId, setUpgradeTargetCopyId] = useState("");
+  const [upgradeCopy, setUpgradeCopy] = useState(null);
+  const [versionSwitching, setVersionSwitching] = useState(false);
+  const [selectedDirPath, setSelectedDirPath] = useState("");
+  const [treeMenu, setTreeMenu] = useState(null);
+  const [createEntryDraft, setCreateEntryDraft] = useState(null);
+  const [copyOverrides, setCopyOverrides] = useState({});
+  const [selectedTreePaths, setSelectedTreePaths] = useState([]);
+  const [lastTreePath, setLastTreePath] = useState("");
+  const [historyListWidth, setHistoryListWidth] = useState(190);
   const [fileError, setFileError] = useState("");
+  const [fileNotice, setFileNotice] = useState("");
   const [saving, setSaving] = useState(false);
+  const pendingDeletedPathsRef = useRef(new Set());
 
   async function loadHistory(filePath) {
     try {
@@ -856,18 +1349,299 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
   }
 
   async function openHistoryPanel() {
-    if (!activeFile) return;
+    if (!activeCopy) return;
     setHistoryOpen(true);
-    const entries = await loadHistory(activeFile.path);
-    if (entries.length) await selectVersion(entries[0]);
+    const entries = historicalVersions(activeCopy);
+    setHistory(entries);
+    if (entries.length) {
+      await selectVersion(entries[0]);
+    } else {
+      setSelectedVersion(null);
+      setVersionDetail(null);
+    }
+  }
+
+  function applyRefreshedCopy(scanResult, copy = activeCopy) {
+    const fresh = (scanResult?.skills || []).find((item) => item.id === copy?.id)
+      || (scanResult?.skills || []).find((item) => item.sourceId === copy?.sourceId && item.dir === copy?.dir);
+    if (fresh?.id) {
+      setCopyOverrides((current) => ({
+        ...current,
+        [copy.id]: (() => {
+          const existing = current[copy.id] || copy;
+          return {
+            ...existing,
+            ...fresh,
+            directoryTree: fresh.detailLoaded ? fresh.directoryTree : existing.directoryTree,
+            directoryCount: fresh.detailLoaded ? fresh.directoryCount : existing.directoryCount,
+            directoryTruncated: fresh.detailLoaded ? fresh.directoryTruncated : existing.directoryTruncated,
+            detailLoaded: fresh.detailLoaded || existing.detailLoaded,
+            id: copy.id
+          };
+        })()
+      }));
+    }
+    return fresh || null;
+  }
+
+  function withoutPendingDeletedNodes(tree = []) {
+    const targets = pendingDeletedPathsRef.current;
+    if (!targets.size) return tree;
+    const isRemoved = (nodePath = "") => [...targets].some((targetPath) => (
+      nodePath === targetPath || nodePath.startsWith(`${targetPath.replace(/\/+$/, "")}/`)
+    ));
+    return tree
+      .filter((node) => !isRemoved(node.path))
+      .map((node) => ({ ...node, children: withoutPendingDeletedNodes(node.children || []) }));
+  }
+
+  function loadFullSkillDetail(copy) {
+    if (!copy?.dir || (copy.detailLoaded && copy.versionInfo)) return;
+    window.skillStudio.skillDetail?.({
+      skillDir: copy.dir,
+      source: {
+        id: copy.sourceId,
+        client: copy.client,
+        label: copy.sourceLabel,
+        root: copy.root
+      }
+    }).then((fresh) => {
+      if (!fresh?.id) return;
+      const safeTree = withoutPendingDeletedNodes(fresh.directoryTree || []);
+      setCopyOverrides((current) => ({
+        ...current,
+        [copy.id]: {
+          ...copy,
+          ...fresh,
+          directoryTree: safeTree,
+          directoryCount: countTree(safeTree),
+          id: copy.id
+        }
+      }));
+    }).catch(() => {});
+  }
+
+  function applyCopySnapshot(snapshot, copy = activeCopy) {
+    if (!snapshot?.id || !copy?.id) return null;
+    const nextCopy = {
+      ...copy,
+      ...snapshot,
+      id: copy.id
+    };
+    setCopyOverrides((current) => ({
+      ...current,
+      [copy.id]: nextCopy
+    }));
+    const file = {
+      path: nextCopy.filePath,
+      name: "SKILL.md",
+      content: nextCopy.raw || "",
+      isMarkdown: true,
+      isSkillFile: true,
+      size: nextCopy.bytes,
+      updatedAt: nextCopy.updatedAt
+    };
+    setActiveCopyId(copy.id);
+    setActiveFile(file);
+    setSelectedDirPath(nextCopy.dir);
+    setDraft(file.content);
+    setMode("view");
+    setCreateEntryDraft(null);
+    setTreeMenu(null);
+    setPendingNavigation(null);
+    setHistoryOpen(false);
+    setSelectedVersion(null);
+    setVersionDetail(null);
+    setSelectedTreePaths([]);
+    setLastTreePath("");
+    loadHistory(file.path);
+    return nextCopy;
+  }
+
+  function refreshCopyInBackground(copy = activeCopy) {
+    Promise.resolve(onSaved?.())
+      .then((refreshed) => applyRefreshedCopy(refreshed, copy))
+      .catch(() => {});
+  }
+
+  function updateActiveCopyOverride(patch) {
+    if (!activeCopy?.id) return;
+    setCopyOverrides((current) => ({
+      ...current,
+      [activeCopy.id]: {
+        ...activeCopy,
+        ...(current[activeCopy.id] || {}),
+        ...patch
+      }
+    }));
+  }
+
+  function insertTreeNodeOptimistic(result, baseDir) {
+    if (!activeCopy?.dir || !result?.path) return;
+    const root = activeCopy.dir.replace(/\/+$/, "");
+    const relPath = result.path.startsWith(`${root}/`) ? result.path.slice(root.length + 1) : result.name;
+    const parts = relPath.split("/").filter(Boolean);
+    if (!parts.length) return;
+    const nextTree = structuredClone(activeCopy.directoryTree || []);
+
+    function sortNodes(nodes) {
+      nodes.sort((a, b) => Number(b.type === "directory") - Number(a.type === "directory") || a.name.localeCompare(b.name));
+      return nodes;
+    }
+
+    function ensure(nodes, index, currentDir) {
+      const name = parts[index];
+      const nodePath = `${currentDir.replace(/\/+$/, "")}/${name}`;
+      const isLeaf = index === parts.length - 1;
+      let node = nodes.find((item) => item.name === name && item.path === nodePath);
+      if (!node) {
+        node = {
+          name,
+          path: nodePath,
+          relPath: parts.slice(0, index + 1).join("/"),
+          depth: index,
+          type: isLeaf ? result.type : "directory",
+          children: []
+        };
+        nodes.push(node);
+        sortNodes(nodes);
+      }
+      if (!isLeaf) {
+        node.type = "directory";
+        node.children = node.children || [];
+        ensure(node.children, index + 1, node.path);
+      }
+    }
+
+    ensure(nextTree, 0, root);
+    updateActiveCopyOverride({
+      directoryTree: nextTree,
+      directoryCount: Math.max((activeCopy.directoryCount || countTree(activeCopy.directoryTree || [])) + 1, countTree(nextTree)),
+      updatedAt: new Date().toISOString()
+    });
+  }
+
+  function selectableTreeNodes() {
+    return flattenTreeNodes(activeCopy?.directoryTree || []).filter((node) => node.path !== activeCopy?.filePath);
+  }
+
+  function handleTreeNodeClick(event, node) {
+    if (!node || node.path === activeCopy?.filePath) {
+      setSelectedTreePaths([]);
+      setLastTreePath(node?.path || "");
+      return;
+    }
+    const selectable = selectableTreeNodes();
+    if (event.shiftKey && lastTreePath) {
+      const start = selectable.findIndex((item) => item.path === lastTreePath);
+      const end = selectable.findIndex((item) => item.path === node.path);
+      if (start >= 0 && end >= 0) {
+        const [from, to] = start < end ? [start, end] : [end, start];
+        setSelectedTreePaths(selectable.slice(from, to + 1).map((item) => item.path));
+      } else {
+        setSelectedTreePaths([node.path]);
+      }
+    } else if (event.metaKey || event.ctrlKey) {
+      setSelectedTreePaths((current) => (
+        current.includes(node.path) ? current.filter((item) => item !== node.path) : [...current, node.path]
+      ));
+      setLastTreePath(node.path);
+    } else {
+      setSelectedTreePaths([node.path]);
+      setLastTreePath(node.path);
+    }
+  }
+
+  function renameTreeNodeOptimistic(oldPath, result) {
+    if (!activeCopy?.dir || !oldPath || !result?.path) return;
+    const nextTree = structuredClone(activeCopy.directoryTree || []);
+    const oldPrefix = `${oldPath.replace(/\/+$/, "")}/`;
+    const newPrefix = `${result.path.replace(/\/+$/, "")}/`;
+
+    function updateDescendantPaths(node) {
+      if (node.path === oldPath) {
+        node.path = result.path;
+      } else if (node.path?.startsWith(oldPrefix)) {
+        node.path = `${newPrefix}${node.path.slice(oldPrefix.length)}`;
+      }
+      const root = activeCopy.dir.replace(/\/+$/, "");
+      node.relPath = node.path?.startsWith(`${root}/`) ? node.path.slice(root.length + 1) : node.relPath;
+      (node.children || []).forEach(updateDescendantPaths);
+    }
+
+    function renameIn(nodes) {
+      for (const node of nodes) {
+        if (node.path === oldPath) {
+          node.name = result.name;
+          node.path = result.path;
+          node.type = result.type;
+          updateDescendantPaths(node);
+          return true;
+        }
+        if (renameIn(node.children || [])) {
+          node.children.sort((a, b) => Number(b.type === "directory") - Number(a.type === "directory") || a.name.localeCompare(b.name));
+          return true;
+        }
+      }
+      return false;
+    }
+
+    if (renameIn(nextTree)) {
+      nextTree.sort((a, b) => Number(b.type === "directory") - Number(a.type === "directory") || a.name.localeCompare(b.name));
+      updateActiveCopyOverride({
+        directoryTree: nextTree,
+        updatedAt: new Date().toISOString()
+      });
+    }
+  }
+
+  function removeTreeNodeOptimistic(targetPath) {
+    removeTreeNodesOptimistic([targetPath]);
+  }
+
+  function removeTreeNodesOptimistic(paths = []) {
+    const targets = new Set(paths.filter(Boolean));
+    if (!activeCopy?.dir || !targets.size) return;
+    const nextTree = structuredClone(activeCopy.directoryTree || []);
+
+    function removeFrom(nodes) {
+      return nodes
+        .filter((node) => !targets.has(node.path))
+        .map((node) => ({ ...node, children: removeFrom(node.children || []) }));
+    }
+
+    const filteredTree = removeFrom(nextTree);
+    updateActiveCopyOverride({
+      directoryTree: filteredTree,
+      directoryCount: Math.max(0, countTree(filteredTree)),
+      updatedAt: new Date().toISOString()
+    });
+    const activeDeleted = [...targets].some((targetPath) => (
+      activeFile?.path === targetPath || activeFile?.path?.startsWith(`${targetPath.replace(/\/+$/, "")}/`)
+    ));
+    if (activeDeleted) {
+      openSkillCopyNow(activeCopy, "view", { skipDetailLoad: true });
+    }
+    setSelectedTreePaths((current) => current.filter((item) => !targets.has(item)));
+  }
+
+  function historicalVersions(copy) {
+    const info = copy?.versionInfo || {};
+    return (info.versions || []).filter((version) => (
+      version.id !== info.activeArchiveId
+      && !(version.hash === info.currentHash && (!info.currentLabel || version.label === info.currentLabel))
+    ));
   }
 
   async function selectVersion(entry) {
-    if (!activeFile) return;
+    if (!activeCopy) return;
     setSelectedVersion(entry);
     setFileError("");
     try {
-      setVersionDetail(await window.skillStudio.fileVersion(activeFile.path, entry.id));
+      setVersionDetail(await window.skillStudio.skillVersionDiff({
+        skillDir: activeCopy.dir,
+        archiveId: entry.id
+      }));
     } catch (err) {
       setFileError(err.message || String(err));
     }
@@ -907,7 +1681,7 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
     await openSkillCopyNow(copy, nextMode);
   }
 
-  async function openSkillCopyNow(copy, nextMode = "view") {
+  async function openSkillCopyNow(copy, nextMode = "view", options = {}) {
     if (!copy) return;
     setFileError("");
     let content = copy.raw || "";
@@ -935,6 +1709,9 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
     };
     setActiveCopyId(copy.id);
     setActiveFile(file);
+    setSelectedDirPath(copy.dir);
+    setCreateEntryDraft(null);
+    setTreeMenu(null);
     setDraft(file.content);
     setMode(nextMode);
     setPendingNavigation(null);
@@ -943,6 +1720,7 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
     setSelectedVersion(null);
     setVersionDetail(null);
     loadHistory(file.path);
+    if (!options.skipDetailLoad) loadFullSkillDetail(copy);
   }
 
   useEffect(() => {
@@ -953,8 +1731,28 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
       || copies.find((copy) => copy.sourceId === skillBaselineId)
       || copies[0]
       || skill;
-    openSkillCopy(preferred);
+    if (activeFile?.path?.startsWith(`${preferred.dir}/`)) {
+      setActiveCopyId(preferred.id);
+      openTreeFileNow({
+        path: activeFile.path,
+        name: activeFile.name || activeFile.path.split("/").pop(),
+        type: "file"
+      });
+    } else {
+      openSkillCopy(preferred);
+    }
   }, [skill]);
+
+  useEffect(() => {
+    if (!treeMenu) return undefined;
+    const close = () => setTreeMenu(null);
+    window.addEventListener("click", close);
+    window.addEventListener("keydown", close);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("keydown", close);
+    };
+  }, [treeMenu]);
 
   async function openTreeFile(item) {
     if (hasUnsavedChanges()) {
@@ -978,6 +1776,9 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
         updatedAt: result.updatedAt
       };
       setActiveFile(file);
+      setSelectedDirPath(parentPath(item.path));
+      setCreateEntryDraft(null);
+      setTreeMenu(null);
       setDraft(file.content);
       setPendingNavigation(null);
       setHistoryOpen(false);
@@ -989,13 +1790,240 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
     }
   }
 
+  function beginCreateEntry(type, baseDir = selectedDirPath || (activeFile?.path ? parentPath(activeFile.path) : activeCopy?.dir)) {
+    if (!activeCopy?.dir) return;
+    setTreeMenu(null);
+    setCreateEntryDraft({
+      mode: "create",
+      type,
+      baseDir: baseDir || activeCopy.dir,
+      name: ""
+    });
+  }
+
+  function beginRenameEntry(node) {
+    if (!node?.path || node.path === activeCopy?.dir) return;
+    setTreeMenu(null);
+    setCreateEntryDraft({
+      mode: "rename",
+      type: node.type,
+      path: node.path,
+      baseDir: parentPath(node.path),
+      name: node.name
+    });
+  }
+
+  async function submitTreeDraft() {
+    if (!createEntryDraft) return;
+    if (createEntryDraft.mode === "rename") {
+      await renameDirectoryEntry(createEntryDraft.path, createEntryDraft.name, createEntryDraft.type);
+      return;
+    }
+    await createDirectoryEntry(createEntryDraft.type, createEntryDraft.baseDir, createEntryDraft.name);
+  }
+
+  async function createDirectoryEntry(type, baseDir, name) {
+    if (!activeCopy?.dir) return;
+    const label = type === "directory" ? "目录" : "文件";
+    const targetBaseDir = baseDir || selectedDirPath || (activeFile?.path ? parentPath(activeFile.path) : activeCopy.dir);
+    const entryName = String(name || "").trim();
+    if (!entryName) {
+      setFileError(`请输入要新增的${label}名称。`);
+      return;
+    }
+    setSaving(true);
+    setFileError("");
+    try {
+      const result = await window.skillStudio.createFileEntry({
+        baseDir: targetBaseDir,
+        type,
+        name: entryName,
+        skillDir: activeCopy.dir,
+        sourceInfo: {
+          sourceId: activeCopy.sourceId,
+          client: activeCopy.client,
+          sourceLabel: activeCopy.sourceLabel
+        }
+      });
+      setCreateEntryDraft(null);
+      insertTreeNodeOptimistic(result, targetBaseDir);
+      if (result.type === "file") {
+        const file = {
+          path: result.path,
+          name: result.name,
+          content: "",
+          isMarkdown: isMarkdownPath(result.path),
+          isSkillFile: result.path === activeCopy.filePath,
+          size: 0,
+          updatedAt: new Date().toISOString()
+        };
+        setActiveFile(file);
+        setSelectedDirPath(parentPath(result.path));
+        setDraft("");
+        setPendingNavigation(null);
+        setHistoryOpen(false);
+        setSelectedVersion(null);
+        setVersionDetail(null);
+        setSelectedTreePaths([result.path]);
+        setLastTreePath(result.path);
+        setMode("edit");
+      } else {
+        setSelectedDirPath(result.path);
+        setSelectedTreePaths([result.path]);
+        setLastTreePath(result.path);
+      }
+      setSaving(false);
+      refreshCopyInBackground(activeCopy);
+    } catch (err) {
+      setFileError(err.message || String(err));
+      const refreshed = await onSaved?.();
+      applyRefreshedCopy(refreshed);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function renameDirectoryEntry(filePath, name, type) {
+    if (!activeCopy?.dir) return;
+    const entryName = String(name || "").trim();
+    if (!entryName) {
+      setFileError("请输入新的名称。");
+      return;
+    }
+    setSaving(true);
+    setFileError("");
+    try {
+      const wasActive = activeFile?.path === filePath;
+      const activeWasInsideDirectory = type === "directory" && activeFile?.path?.startsWith(`${filePath}/`);
+      const result = await window.skillStudio.renameFileEntry({
+        path: filePath,
+        name: entryName,
+        skillDir: activeCopy.dir,
+        sourceInfo: {
+          sourceId: activeCopy.sourceId,
+          client: activeCopy.client,
+          sourceLabel: activeCopy.sourceLabel
+        }
+      });
+      setCreateEntryDraft(null);
+      renameTreeNodeOptimistic(filePath, result);
+      const refreshed = await onSaved?.();
+      applyRefreshedCopy(refreshed);
+      if (result.type === "file" && wasActive) {
+        await openTreeFileNow({ path: result.path, name: result.name, type: "file" });
+      } else if (activeWasInsideDirectory) {
+        const nextPath = `${result.path}${activeFile.path.slice(filePath.length)}`;
+        await openTreeFileNow({ path: nextPath, name: activeFile.name, type: "file" });
+      } else if (type === "directory") {
+        setSelectedDirPath(result.path);
+      }
+    } catch (err) {
+      setFileError(err.message || String(err));
+      const refreshed = await onSaved?.();
+      applyRefreshedCopy(refreshed);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteDirectoryEntry(node) {
+    if (!activeCopy?.dir || !node?.path || node.path === activeCopy.dir) return;
+    const nodesByPath = new Map(flattenTreeNodes(activeCopy.directoryTree || []).map((item) => [item.path, item]));
+    const selectedSet = new Set(selectedTreePaths);
+    const rawTargets = (selectedSet.has(node.path) ? selectedTreePaths : [node.path])
+      .map((itemPath) => nodesByPath.get(itemPath) || (itemPath === node.path ? node : null))
+      .filter((item) => item && item.path !== activeCopy.dir && item.path !== activeCopy.filePath);
+    const targets = rawTargets.filter((item) => (
+      !rawTargets.some((other) => other.path !== item.path && item.path.startsWith(`${other.path.replace(/\/+$/, "")}/`))
+    ));
+    if (!targets.length) return;
+    const preview = targets.slice(0, 8).map((item) => `- ${shortPath(item.path)}`).join("\n");
+    const confirmed = window.confirm(`确认删除 ${targets.length} 个项目？\n${preview}${targets.length > 8 ? "\n..." : ""}\n\n删除后可在升级前的历史版本中找回，但当前工作目录会移除它。`);
+    if (!confirmed) return;
+    setTreeMenu(null);
+    setSaving(true);
+    setFileError("");
+    const targetPaths = targets.map((target) => target.path);
+    targetPaths.forEach((targetPath) => pendingDeletedPathsRef.current.add(targetPath));
+    removeTreeNodesOptimistic(targetPaths);
+    try {
+      await Promise.all(targets.map((target) => (
+        window.skillStudio.deleteFileEntry({
+          path: target.path,
+          skillDir: activeCopy.dir
+        })
+      )));
+      const refreshed = await onSaved?.();
+      applyRefreshedCopy(refreshed);
+      const freshDetail = await window.skillStudio.skillDetail?.({
+        skillDir: activeCopy.dir,
+        source: {
+          id: activeCopy.sourceId,
+          client: activeCopy.client,
+          label: activeCopy.sourceLabel,
+          root: activeCopy.root
+        }
+      });
+      if (freshDetail?.id) {
+        setCopyOverrides((current) => ({
+          ...current,
+          [activeCopy.id]: {
+            ...(current[activeCopy.id] || activeCopy),
+            ...freshDetail,
+            id: activeCopy.id
+          }
+        }));
+      }
+      targetPaths.forEach((targetPath) => pendingDeletedPathsRef.current.delete(targetPath));
+    } catch (err) {
+      targetPaths.forEach((targetPath) => pendingDeletedPathsRef.current.delete(targetPath));
+      setFileError(err.message || String(err));
+      const refreshed = await onSaved?.();
+      applyRefreshedCopy(refreshed);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function openTreeContextMenu(event, node) {
+    event.preventDefault();
+    event.stopPropagation();
+    setTreeMenu({
+      x: event.clientX,
+      y: event.clientY,
+      node
+    });
+  }
+
+  async function copyTreePath(node, absolute = false) {
+    if (!node) return;
+    const value = absolute ? node.path : (node.relPath || copyRelativePath(activeCopy, node.path));
+    try {
+      await window.skillStudio.copyText?.(value);
+      setFileNotice(`已复制${absolute ? "绝对" : "相对"}路径：${value}`);
+      window.setTimeout(() => setFileNotice(""), 1400);
+      setTreeMenu(null);
+    } catch (err) {
+      setFileError(`复制失败：${err.message || String(err)}`);
+    }
+  }
+
   async function saveDraft() {
     if (!activeFile) return false;
     setSaving(true);
     setFileError("");
     try {
-      const result = await window.skillStudio.saveFile(activeFile.path, draft);
-      setActiveFile({ ...activeFile, content: draft, size: result.size, updatedAt: result.updatedAt });
+      const result = await window.skillStudio.saveFile(activeFile.path, draft, {
+        skillDir: activeCopy.dir,
+        sourceInfo: {
+          sourceId: activeCopy.sourceId,
+          client: activeCopy.client,
+          sourceLabel: activeCopy.sourceLabel
+        }
+      });
+      const savedContent = result.content ?? draft;
+      setActiveFile({ ...activeFile, content: savedContent, size: result.size, updatedAt: result.updatedAt });
+      setDraft(savedContent);
       await loadHistory(activeFile.path);
       setSelectedVersion(null);
       setVersionDetail(null);
@@ -1003,7 +2031,7 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
       if (activeCopy.sourceId === effectiveBaselineSourceId && syncTargets.length) {
         setSyncDraft({
           sourceCopy: activeCopy,
-          content: draft,
+          content: savedContent,
           relativePath: copyRelativePath(activeCopy, activeFile.path),
           fileName: activeFile.name,
           savedAt: new Date().toISOString()
@@ -1021,24 +2049,153 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
   }
 
   async function restoreVersion(versionId) {
-    if (!activeFile) return;
-    setSaving(true);
+    if (!activeCopy) return;
+    setVersionSwitching(true);
     setFileError("");
     try {
-      const result = await window.skillStudio.restoreFileVersion(activeFile.path, versionId);
-      const restored = { ...activeFile, content: result.content, size: result.size, updatedAt: result.updatedAt };
-      setActiveFile(restored);
-      setDraft(result.content);
-      setMode("view");
-      await loadHistory(activeFile.path);
-      setHistoryOpen(false);
-      setSelectedVersion(null);
-      setVersionDetail(null);
-      onSaved?.();
+      const result = await window.skillStudio.activateSkillVersion({
+        skillDir: activeCopy.dir,
+        archiveId: versionId,
+        sourceInfo: {
+          sourceId: activeCopy.sourceId,
+          client: activeCopy.client,
+          sourceLabel: activeCopy.sourceLabel
+        }
+      });
+      const nextCopy = applyCopySnapshot(result.skill, activeCopy) || activeCopy;
+      refreshCopyInBackground(nextCopy);
     } catch (err) {
       setFileError(err.message || String(err));
     } finally {
-      setSaving(false);
+      setVersionSwitching(false);
+    }
+  }
+
+  async function activateSkillPackageVersion(version) {
+    if (!activeCopy || !version) return;
+    const confirmed = window.confirm(`将 ${activeCopy.client} 的 ${skill.name} 回滚到 ${version.label || version.id}？\n当前目录会先自动保存为一个可回滚版本。`);
+    if (!confirmed) return;
+    setVersionSwitching(true);
+    setFileError("");
+    try {
+      const result = await window.skillStudio.activateSkillVersion({
+        skillDir: activeCopy.dir,
+        archiveId: version.id,
+        sourceInfo: {
+          sourceId: activeCopy.sourceId,
+          client: activeCopy.client,
+          sourceLabel: activeCopy.sourceLabel
+        }
+      });
+      const nextCopy = applyCopySnapshot(result.skill, activeCopy) || activeCopy;
+      refreshCopyInBackground(nextCopy);
+    } catch (err) {
+      setFileError(err.message || String(err));
+    } finally {
+      setVersionSwitching(false);
+    }
+  }
+
+  async function deleteSkillPackageVersions(versionIds, afterDelete) {
+    if (!activeCopy || !versionIds?.length) return;
+    const confirmed = window.confirm(`确认删除选中的 ${versionIds.length} 个历史版本？\n当前正在使用的版本不会被删除。`);
+    if (!confirmed) return;
+    setVersionSwitching(true);
+    setFileError("");
+    try {
+      const result = await window.skillStudio.deleteSkillVersions({
+        skillDir: activeCopy.dir,
+        archiveIds: versionIds
+      });
+      updateActiveCopyOverride({
+        versionInfo: {
+          ...(activeCopy.versionInfo || {}),
+          versions: result.versions || []
+        }
+      });
+      afterDelete?.();
+      refreshCopyInBackground(activeCopy);
+      if (result.skipped?.length) {
+        const activeCount = result.skipped.filter((item) => item.reason === "active").length;
+        const missingCount = result.skipped.filter((item) => item.reason === "missing").length;
+        const parts = [];
+        if (activeCount) parts.push(`${activeCount} 个正在使用`);
+        if (missingCount) parts.push(`${missingCount} 个已不存在`);
+        setFileError(`已删除 ${result.deleted?.length || 0} 个版本，跳过 ${parts.join("、")}的版本。`);
+      }
+    } catch (err) {
+      setFileError(err.message || String(err));
+    } finally {
+      setVersionSwitching(false);
+    }
+  }
+
+  async function prepareUpgradePreview(copy = activeCopy) {
+    if (!copy) return;
+    if (hasUnsavedChanges()) {
+      setFileError("请先保存或取消当前修改，再执行版本升级。");
+      return;
+    }
+    setUpgradeBusy(true);
+    setFileError("");
+    try {
+      const detail = await window.skillStudio.previewSkillUpgrade({
+        skillDir: copy.dir,
+        activeArchiveId: copy.versionInfo?.activeArchiveId
+      });
+      setUpgradeDetail(detail);
+      setUpgradeCopy(copy);
+      setUpgradeOpen(true);
+    } catch (err) {
+      setFileError(err.message || String(err));
+    } finally {
+      setUpgradeBusy(false);
+    }
+  }
+
+  async function openUpgradePreview() {
+    if (!activeCopy) return;
+    if (installations.length > 1 && agentScope === "all") {
+      setUpgradeTargetCopyId(activeCopy.id);
+      setUpgradeTargetOpen(true);
+      return;
+    }
+    await prepareUpgradePreview(activeCopy);
+  }
+
+  async function confirmSkillUpgrade() {
+    const targetCopy = upgradeCopy || activeCopy;
+    if (!targetCopy || !upgradeDetail) return;
+    setUpgradeBusy(true);
+    setFileError("");
+    try {
+      const result = await window.skillStudio.commitSkillUpgrade({
+        skillDir: targetCopy.dir,
+        nextVersion: upgradeDetail.toVersion,
+        sourceInfo: {
+          sourceId: targetCopy.sourceId,
+          client: targetCopy.client,
+          sourceLabel: targetCopy.sourceLabel
+        }
+      });
+      setUpgradeOpen(false);
+      setUpgradeDetail(null);
+      setUpgradeCopy(null);
+      if (activeFile?.path === result.path) {
+        const nextFile = {
+          ...activeFile,
+          content: result.content,
+          size: result.size,
+          updatedAt: result.updatedAt
+        };
+        setActiveFile(nextFile);
+        setDraft(result.content);
+      }
+      refreshCopyInBackground(targetCopy);
+    } catch (err) {
+      setFileError(err.message || String(err));
+    } finally {
+      setUpgradeBusy(false);
     }
   }
 
@@ -1050,12 +2207,14 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
       </section>
     );
   }
-  const installations = skill.installations || [skill];
+  const installations = (skill.installations || [skill]).map((copy) => copyOverrides[copy.id] ? { ...copy, ...copyOverrides[copy.id] } : copy);
   const activeCopy = installations.find((copy) => copy.id === activeCopyId) || installations[0] || skill;
   const baselineKey = skillGroupKey(skill);
   const requestedBaselineSourceId = baselineOverrides[baselineKey] || baselineSourceId;
   const baselineCopy = installations.find((copy) => copy.sourceId === requestedBaselineSourceId) || installations.find((copy) => copy.sourceId === "agents") || installations[0] || skill;
   const effectiveBaselineSourceId = baselineCopy.sourceId;
+  const allAgentsScope = agentScope === "all" && installations.length > 1;
+  const editTargetCopy = allAgentsScope ? baselineCopy : activeCopy;
   const syncTargets = installations.filter((copy) => copy.id !== syncDraft?.sourceCopy?.id);
   const installationAgents = [...new Set(installations.map((copy) => copy.client))];
   const isUninstalledSkill = skill.sourceId === "uninstalled";
@@ -1094,17 +2253,24 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
           Uninstall
         </button>
         ) : null}
-        <label className="baseline-picker">
-          <span>基准</span>
-          <select value={effectiveBaselineSourceId} onChange={(event) => selectSkillBaseline(event.target.value)}>
-            {installations.map((copy) => (
-              <option key={copy.id} value={copy.sourceId}>{copy.client}</option>
-            ))}
-          </select>
-        </label>
-        <button className="action-baseline" onClick={() => (mode === "edit" && activeCopy.id === baselineCopy.id ? exitEditMode() : openSkillCopy(baselineCopy, "edit"))}>
+        <SkillVersionPicker copy={activeCopy} onActivate={activateSkillPackageVersion} onDelete={deleteSkillPackageVersions} busy={versionSwitching} showAllVersions={allAgentsScope} />
+        <button className={`action-baseline action-upgrade ${upgradeBusy || upgradeOpen ? "is-busy" : ""}`} onClick={openUpgradePreview} disabled={upgradeBusy || upgradeOpen}>
+          <History size={16} />
+          {upgradeBusy ? "升级中" : upgradeOpen ? "确认升级" : "升级"}
+        </button>
+        {allAgentsScope ? (
+          <label className="baseline-picker">
+            <span>基准</span>
+            <select value={effectiveBaselineSourceId} onChange={(event) => selectSkillBaseline(event.target.value)}>
+              {installations.map((copy) => (
+                <option key={copy.id} value={copy.sourceId}>{copy.client}</option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        <button className="action-baseline" onClick={() => (mode === "edit" && activeCopy.id === editTargetCopy.id ? exitEditMode() : openSkillCopy(editTargetCopy, "edit"))}>
           <Edit3 size={16} />
-          {mode === "edit" && activeCopy.id === baselineCopy.id ? "取消编辑" : "编辑基准"}
+          {mode === "edit" && activeCopy.id === editTargetCopy.id ? "取消编辑" : allAgentsScope ? "编辑基准" : "编辑"}
         </button>
         <StarButton active={starred} className="detail-star" label onClick={(event) => { event.stopPropagation(); onStar?.(skill); }} />
       </div>
@@ -1112,8 +2278,10 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
         items={[
           { label: isUninstalledSkill ? "卸载来源" : "已安装", value: isUninstalledSkill ? uninstallSource : installationAgents.join(", ") },
           { label: "版本", value: activeVersion ? `v${activeVersion}` : "" },
-          { label: "基准", value: baselineCopy.client },
-          { label: "当前副本", value: activeCopy.client },
+          ...(allAgentsScope ? [
+            { label: "基准", value: baselineCopy.client },
+            { label: "当前副本", value: activeCopy.client }
+          ] : []),
           { label: "行数", value: activeCopy.lines },
           { label: "大小", value: `${Math.round((activeCopy.bytes || 0) / 1024)} KB` },
           { label: "更新", value: formatDate(activeCopy.updatedAt) }
@@ -1139,6 +2307,7 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
             </div>
         ))}
       </div>
+      {versionSwitching ? <div className="version-switching-note">正在切换版本...</div> : null}
       {mode === "edit" ? (
         <div className="copy-edit-actions">
           <span>正在编辑 {activeCopy.client} · {shortPath(activeFile?.path)}</span>
@@ -1204,7 +2373,15 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
                 try {
                   const targets = syncTargets.filter((copy) => syncTargetIds.includes(copy.id));
                   for (const copy of targets) {
-                    await window.skillStudio.saveFile(copyFilePath(copy, syncDraft.relativePath), syncDraft.content);
+                    await window.skillStudio.saveFile(copyFilePath(copy, syncDraft.relativePath), syncDraft.content, {
+                      skillDir: copy.dir,
+                      skipAutoIncrement: true,
+                      sourceInfo: {
+                        sourceId: copy.sourceId,
+                        client: copy.client,
+                        sourceLabel: copy.sourceLabel
+                      }
+                    });
                   }
                   setSyncDraft(null);
                   setSyncTargetIds([]);
@@ -1224,9 +2401,26 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
       <div className="detail-tags">
         {(skill.tags || []).length ? skill.tags.map((tag) => <TagPill key={tag} tag={tag} />) : <TagPill tag="untagged" />}
       </div>
+      {fileNotice ? <div className="file-notice">{fileNotice}</div> : null}
       {fileError ? <div className="file-error">{fileError}</div> : null}
       <div className="reader-shell">
-        <DirectoryTree skill={activeCopy} activePath={activeFile?.path} onOpenFile={openTreeFile} />
+        <DirectoryTree
+          skill={activeCopy}
+          activePath={activeFile?.path}
+          selectedDirPath={selectedDirPath}
+          selectedPaths={selectedTreePaths}
+          onNodeClick={handleTreeNodeClick}
+          onOpenFile={openTreeFile}
+          onSelectDirectory={(dirPath) => {
+            setSelectedDirPath(dirPath);
+            setCreateEntryDraft((current) => current ? { ...current, baseDir: dirPath } : current);
+          }}
+          onContextMenu={openTreeContextMenu}
+          draft={createEntryDraft}
+          onDraftChange={(name) => setCreateEntryDraft((current) => current ? { ...current, name } : current)}
+          onDraftSubmit={submitTreeDraft}
+          onDraftCancel={() => setCreateEntryDraft(null)}
+        />
         <section className="content-pane">
           <div className="reader-label">
             <FileText size={15} />
@@ -1234,52 +2428,171 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
               <strong>{activeFile?.name || "SKILL.md"}</strong>
               <small>{shortPath(activeFile?.path)}</small>
             </span>
+            <button title="在当前目录新增文件" onClick={() => beginCreateEntry("file")}>+ 文件</button>
+            <button title="在当前目录新增目录" onClick={() => beginCreateEntry("directory")}>+ 目录</button>
             <button className="reader-mode-toggle" onClick={() => setMode(mode === "edit" ? "view" : "edit")}>
               {mode === "edit" ? "编辑模式" : "阅读模式"}
             </button>
           </div>
           {mode === "edit" ? (
-            <textarea className="file-editor" value={draft} onChange={(event) => setDraft(event.target.value)} spellCheck={false} />
+            <HighlightedEditor
+              value={draft}
+              language={codeLanguageFromPath(activeFile?.path || activeFile?.name)}
+              onChange={(event) => setDraft(event.target.value)}
+            />
           ) : activeFile ? (
             <SkillReader file={activeFile} />
           ) : null}
         </section>
       </div>
+      {treeMenu ? (
+        <div className="tree-context-menu" style={{ left: treeMenu.x, top: treeMenu.y }} onClick={(event) => event.stopPropagation()}>
+          <button onClick={() => copyTreePath(treeMenu.node, false)}>复制相对路径</button>
+          <button onClick={() => copyTreePath(treeMenu.node, true)}>复制绝对路径</button>
+          {treeMenu.node.type === "directory" ? (
+            <>
+              <hr />
+              <button onClick={() => beginCreateEntry("file", treeMenu.node.path)}>在此新增文件</button>
+              <button onClick={() => beginCreateEntry("directory", treeMenu.node.path)}>在此新增目录</button>
+            </>
+          ) : null}
+          {treeMenu.node.path !== activeCopy?.dir ? (
+            <>
+              <hr />
+              <button onClick={() => beginRenameEntry(treeMenu.node)}>重命名</button>
+              {treeMenu.node.path !== activeCopy?.filePath ? (
+                <button onClick={() => deleteDirectoryEntry(treeMenu.node)}>删除</button>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+      ) : null}
       {historyOpen ? (
         <div className="history-overlay">
           <div className="history-panel">
             <div className="history-head">
               <div>
                 <h3>历史版本</h3>
-                <p>{activeFile?.name} · {history.length} 个快照</p>
+                <p>{activeCopy?.client} · {history.length} 个历史目录版本</p>
               </div>
               <button onClick={() => setHistoryOpen(false)}>关闭</button>
             </div>
-            <div className="history-body">
+            <div className="history-body" style={{ "--history-list-width": `${historyListWidth}px` }}>
               <div className="history-list">
                 {history.length ? history.map((entry) => (
                   <button key={entry.id} className={selectedVersion?.id === entry.id ? "selected" : ""} onClick={() => selectVersion(entry)}>
-                    <strong>{formatDate(entry.createdAt)}</strong>
-                    <span>{entry.reason} · {Math.max(1, Math.round(entry.size / 1024))} KB</span>
+                    <strong>{entry.label || entry.id}</strong>
+                    <span>{entry.reason} · {formatDate(entry.createdAt)}</span>
                   </button>
-                )) : <p>还没有历史版本。保存文件后会自动创建快照。</p>}
+                )) : <p>还没有历史版本。保存 skill 后会自动创建目录版本。</p>}
               </div>
+              <div
+                className="history-resizer"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  const startX = event.clientX;
+                  const startWidth = historyListWidth;
+                  const move = (moveEvent) => {
+                    setHistoryListWidth(Math.max(150, Math.min(320, startWidth + moveEvent.clientX - startX)));
+                  };
+                  const up = () => {
+                    window.removeEventListener("mousemove", move);
+                    window.removeEventListener("mouseup", up);
+                  };
+                  window.addEventListener("mousemove", move);
+                  window.addEventListener("mouseup", up);
+                }}
+              />
               <div className="diff-pane">
                 {versionDetail ? (
                   <>
                     <div className="diff-toolbar">
-                      <span>对比当前文件与 {formatDate(versionDetail.createdAt)} 的版本</span>
-                      <button onClick={() => restoreVersion(versionDetail.id)} disabled={saving}>
+                      <span>对比当前目录与 {versionDetail.version?.label || selectedVersion?.label || "历史版本"}</span>
+                      <button onClick={() => restoreVersion(versionDetail.version?.id || selectedVersion?.id)} disabled={saving}>
                         <RotateCcw size={13} />
                         回滚到此版本
                       </button>
                     </div>
-                    <DiffViewer detail={versionDetail} />
+                    <DirectoryDiffViewer detail={versionDetail} />
                   </>
                 ) : (
                   <div className="diff-empty">选择一个历史版本查看更改。</div>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {upgradeTargetOpen ? (
+        <div className="history-overlay">
+          <div className="history-panel upgrade-target-panel">
+            <div className="history-head">
+              <div>
+                <h3>选择升级的 Agent</h3>
+                <p>{skill.name} · 每次升级只写入选中的 Agent 目录</p>
+              </div>
+              <button onClick={() => setUpgradeTargetOpen(false)} disabled={upgradeBusy}>关闭</button>
+            </div>
+            <div className="upgrade-target-list">
+              {installations.map((copy) => (
+                <label key={copy.id} className={upgradeTargetCopyId === copy.id ? "selected" : ""}>
+                  <input
+                    type="radio"
+                    name="upgrade-target-copy"
+                    checked={upgradeTargetCopyId === copy.id}
+                    onChange={() => setUpgradeTargetCopyId(copy.id)}
+                  />
+                  <span>
+                    <strong>{copy.client}</strong>
+                    <small>{shortPath(copy.dir)}</small>
+                  </span>
+                  <em>{skillVersion(copy) ? `v${skillVersion(copy)}` : "无版本"}</em>
+                </label>
+              ))}
+            </div>
+            <div className="modal-actions upgrade-target-actions">
+              <button className="soft-button" onClick={() => setUpgradeTargetOpen(false)} disabled={upgradeBusy}>取消</button>
+              <button
+                className="action-install"
+                disabled={upgradeBusy || !upgradeTargetCopyId}
+                onClick={async () => {
+                  const copy = installations.find((item) => item.id === upgradeTargetCopyId) || activeCopy;
+                  setUpgradeTargetOpen(false);
+                  await prepareUpgradePreview(copy);
+                }}
+              >
+                继续
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {upgradeOpen ? (
+        <div className="history-overlay">
+          <div className={`history-panel upgrade-panel ${upgradeBusy ? "is-upgrading" : ""}`}>
+            <div className="history-head">
+              <div>
+                <h3>确认升级</h3>
+                <p>{(upgradeCopy || activeCopy)?.client} · {upgradeDetail?.fromVersion || "-"} {"->"} {upgradeDetail?.toVersion || "-"}</p>
+              </div>
+              <div className="modal-actions">
+                <button className="soft-button" onClick={() => { setUpgradeOpen(false); setUpgradeCopy(null); }} disabled={upgradeBusy}>取消</button>
+                <button className={upgradeBusy ? "upgrade-confirm-busy" : ""} onClick={confirmSkillUpgrade} disabled={upgradeBusy || !upgradeDetail?.files?.length}>
+                  {upgradeBusy ? "升级中..." : `升级到 v${upgradeDetail?.toVersion || ""}`}
+                </button>
+              </div>
+            </div>
+            <div className="upgrade-body">
+              {upgradeDetail ? (
+                <>
+                  <div className="diff-toolbar">
+                    <span>升级前后差异。确认后才会写入 SKILL.md 并创建新的 skill 版本。</span>
+                  </div>
+                  <DirectoryDiffViewer detail={upgradeDetail} />
+                </>
+              ) : (
+                <div className="diff-empty">正在生成升级差异。</div>
+              )}
             </div>
           </div>
         </div>
@@ -1296,6 +2609,7 @@ function SettingsPage({ settings, onSave, saving }) {
     baselineSourceId: "agents",
     installTargetMode: "remember-last",
     mergeDuplicateSkills: true,
+    skillVersionRetentionDays: 30,
     logRetentionDays: null,
     eventRetentionDays: null
   };
@@ -1306,6 +2620,7 @@ function SettingsPage({ settings, onSave, saving }) {
     baselineSourceId: "agents",
     installTargetMode: "remember-last",
     mergeDuplicateSkills: true,
+    skillVersionRetentionDays: 30,
     logRetentionDays: null,
     eventRetentionDays: null
   });
@@ -1495,6 +2810,16 @@ function SettingsPage({ settings, onSave, saving }) {
             <h3>记录保留</h3>
             <p>Events 和 Logs 默认永久保留；填写天数后会自动清理更早的记录。</p>
           </div>
+          <label className="settings-field retention-field">
+            <span>Skill Versions</span>
+            <em>保留天数</em>
+            <input
+              type="number"
+              min="1"
+              value={draft.skillVersionRetentionDays || 30}
+              onChange={(event) => setRetentionDays("skillVersionRetentionDays", event.target.value)}
+            />
+          </label>
           <label className="settings-field retention-field">
             <span>Operation Events</span>
             <select value={draft.eventRetentionDays ? "custom" : "forever"} onChange={(event) => setRetention("eventRetentionDays", event.target.value)}>
@@ -2299,7 +3624,14 @@ function App() {
       setSelected(null);
       setSelectedDiscover(null);
       if (!starredFiltered.length) setSelectedStarred(null);
-      else if (!selectedStarred || !starredFiltered.some((entry) => entry.key === selectedStarred.key)) setSelectedStarred(starredFiltered[0]);
+      else {
+        const refreshedStarred = selectedStarred ? starredFiltered.find((entry) => entry.key === selectedStarred.key) : null;
+        if (refreshedStarred && refreshedStarred !== selectedStarred) {
+          setSelectedStarred(refreshedStarred);
+        } else if (!selectedStarred || !refreshedStarred) {
+          setSelectedStarred(starredFiltered[0]);
+        }
+      }
       return;
     }
     const activeList = listMode === "uninstalled" ? uninstalledFiltered : installedFiltered;
@@ -2308,8 +3640,13 @@ function App() {
       setSelectedStarred(null);
       if (!activeList.length) {
         setSelected(null);
-      } else if (!selected || !activeList.some((skill) => skill.id === selected.id)) {
-        setSelected(activeList[0]);
+      } else {
+        const refreshedSelected = selected ? activeList.find((skill) => skill.id === selected.id) : null;
+        if (refreshedSelected && refreshedSelected !== selected) {
+          setSelected(refreshedSelected);
+        } else if (!selected || !refreshedSelected) {
+          setSelected(activeList[0]);
+        }
       }
     }
     if (listMode === "discover") {
@@ -2482,15 +3819,6 @@ function App() {
                     <button className={discoverSort === "trending" ? "on" : ""} onClick={() => setDiscoverSort("trending")}>Trending (24h)</button>
                     <button className={discoverSort === "hot" ? "on" : ""} onClick={() => setDiscoverSort("hot")}>Hot</button>
                   </div>
-                  {(githubTrends.loading || githubTrends.error || githubTrends.meta?.stale) ? (
-                    <div className={`discover-status ${githubTrends.error ? "warn" : ""}`}>
-                      {githubTrends.loading
-                        ? "正在加载 skills.sh..."
-                        : githubTrends.meta?.stale
-                          ? `skills.sh 暂时不可用，正在显示缓存${githubTrends.meta?.cachedAt ? ` · ${formatDate(githubTrends.meta.cachedAt)}` : ""}`
-                          : `Discover 加载失败：${githubTrends.error}`}
-                    </div>
-                  ) : null}
                 </>
               ) : null}
             </div>
@@ -2504,7 +3832,14 @@ function App() {
             </div>
           ) : null}
           <div className="skill-list">
-            {visibleCount === 0 ? <EmptyList mode={listMode} /> : null}
+            {listMode === "discover" && !githubTrends.loading && (githubTrends.error || githubTrends.meta?.stale) ? (
+              <div className={`discover-status ${githubTrends.error ? "warn" : ""}`}>
+                {githubTrends.meta?.stale
+                  ? `skills.sh 暂时不可用，正在显示缓存${githubTrends.meta?.cachedAt ? ` · ${formatDate(githubTrends.meta.cachedAt)}` : ""}`
+                  : `Discover 加载失败：${githubTrends.error}`}
+              </div>
+            ) : null}
+            {visibleCount === 0 ? <EmptyList mode={listMode} scanning={listMode === "discover" ? githubTrends.loading : loading} /> : null}
             {listMode === "tags" ? (
               <div className="tag-overview">
                 {allTagCounts.map(({ tag, count }) => {
@@ -2633,6 +3968,7 @@ function App() {
               onInstall={selectedStarred?.type === "uninstalled" ? beginRestoreSkill : beginInstallLocal}
               onUninstall={selectedStarred?.type === "uninstalled" ? null : beginUninstallMany}
               baselineSourceId={settings?.baselineSourceId || "agents"}
+              agentScope={sourceFilter}
             />
           )
         ) : (
@@ -2644,6 +3980,7 @@ function App() {
             onInstall={listMode === "uninstalled" ? beginRestoreSkill : beginInstallLocal}
             onUninstall={listMode === "uninstalled" ? null : beginUninstallMany}
             baselineSourceId={settings?.baselineSourceId || "agents"}
+            agentScope={sourceFilter}
           />
         )}
         </>
