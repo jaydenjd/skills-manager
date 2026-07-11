@@ -5378,3 +5378,450 @@ button.tag-pill {
     grid-template-columns: 1fr;
   }
 }
+
+/* Product polish layer: dense, calm, predictable surfaces for daily developer use. */
+:root {
+  --sm-ink: #20231f;
+  --sm-muted: #62685f;
+  --sm-panel: rgba(255, 253, 248, 0.94);
+  --sm-panel-solid: #fffdf8;
+  --sm-line: #d5cebd;
+  --sm-line-strong: #bfb6a4;
+  --sm-accent: #cfff24;
+  --sm-accent-soft: #efffc9;
+  --sm-shadow: 0 16px 34px rgba(31, 33, 29, 0.08);
+  --sm-shadow-hover: 0 18px 38px rgba(31, 33, 29, 0.12);
+  --sm-radius: 8px;
+}
+
+body {
+  color: var(--sm-ink);
+  background:
+    linear-gradient(90deg, rgba(31, 33, 29, 0.035) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(31, 33, 29, 0.035) 1px, transparent 1px),
+    radial-gradient(circle at 18% 4%, rgba(207, 255, 36, 0.1), transparent 28%),
+    #f5f2e9;
+  background-size: 28px 28px, 28px 28px, auto, auto;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(31, 33, 29, 0.25) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(31, 33, 29, 0.24);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(31, 33, 29, 0.38);
+  background-clip: padding-box;
+}
+
+button,
+select,
+input,
+textarea {
+  transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(207, 255, 36, 0.9);
+  outline-offset: 2px;
+}
+
+.shell {
+  padding: 18px 18px 16px;
+}
+
+.topbar {
+  height: 60px;
+  padding: 0 2px 8px;
+  border-bottom: 1px solid rgba(201, 195, 180, 0.34);
+}
+
+.brand {
+  min-width: 260px;
+}
+
+.brand h1 {
+  font-size: 22px;
+  font-weight: 760;
+}
+
+.brand p {
+  margin-top: 4px;
+  color: var(--sm-muted);
+}
+
+.toolbar {
+  gap: 8px;
+}
+
+.language-select,
+.search-box,
+.icon-button,
+.search-config-button,
+.result-controls select,
+.tag-cloud-toggle,
+.star-source-toggle,
+.history-top-button,
+.detail-actions button,
+.mini-install-target,
+.install-target-select {
+  border-color: var(--sm-line);
+  border-radius: var(--sm-radius);
+  box-shadow: 0 1px 0 rgba(31, 33, 29, 0.04);
+}
+
+.search-box {
+  background: rgba(255, 253, 248, 0.9);
+}
+
+.search-box:focus-within,
+.language-select:focus-within,
+.result-controls select:focus,
+.tag-cloud-toggle.on,
+.star-source-toggle.on {
+  border-color: var(--sm-ink);
+  box-shadow: 0 0 0 3px rgba(207, 255, 36, 0.22);
+}
+
+.icon-button:hover,
+.detail-actions button:hover:not(:disabled),
+.row-meta button:hover:not(:disabled),
+.copy-card-main button:hover:not(:disabled),
+.compact-ghost-button:hover,
+.tag-cloud-toggle:hover,
+.star-source-toggle:hover,
+.history-top-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 12px rgba(31, 33, 29, 0.1);
+}
+
+.dashboard {
+  height: calc(100vh - 94px);
+  grid-template-columns: 220px 340px minmax(650px, 1fr);
+  gap: 14px;
+}
+
+.left-rail,
+.results,
+.detail,
+.logs-page,
+.settings-page {
+  border-color: rgba(201, 195, 180, 0.9);
+  background: var(--sm-panel);
+  box-shadow: var(--sm-shadow);
+}
+
+.left-rail {
+  padding: 12px;
+}
+
+.section-label {
+  margin: 14px 0 8px;
+  color: #757b72;
+  font-size: 10px;
+  font-weight: 760;
+  letter-spacing: 0;
+}
+
+.nav-row,
+.count-row {
+  min-height: 32px;
+  border-radius: 7px;
+}
+
+.nav-row:hover,
+.count-row:hover {
+  background: rgba(232, 227, 214, 0.7);
+}
+
+.nav-row.active,
+.count-row.active {
+  background: #e8e3d6;
+  box-shadow: inset 3px 0 0 var(--sm-accent);
+}
+
+.nav-row span,
+.count-row span {
+  color: #3f443d;
+  font-size: 13px;
+  font-weight: 560;
+}
+
+.nav-row.active span,
+.count-row.active span {
+  color: var(--sm-ink);
+  font-weight: 760;
+}
+
+.nav-row em,
+.count-row em {
+  background: #ded8cb;
+  font-size: 11px;
+}
+
+.results {
+  padding: 12px;
+}
+
+.result-head {
+  height: 68px;
+  margin-bottom: 10px;
+  padding: 0 2px 9px;
+  align-items: end;
+  border-bottom-color: rgba(201, 195, 180, 0.82);
+}
+
+.result-head h2,
+.panel-head h2 {
+  font-size: 18px;
+  font-weight: 760;
+}
+
+.result-meta {
+  align-items: flex-end;
+}
+
+.result-meta-main {
+  padding-top: 0;
+}
+
+.result-meta-main span {
+  color: #4c524a;
+  font-size: 12px;
+  font-weight: 560;
+}
+
+.result-meta-main span + span {
+  color: #858a80;
+  font-size: 10.5px;
+}
+
+.result-controls {
+  align-items: flex-end;
+}
+
+.segmented {
+  height: 32px;
+  padding: 2px;
+  border-radius: 8px;
+  background: #f3efe4;
+}
+
+.segmented button {
+  min-width: 44px;
+  height: 26px;
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.skill-list {
+  max-height: calc(100% - 58px);
+  gap: 9px;
+  padding: 0 10px 30px 0;
+}
+
+.skill-row,
+.discover-row,
+.tag-skill-card,
+.installation-card,
+.facts span,
+.discover-info-panel > div {
+  border-color: rgba(216, 209, 194, 0.95);
+  background: var(--sm-panel-solid);
+  box-shadow: 0 1px 0 rgba(31, 33, 29, 0.03);
+}
+
+.skill-row,
+.discover-row {
+  height: 128px;
+  min-height: 128px;
+  padding: 10px;
+}
+
+.skill-row:hover,
+.discover-row:hover,
+.tag-skill-card:hover,
+.installation-card:hover {
+  border-color: var(--sm-line-strong);
+  box-shadow: var(--sm-shadow-hover);
+}
+
+.skill-row.selected,
+.discover-row.selected,
+.installation-card.active {
+  border-color: var(--sm-ink);
+  background: linear-gradient(90deg, rgba(207, 255, 36, 0.12), var(--sm-panel-solid) 22%);
+  box-shadow: inset 4px 0 0 var(--sm-accent), 0 10px 24px rgba(31, 33, 29, 0.08);
+}
+
+.row-main {
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.skill-glyph {
+  width: 34px;
+  height: 34px;
+  border-radius: 7px;
+  font-size: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.26);
+}
+
+.row-title strong {
+  font-size: 13.5px;
+  font-weight: 760;
+}
+
+.source-badge,
+.row-source,
+.version-badge {
+  font-weight: 720;
+}
+
+.skill-row p,
+.discover-row p {
+  color: var(--sm-muted);
+  line-height: 1.48;
+}
+
+.row-meta {
+  color: #697066;
+}
+
+.row-meta button {
+  min-height: 25px;
+  font-size: 11px;
+  font-weight: 720;
+}
+
+.detail {
+  padding: 16px;
+}
+
+.detail-header {
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(201, 195, 180, 0.62);
+}
+
+.detail-icon {
+  justify-self: start;
+  border-radius: 9px;
+  box-shadow: 0 5px 14px rgba(31, 33, 29, 0.12);
+}
+
+.detail h2 {
+  font-size: 22px;
+  font-weight: 780;
+  letter-spacing: 0;
+}
+
+.detail p {
+  color: var(--sm-muted);
+  font-size: 12px;
+}
+
+.detail-actions {
+  gap: 8px;
+  margin: 12px 0 10px;
+}
+
+.detail-actions button,
+.history-top-button {
+  height: 38px;
+  font-weight: 720;
+}
+
+.meta-strip {
+  border: 1px solid rgba(216, 209, 194, 0.96);
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.78);
+}
+
+.installations-panel {
+  gap: 9px;
+}
+
+.installation-card {
+  min-height: 72px;
+  padding: 9px 10px;
+}
+
+.copy-card-main strong {
+  font-size: 13px;
+  font-weight: 780;
+}
+
+.copy-card-main button {
+  color: #3f443d;
+}
+
+.copy-version,
+.copy-version-picker .version-dropdown-trigger {
+  background: var(--sm-accent-soft);
+}
+
+.reader-shell,
+.file-reader,
+.directory-tree {
+  border-color: rgba(201, 195, 180, 0.95);
+}
+
+.modal-overlay {
+  background: rgba(31, 33, 29, 0.28);
+  backdrop-filter: blur(7px);
+}
+
+.install-dialog,
+.history-panel,
+.upgrade-panel,
+.settings-card,
+.settings-version-card,
+.log-entry,
+.event-entry {
+  border-color: rgba(201, 195, 180, 0.95);
+  background: var(--sm-panel-solid);
+  box-shadow: var(--sm-shadow);
+}
+
+.notice,
+.error,
+.file-notice,
+.file-error {
+  border-radius: 8px;
+  box-shadow: var(--sm-shadow);
+}
+
+@media (max-width: 1320px) {
+  .dashboard {
+    grid-template-columns: 208px 318px minmax(600px, 1fr);
+    gap: 12px;
+  }
+
+  .search-box {
+    width: 300px;
+  }
+
+  .brand {
+    min-width: 230px;
+  }
+}

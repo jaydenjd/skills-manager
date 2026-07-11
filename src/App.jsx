@@ -190,7 +190,18 @@ const messages = {
     emptyDiscover: "当前发现条件下没有匹配结果。",
     emptyTags: "当前还没有可统计的标签。",
     emptyLocal: "当前条件下没有本地 skill。",
-    discoverEmptyHint: "选择一个发现页 skill 查看来源、热度、仓库和安装信息。"
+    discoverEmptyHint: "选择一个发现页 skill 查看来源、热度、仓库和安装信息。",
+    saveChanges: "保存修改",
+    discardChanges: "取消修改",
+    savingChanges: "保存中",
+    editing: "正在编辑",
+    switchingVersion: "正在切换版本...",
+    clearRecordsConfirm: "清空记录",
+    updatedAt: "更新",
+    size: "大小",
+    lines: "行数",
+    currentCopy: "当前副本",
+    uninstallSource: "卸载来源"
   },
   en: {
     appSubtitle: "Local multi-client skill manager",
@@ -335,7 +346,18 @@ const messages = {
     emptyDiscover: "No results match the current Discover filters.",
     emptyTags: "No tags to summarize yet.",
     emptyLocal: "No local skills match the current filters.",
-    discoverEmptyHint: "Select a Discover skill to view source, popularity, repository, and install information."
+    discoverEmptyHint: "Select a Discover skill to view source, popularity, repository, and install information.",
+    saveChanges: "Save changes",
+    discardChanges: "Discard changes",
+    savingChanges: "Saving",
+    editing: "Editing",
+    switchingVersion: "Switching version...",
+    clearRecordsConfirm: "Clear records",
+    updatedAt: "Updated",
+    size: "Size",
+    lines: "Lines",
+    currentCopy: "Current copy",
+    uninstallSource: "Uninstalled from"
   }
 };
 
@@ -1995,6 +2017,7 @@ function Detail({
   cardActionLabel = "",
   onCardAction = null
 }) {
+  const { t } = useI18n();
   const [activeFile, setActiveFile] = useState(null);
   const [activeCopyId, setActiveCopyId] = useState("");
   const [syncPending, setSyncPending] = useState(null);
@@ -3212,7 +3235,7 @@ function Detail({
         </div>
         {!hideHistory ? <button className="history-top-button" onClick={openHistoryPanel}>
           <History size={16} />
-          历史版本
+          {t("history")}
         </button> : null}
       </div>
       <div className="detail-actions">
@@ -3223,28 +3246,28 @@ function Detail({
         {onUninstall ? (
         <button className="action-uninstall" onClick={() => onUninstall(skill, installations)}>
           <RotateCcw size={16} />
-          Uninstall
+          {t("uninstall")}
         </button>
         ) : null}
         {!hideVersionActions ? <button className={`action-baseline action-upgrade ${upgradeBusy || upgradeOpen ? "is-busy" : ""}`} onClick={openUpgradePreview} disabled={upgradeBusy || upgradeOpen}>
           <History size={16} />
-          {upgradeBusy ? "发布中" : upgradeOpen ? "确认发布" : "发布版本"}
+          {upgradeBusy ? t("publishing") : upgradeOpen ? t("confirmPublish") : t("publishVersion")}
         </button> : null}
         {onDeleteRecords ? (
           <button className="action-uninstall" onClick={() => onDeleteRecords(skill)}>
             <Trash2 size={16} />
-            清空记录
+            {t("clearRecordsConfirm")}
           </button>
         ) : null}
         <StarButton active={starred} className="detail-star" label onClick={(event) => { event.stopPropagation(); onStar?.(skill); }} />
       </div>
       <MetaStrip
         items={[
-          { label: isUninstalledSkill ? "卸载来源" : "已安装", value: isUninstalledSkill ? [...new Set(installations.map(copyClientLabel))].join(", ") : installationAgents.join(", ") },
-          ...(allAgentsScope ? [{ label: "当前副本", value: copyClientLabel(activeCopy) }] : []),
-          { label: "行数", value: activeCopy.lines },
-          { label: "大小", value: `${Math.round((activeCopy.bytes || 0) / 1024)} KB` },
-          { label: "更新", value: formatDate(activeCopy.updatedAt) }
+          { label: isUninstalledSkill ? t("uninstallSource") : t("installedLabel"), value: isUninstalledSkill ? [...new Set(installations.map(copyClientLabel))].join(", ") : installationAgents.join(", ") },
+          ...(allAgentsScope ? [{ label: t("currentCopy"), value: copyClientLabel(activeCopy) }] : []),
+          { label: t("lines"), value: activeCopy.lines },
+          { label: t("size"), value: `${Math.round((activeCopy.bytes || 0) / 1024)} KB` },
+          { label: t("updatedAt"), value: formatDate(activeCopy.updatedAt) }
         ]}
       />
       <div className={`installations-panel ${installations.length === 1 ? "single" : ""}`}>
@@ -3278,11 +3301,11 @@ function Detail({
                 ) : null}
                 {!readOnly ? (
                   <button onClick={(event) => { event.stopPropagation(); beginSyncCopy(copy); }}>
-                    同步
+                    {t("sync")}
                   </button>
                 ) : null}
                 {!readOnly ? <button onClick={(event) => { event.stopPropagation(); copy.id === activeCopy.id && mode === "edit" ? exitEditMode() : openSkillCopy(copy, "edit"); }}>
-                  {copy.id === activeCopy.id && mode === "edit" ? "取消编辑" : "编辑"}
+                  {copy.id === activeCopy.id && mode === "edit" ? t("cancelEdit") : t("edit")}
                 </button> : null}
                 {cardActionLabel && onCardAction ? (
                   <button onClick={(event) => { event.stopPropagation(); onCardAction(copy); }}>
@@ -3301,17 +3324,17 @@ function Detail({
           );
         })}
       </div>
-      {versionSwitching ? <div className="version-switching-note">正在切换版本...</div> : null}
+      {versionSwitching ? <div className="version-switching-note">{t("switchingVersion")}</div> : null}
       {mode === "edit" ? (
         <div className="copy-edit-actions">
-          <span>正在编辑 {activeCopy.client} · {shortPath(activeFile?.path)}</span>
+          <span>{t("editing")} {activeCopy.client} · {shortPath(activeFile?.path)}</span>
           <button onClick={saveDraft} disabled={saving || draft === activeFile?.content}>
             <Save size={14} />
-            {saving ? "保存中" : "保存修改"}
+            {saving ? t("savingChanges") : t("saveChanges")}
           </button>
           <button className="soft-button" onClick={() => { setDraft(activeFile?.content || ""); setPendingNavigation(null); }} disabled={draft === activeFile?.content}>
             <RotateCcw size={14} />
-            取消修改
+            {t("discardChanges")}
           </button>
         </div>
       ) : null}
