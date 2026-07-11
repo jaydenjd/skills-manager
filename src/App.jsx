@@ -20,7 +20,8 @@ import {
   SlidersHorizontal,
   Sparkles,
   Star,
-  Tags
+  Tags,
+  Trash2
 } from "lucide-react";
 import "./styles.css";
 
@@ -33,9 +34,15 @@ const fmt = new Intl.DateTimeFormat("zh-CN", {
 const starStorageKey = "skill-manager-stars";
 const legacyStarStorageKey = "skill-studio-stars";
 const installTargetsStorageKey = "skill-manager-last-install-targets";
+const uninstallTargetsStorageKey = "skill-manager-last-uninstall-targets";
+const versionTargetsStorageKey = "skill-manager-last-version-targets";
 const legacyInstallTargetsStorageKey = "skill-studio-last-install-targets";
-const baselineOverridesStorageKey = "skill-manager-baseline-overrides";
 const scanCacheStorageKey = "skill-manager-last-scan";
+const starSourceOptions = [
+  ["discover", "Discover"],
+  ["installed", "Installed"],
+  ["uninstalled", "Uninstalled"]
+];
 
 function readStoredJson(primaryKey, legacyKey, fallback) {
   const primary = localStorage.getItem(primaryKey);
@@ -55,6 +62,70 @@ function formatDate(value) {
   return value ? fmt.format(new Date(value)) : "-";
 }
 
+function formatVersionLocalDate(value, { compact = false } = {}) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  }).formatToParts(date).reduce((acc, part) => {
+    acc[part.type] = part.value;
+    return acc;
+  }, {});
+  if (compact) return `${parts.year}${parts.month}${parts.day}`;
+  return `${parts.year}${parts.month}${parts.day}.${parts.hour}${parts.minute}${parts.second}`;
+}
+
+function normalizeLocalVersionLabel(label = "", { compact = false } = {}) {
+  const value = String(label || "").trim();
+  const legacyLocal = value.match(/^local\s+(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2}))?)?/i);
+  if (legacyLocal) {
+    const date = `${legacyLocal[1]}${legacyLocal[2]}${legacyLocal[3]}`;
+    const time = `${legacyLocal[4] || ""}${legacyLocal[5] || ""}${legacyLocal[6] || ""}`;
+    return compact || !time ? `v.${date}` : `v.${date}.${time}`;
+  }
+  const oldCompactLocal = value.match(/^v\.local\.(\d{8})(?:\.?(\d{4,6}))?$/i);
+  if (oldCompactLocal) {
+    return compact || !oldCompactLocal[2] ? `v.${oldCompactLocal[1]}` : `v.${oldCompactLocal[1]}.${oldCompactLocal[2]}`;
+  }
+  const newLocal = value.match(/^v\.(\d{8})(?:\.(\d{4,6}))?$/i);
+  if (newLocal) {
+    return compact || !newLocal[2] ? `v.${newLocal[1]}` : `v.${newLocal[1]}.${newLocal[2]}`;
+  }
+  return "";
+}
+
+function displayVersionLabel(label = "") {
+  const value = String(label || "").trim();
+  const local = normalizeLocalVersionLabel(value);
+  if (local) return local;
+  return value && !/^v/i.test(value) ? `v${value}` : value;
+}
+
+function compactVersionLabel(label = "") {
+  const value = String(label || "").trim();
+  const local = normalizeLocalVersionLabel(value, { compact: true });
+  if (local) return local;
+  return value && !/^v/i.test(value) ? `v${value}` : value;
+}
+
+function localVersionLabelFromDate(value) {
+  const stamp = formatVersionLocalDate(value);
+  return stamp ? `v.${stamp}` : "";
+}
+
+function isGeneratedLocalVersionLabel(label = "") {
+  const value = String(label || "").trim();
+  return /^local\b/i.test(value) || /^v\.local\./i.test(value) || /^v\.\d{8}(?:\.\d{4,6})?$/i.test(value);
+}
+
 function shortPath(path) {
   return path?.replace(/^\/Users\/[^/]+/, "~") || "";
 }
@@ -72,21 +143,60 @@ function copyRelativePath(copy, filePath) {
   return filePath.slice(root.length).replace(/^\/+/, "") || "SKILL.md";
 }
 
-function copyFilePath(copy, relativePath) {
-  const root = copy?.dir?.replace(/\/+$/, "") || "";
-  return `${root}/${relativePath || "SKILL.md"}`;
-}
-
 function starKey(type, item) {
   return `${type}:${item?.id || item?.filePath || item?.dir || item?.url || item?.name}`;
 }
 
+function normalizeStarType(type, item = {}) {
+  const value = String(type || "").trim().toLowerCase();
+  if (value === "discover" || value === "discovered" || value === "skillssh" || item.source === "skillssh") return "discover";
+  if (value === "uninstalled" || value === "uninstall") return "uninstalled";
+  return "installed";
+}
+
 function starSnapshot(type, item) {
+  const normalizedType = normalizeStarType(type, item);
   return {
-    type,
-    key: starKey(type, item),
+    type: normalizedType,
+    key: starKey(normalizedType, item),
+    createdAt: new Date().toISOString(),
     item
   };
+}
+
+function starGroupKey(type, item) {
+  const normalizedType = normalizeStarType(type, item);
+  const key = normalizedType === "discover"
+    ? normalizeSkillName(item?.name || item?.fullName || item?.url || item?.id)
+    : skillGroupKey(item);
+  return `${normalizedType}:${key}`;
+}
+
+function skillJoinTime(skill) {
+  return skill?.uninstallMeta?.uninstalledAt
+    || skill?.createdAt
+    || skill?.starredAt
+    || skill?.updatedAt
+    || "";
+}
+
+function groupedJoinTime(item) {
+  const times = (item?.installations || [item])
+    .map(skillJoinTime)
+    .filter(Boolean)
+    .map((value) => new Date(value).getTime())
+    .filter(Number.isFinite);
+  return times.length ? Math.max(...times) : 0;
+}
+
+function skillTags(item = {}) {
+  const base = item.tags || item.item?.tags || [];
+  if (base.length) return base;
+  if (item.source === "skillssh" || item.sourceLabel || item.sourceName || item.language) {
+    return [item.sourceName, item.sourceLabel, item.language, item.source === "skillssh" ? "discover" : item.source]
+      .filter(Boolean);
+  }
+  return [];
 }
 
 function normalizeSkillName(value = "") {
@@ -103,6 +213,30 @@ function isDiscoverUpdateAvailable(item, installedSkills = []) {
   });
 }
 
+function uniqueInstalledSkills(skills = []) {
+  const map = new Map();
+  skills.forEach((skill) => {
+    const key = skill.sourceId || skill.client || skill.dir || skill.id;
+    const existing = map.get(key);
+    if (!existing || new Date(skill.updatedAt || 0) > new Date(existing.updatedAt || 0)) {
+      map.set(key, skill);
+    }
+  });
+  return [...map.values()].sort((a, b) => String(a.client || "").localeCompare(String(b.client || "")));
+}
+
+function installedAgentVersionLabel(skill) {
+  const version = skillVersion(skill);
+  return `${skill.client}${version ? ` v${version}` : ""}`;
+}
+
+function compactAgentSummary(names = []) {
+  const agents = [...new Set(names.filter(Boolean))];
+  if (!agents.length) return "";
+  if (agents.length === 1) return agents[0];
+  return `${agents.slice(0, 2).join(", ")}${agents.length > 2 ? "…" : ""} · ${agents.length} agents`;
+}
+
 function skillVersion(item = {}) {
   const value = item.version
     || item.latestVersion
@@ -112,6 +246,42 @@ function skillVersion(item = {}) {
     || item.frontmatter?.metadata?.version
     || "";
   return value === undefined || value === null ? "" : String(value).trim();
+}
+
+function skillVersionLabel(item = {}) {
+  const explicit = skillVersion(item);
+  if (explicit) return `v${explicit}`;
+  const storedLabel = item.uninstallMeta?.versionLabel
+    || item.versionInfo?.currentLabel
+    || item.versionInfo?.activeLabel
+    || "";
+  if (isGeneratedLocalVersionLabel(storedLabel)) {
+    return localVersionLabelFromDate(item.updatedAt || item.uninstallMeta?.uninstalledAt) || storedLabel;
+  }
+  if (storedLabel) return storedLabel;
+  const localTime = item.updatedAt || item.uninstallMeta?.uninstalledAt || item.createdAt || "";
+  const localLabel = localVersionLabelFromDate(localTime);
+  if (localLabel && (item.dir || item.sourceId === "uninstalled")) return localLabel;
+  return "";
+}
+
+function targetVersionLabel(target = {}) {
+  const label = target.versionLabel
+    || (target.skill ? skillVersionLabel(target.skill) : "")
+    || (target.version ? `v${target.version}` : "");
+  return label ? displayVersionLabel(label) : "";
+}
+
+function compareVersionAsc(a = "", b = "") {
+  const left = String(a || "").replace(/^v/i, "").split(".").map((part) => Number.parseInt(part, 10));
+  const right = String(b || "").replace(/^v/i, "").split(".").map((part) => Number.parseInt(part, 10));
+  if (!left.every(Number.isFinite) || !right.every(Number.isFinite)) return null;
+  const length = Math.max(left.length, right.length);
+  for (let index = 0; index < length; index += 1) {
+    const delta = (left[index] || 0) - (right[index] || 0);
+    if (delta !== 0) return delta;
+  }
+  return 0;
 }
 
 function formatNumber(value) {
@@ -438,29 +608,120 @@ function useSkillData() {
   return { data, loading, error, refresh };
 }
 
-function useGithubTrends(source) {
+function useDebouncedValue(value, delay = 250) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debounced;
+}
+
+function useGithubTrends(source, searchQuery = "") {
   const [items, setItems] = useState([]);
   const [meta, setMeta] = useState({});
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const cacheRef = useRef(new Map());
+  const pageCacheRef = useRef(new Map());
+  const prefetchRef = useRef(new Map());
+  const discoverModes = ["alltime", "trending", "hot"];
+
+  function queryKey(query = searchQuery) {
+    return String(query || "").trim().toLowerCase();
+  }
+
+  function pageCacheKey(targetSource, page, query = searchQuery) {
+    return `${targetSource}:${queryKey(query)}:${page}`;
+  }
+
+  function metaWithoutItems(result = {}) {
+    const { items: _items, ...nextMeta } = result;
+    return nextMeta;
+  }
+
+  function mergeDiscoverItems(current = [], next = []) {
+    const map = new Map(current.map((item) => [item.id, item]));
+    next.forEach((item) => map.set(item.id, item));
+    return [...map.values()].sort((a, b) => (a.rank || 999999) - (b.rank || 999999) || b.stars - a.stars);
+  }
+
+  function rememberDiscoverPage(targetSource, page, result, query = searchQuery) {
+    if (Array.isArray(result)) return result;
+    const key = pageCacheKey(targetSource, page, query);
+    pageCacheRef.current.set(key, result);
+    if (result.items?.length) {
+      const previous = cacheRef.current.get(`${targetSource}:${queryKey(query)}`);
+      const previousItems = previous?.items || [];
+      const merged = mergeDiscoverItems(page === 0 ? result.items : previousItems, page === 0 ? previousItems : result.items);
+      const resultMeta = metaWithoutItems(result);
+      const nextMeta = Number(previous?.meta?.page || 0) > Number(resultMeta.page || 0)
+        ? { ...resultMeta, ...previous.meta }
+        : resultMeta;
+      cacheRef.current.set(`${targetSource}:${queryKey(query)}`, { items: merged, meta: nextMeta });
+    }
+    return result;
+  }
+
+  async function fetchDiscoverPage(page, { prefetch = false, targetSource = source, query = searchQuery } = {}) {
+    const key = pageCacheKey(targetSource, page, query);
+    if (pageCacheRef.current.has(key)) return pageCacheRef.current.get(key);
+    if (prefetchRef.current.has(key)) return prefetchRef.current.get(key);
+    const request = window.skillStudio.githubTrends(targetSource, page, query)
+      .then((result) => rememberDiscoverPage(targetSource, page, result, query))
+      .finally(() => {
+        prefetchRef.current.delete(key);
+      });
+    if (prefetch) prefetchRef.current.set(key, request);
+    return request;
+  }
+
+  function prefetchNextPages(fromPage, hasMore = true, targetSource = source, query = searchQuery) {
+    if (!hasMore) return;
+    return Promise.all([1, 2].map((offset) => {
+      const page = Number(fromPage || 0) + offset;
+      const key = pageCacheKey(targetSource, page, query);
+      if (pageCacheRef.current.has(key) || prefetchRef.current.has(key)) return Promise.resolve(null);
+      return fetchDiscoverPage(page, { prefetch: true, targetSource, query }).catch(() => null);
+    }));
+  }
+
+  function prefetchDiscoverModes(activeSource = source, query = searchQuery) {
+    const sources = [activeSource, ...discoverModes.filter((mode) => mode !== activeSource)];
+    sources.forEach((targetSource) => {
+      Promise.all([0, 1, 2].map((page) => {
+        const key = pageCacheKey(targetSource, page, query);
+        if (pageCacheRef.current.has(key) || prefetchRef.current.has(key)) return Promise.resolve(null);
+        return fetchDiscoverPage(page, { prefetch: true, targetSource, query }).catch(() => null);
+      })).catch(() => {});
+    });
+  }
 
   async function refresh() {
     setLoading(true);
     setError("");
-    setItems(cacheRef.current.get(source)?.items || []);
-    setMeta(cacheRef.current.get(source)?.meta || {});
+    const cacheKey = `${source}:${queryKey()}`;
+    setItems(cacheRef.current.get(cacheKey)?.items || []);
+    setMeta(cacheRef.current.get(cacheKey)?.meta || {});
     try {
-      const result = await window.skillStudio.githubTrends(source);
+      const result = await fetchDiscoverPage(0, { targetSource: source, query: searchQuery });
       if (Array.isArray(result)) {
         setItems(result);
         setMeta({});
-        cacheRef.current.set(source, { items: result, meta: {} });
+        cacheRef.current.set(cacheKey, { items: result, meta: {} });
       } else {
-        setItems((current) => result.items?.length ? result.items : current);
-        setMeta(result);
-        if (result.items?.length) cacheRef.current.set(source, { items: result.items, meta: result });
+        const cached = cacheRef.current.get(cacheKey);
+        const nextItems = cached?.items?.length ? cached.items : result.items;
+        const resultMeta = metaWithoutItems(result);
+        const nextMeta = Number(cached?.meta?.page || 0) > Number(resultMeta.page || 0)
+          ? { ...resultMeta, ...cached.meta }
+          : resultMeta;
+        setItems((current) => nextItems?.length ? nextItems : current);
+        setMeta(nextMeta);
         if (result.stale && result.error) setError(result.error);
+        prefetchNextPages(nextMeta.page || result.page || 0, nextMeta.hasMore ?? result.hasMore, source, searchQuery);
+        prefetchDiscoverModes(source, searchQuery);
       }
     } catch (err) {
       setError(err.message || String(err));
@@ -469,11 +730,48 @@ function useGithubTrends(source) {
     }
   }
 
+  async function loadMore() {
+    if (loading || loadingMore || !meta?.hasMore) return;
+    const nextPage = Number(meta.page || 0) + 1;
+    const hasPrefetchedPage = pageCacheRef.current.has(pageCacheKey(source, nextPage));
+    setLoadingMore(!hasPrefetchedPage);
+    setError("");
+    try {
+      const result = await fetchDiscoverPage(nextPage, { targetSource: source, query: searchQuery });
+      if (!Array.isArray(result)) {
+        if (!result.items?.length) {
+          setMeta((current) => ({ ...current, ...result, hasMore: false, page: nextPage }));
+          return;
+        }
+        setItems((current) => {
+          const merged = mergeDiscoverItems(current, result.items || []);
+          const nextMeta = metaWithoutItems(result);
+          cacheRef.current.set(source, { items: merged, meta: nextMeta });
+          return merged;
+        });
+        const nextMeta = metaWithoutItems(result);
+        setMeta((current) => ({ ...current, ...nextMeta }));
+        if (result.stale && result.error) setError(result.error);
+        prefetchNextPages(result.page || nextPage, result.hasMore, source, searchQuery);
+        prefetchDiscoverModes(source, searchQuery);
+      }
+    } catch (err) {
+      setMeta((current) => ({ ...current, hasMore: false }));
+      setError(err.message || String(err));
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
   useEffect(() => {
     refresh();
-  }, [source]);
+  }, [source, searchQuery]);
 
-  return { items, meta, error, loading, refresh };
+  useEffect(() => {
+    prefetchDiscoverModes(source, searchQuery);
+  }, []);
+
+  return { items, meta, error, loading, loadingMore, refresh, loadMore };
 }
 
 function Metric({ icon: Icon, label, value }) {
@@ -502,7 +800,7 @@ function SourcePill({ source, diagnostic }) {
 function NavRow({ icon: Icon, label, count, active, onClick }) {
   return (
     <button className={`nav-row ${active ? "active" : ""}`} onClick={onClick}>
-      <Icon size={17} />
+      <Icon size={15} />
       <span>{label}</span>
       {count !== "" ? <em>{count}</em> : null}
     </button>
@@ -553,28 +851,56 @@ function SkillManagerLogo() {
   );
 }
 
-function SkillRow({ skill, selected, onSelect, actionLabel, onAction, busy, starred, onStar }) {
+function SkillRow({ skill, index = 0, tone = "installed", selected, onSelect, actionLabel, onAction, busy, starred, onStar, sourceLabel, selectable = false, checked = false, onToggleSelect }) {
   const actionClass = actionLabel === "Uninstall" ? "action-uninstall" : "action-install";
   const copies = skill.installations || [skill];
-  const copyAgents = [...new Set(copies.map((copy) => copy.client))];
-  const version = skillVersion(skill);
+  const copyAgents = [...new Set(copies.map((copy) => (
+    skill.sourceId === "uninstalled"
+      ? (copy.uninstallMeta?.sourceClient || copy.uninstallMeta?.sourceLabel || copy.client)
+      : copy.client
+  )))];
+  const version = skill.merged ? "" : skillVersion(skill);
   return (
-    <div className={`skill-row ${selected ? "selected" : ""}`} onClick={() => onSelect(skill)}>
+    <div
+      className={`skill-row ${selectable ? "selectable" : ""} ${selected ? "selected" : ""} ${checked ? "checked" : ""}`}
+      onClick={(event) => {
+        if (selectable && (event.shiftKey || event.metaKey || event.ctrlKey)) {
+          onToggleSelect?.(skill, event);
+          return;
+        }
+        onSelect(skill, event);
+      }}
+    >
       <StarButton active={starred} className="row-star" onClick={(event) => { event.stopPropagation(); onStar(skill); }} />
+      {selectable ? (
+        <label className="row-select-corner" onClick={(event) => event.stopPropagation()}>
+          <input
+            className="row-select-check"
+            type="checkbox"
+            checked={checked}
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleSelect?.(skill, event);
+            }}
+            onChange={() => {}}
+          />
+        </label>
+      ) : null}
       <div className="row-main">
-        <div className="skill-glyph">{skill.name.slice(0, 1).toUpperCase()}</div>
+        <div className={`skill-glyph ${tone}`}>{index + 1}</div>
         <div>
           <div className="row-title">
             <strong>{skill.name}</strong>
             {version ? <span className="version-badge">v{version}</span> : null}
+            {sourceLabel ? <span className="source-badge">{sourceLabel}</span> : null}
           </div>
-          <div className="row-source">{skill.merged ? `${copyAgents.join(", ")} · ${copies.length} copies` : skill.client}</div>
+          <div className="row-source">{skill.merged ? compactAgentSummary(copyAgents) : copyAgents[0]}</div>
           <p>{skill.description || "暂无描述"}</p>
         </div>
       </div>
       <div className="row-meta">
         <span>更新 {formatDate(skill.updatedAt)}</span>
-        {actionLabel ? (
+        {actionLabel && onAction ? (
           <button className={actionClass} disabled={busy} onClick={(event) => { event.stopPropagation(); onAction(skill); }}>
             {busy ? "处理中" : actionLabel}
           </button>
@@ -585,28 +911,33 @@ function SkillRow({ skill, selected, onSelect, actionLabel, onAction, busy, star
 }
 
 function DiscoverRow({ item, index, selected, onSelect, onInstall, onUninstall, busy, starred, onStar, installedSkills = [] }) {
-  const popularity = item.installsLabel ? `${item.installsLabel} installs` : `★ ${formatNumber(item.stars)}`;
+  const popularity = item.installsLabel ? `累计 ${item.installsLabel}` : `★ ${formatNumber(item.stars)}`;
   const sourceName = item.sourceName || item.fullName;
   const version = skillVersion(item);
-  const installedAgents = [...new Set(installedSkills.map((skill) => skill.client))];
-  const updateAvailable = isDiscoverUpdateAvailable(item, installedSkills);
-  const actionLabel = installedSkills.length ? (updateAvailable ? "Update" : "Uninstall") : "Install";
-  const actionClass = updateAvailable ? "action-update" : installedSkills.length ? "action-uninstall" : "action-install";
+  const installedCopies = uniqueInstalledSkills(installedSkills);
+  const installedAgents = installedCopies.map((skill) => skill.client);
+  const description = item.description && item.description !== `${item.name} from ${sourceName}` ? item.description : "";
+  const updateAvailable = isDiscoverUpdateAvailable(item, installedCopies);
+  const actionLabel = installedCopies.length ? (updateAvailable ? "Update" : "Uninstall") : "Install";
+  const actionClass = updateAvailable ? "action-update" : installedCopies.length ? "action-uninstall" : "action-install";
   return (
     <div className={`discover-row ${selected ? "selected" : ""}`} onClick={() => onSelect(item)}>
       <StarButton active={starred} className="row-star" onClick={(event) => { event.stopPropagation(); onStar(item); }} />
-      <div className="discover-rank">{index + 1}</div>
-      <div>
-        <div className="row-title">
-          <strong>{item.name}</strong>
-          {version ? <span className="version-badge">v{version}</span> : null}
+      <div className="row-main">
+        <div className="skill-glyph installed">{index + 1}</div>
+        <div>
+          <div className="row-title">
+            <strong>{item.name}</strong>
+            {version ? <span className="version-badge">v{version}</span> : null}
+          </div>
+          <div className="row-source row-source-repo"><span>来源</span>{sourceName}</div>
+          {installedAgents.length ? <div className="row-source row-source-sub"><span>已安装</span>{compactAgentSummary(installedAgents)}</div> : null}
+          {description ? <p>{description}</p> : null}
         </div>
-        <div className="row-source">{sourceName}</div>
-        <p>{item.description || "暂无描述"}</p>
       </div>
       <div className="row-meta">
-        <span>{installedAgents.length ? `已安装：${installedAgents.join(", ")}` : `${sourceName} · ${popularity}${item.weeklyLabel ? ` · 8W ${item.weeklyLabel}` : ""}`}</span>
-        <button className={actionClass} disabled={busy} onClick={(event) => { event.stopPropagation(); installedSkills.length && !updateAvailable ? onUninstall(item, installedSkills) : onInstall(item, updateAvailable); }}>
+        <span>{popularity}{item.weeklyLabel ? ` · 近 8 周 ${item.weeklyLabel}` : ""}</span>
+        <button className={actionClass} disabled={busy} onClick={(event) => { event.stopPropagation(); installedCopies.length && !updateAvailable ? onUninstall(item, installedCopies) : onInstall(item, updateAvailable); }}>
           {busy ? "处理中" : actionLabel}
         </button>
       </div>
@@ -709,8 +1040,9 @@ function DiscoverDetail({ item, onInstall, onUninstall, busy, starred, onStar, i
   const summaryLead = detail?.summaryLead || item.description || "";
   const summaryItems = detail?.summaryItems || [];
   const installCommand = detail?.installCommand || item.installCommand || `git clone --depth 1 ${item.url}`;
-  const installedAgents = [...new Set(installedSkills.map((skill) => skill.client))];
-  const updateAvailable = isDiscoverUpdateAvailable(item, installedSkills);
+  const installedCopies = uniqueInstalledSkills(installedSkills);
+  const installedAgents = installedCopies.map(installedAgentVersionLabel);
+  const updateAvailable = isDiscoverUpdateAvailable(item, installedCopies);
   const version = skillVersion(item);
 
   return (
@@ -727,16 +1059,16 @@ function DiscoverDetail({ item, onInstall, onUninstall, busy, starred, onStar, i
         </div>
       </div>
       <div className="detail-actions">
-        {installedSkills.length ? (
-          <button className={updateAvailable ? "action-update" : "action-uninstall"} onClick={() => updateAvailable ? onInstall(item, true) : onUninstall(item, installedSkills)} disabled={busy}>
-            <RotateCcw size={16} />
-            {busy ? "处理中" : updateAvailable ? "Update" : "Uninstall"}
-          </button>
-        ) : null}
         <button className="action-install" onClick={() => onInstall(item)} disabled={busy}>
           <FileCode2 size={16} />
           {busy ? "安装中" : "Install"}
         </button>
+        {installedCopies.length ? (
+          <button className={updateAvailable ? "action-update" : "action-uninstall"} onClick={() => updateAvailable ? onInstall(item, true) : onUninstall(item, installedCopies)} disabled={busy}>
+            <RotateCcw size={16} />
+            {busy ? "处理中" : updateAvailable ? "Update" : "Uninstall"}
+          </button>
+        ) : null}
         <StarButton active={starred} className="detail-star" label onClick={(event) => { event.stopPropagation(); onStar?.(item); }} />
         <button className="soft-button" onClick={() => window.skillStudio.open(item.repositoryUrl || item.url)}>
           <Github size={16} />
@@ -1184,6 +1516,9 @@ function DirectoryDiffViewer({ detail }) {
 
 function SkillVersionPicker({ copy, onActivate, onDelete, busy, showAllVersions = true }) {
   const allVersions = copy?.versionInfo?.versions || [];
+  const currentVersion = skillVersion(copy);
+  const currentLabel = copy?.versionInfo?.currentLabel || (currentVersion ? `v${currentVersion}` : skillVersionLabel(copy) || copy?.versionInfo?.activeLabel || "");
+  const unmanaged = Boolean(copy?.versionInfo?.unmanaged || !currentVersion);
   const versions = showAllVersions ? allVersions : allVersions.filter((version) => (
     version.sourceId === copy?.sourceId
     || (version.sourceIds || []).includes(copy?.sourceId)
@@ -1193,8 +1528,6 @@ function SkillVersionPicker({ copy, onActivate, onDelete, busy, showAllVersions 
   const [versionMenuOpen, setVersionMenuOpen] = useState(false);
   const [selectedVersionIds, setSelectedVersionIds] = useState([]);
   const pickerRef = useRef(null);
-  const currentVersion = skillVersion(copy);
-  const currentLabel = copy?.versionInfo?.currentLabel || (currentVersion ? `v${currentVersion}` : copy?.versionInfo?.activeLabel || "");
   const currentArchive = versions.find((version) => (
     version.hash === copy?.versionInfo?.currentHash && (!currentLabel || version.label === currentLabel)
   ));
@@ -1207,6 +1540,7 @@ function SkillVersionPicker({ copy, onActivate, onDelete, busy, showAllVersions 
     version.id === selectedId || (version.duplicateIds || []).includes(selectedId)
   ));
   const selectedVersionLabel = selectedVersionEntry?.label || currentLabel || "当前版本";
+  const compactSelectedVersionLabel = compactVersionLabel(selectedVersionLabel);
   useEffect(() => {
     setSelectedVersionIds((current) => current.filter((id) => deletableVersions.some((version) => version.id === id)));
   }, [copy?.id, selectedId, versions.length]);
@@ -1243,12 +1577,35 @@ function SkillVersionPicker({ copy, onActivate, onDelete, busy, showAllVersions 
     });
   }
   if (!copy) return null;
-  if (!versions.length) return null;
+  if (unmanaged) {
+    if (!currentLabel) return null;
+    const fullLabel = displayVersionLabel(currentLabel);
+    return (
+      <div ref={pickerRef} className="version-picker readonly unmanaged-version-picker">
+        <button className="version-dropdown-trigger compact-version-trigger" type="button" aria-label={`版本 ${fullLabel}`}>
+          <strong>{compactVersionLabel(currentLabel)}</strong>
+        </button>
+        <div className="unmanaged-version-popover" role="tooltip">
+          <strong>{fullLabel}</strong>
+        </div>
+      </div>
+    );
+  }
+  if (!versions.length) {
+    if (!currentLabel) return null;
+    const fullLabel = displayVersionLabel(currentLabel);
+    return (
+      <div ref={pickerRef} className="version-picker readonly">
+        <button className="version-dropdown-trigger compact-version-trigger" type="button" aria-label={`版本 ${fullLabel}`}>
+          <strong>{compactVersionLabel(currentLabel)}</strong>
+        </button>
+      </div>
+    );
+  }
   return (
     <div ref={pickerRef} className={`version-picker ${stale ? "stale" : ""}`}>
-      <button className="version-dropdown-trigger" onClick={() => setVersionMenuOpen((open) => !open)} disabled={busy} title={stale ? `不是最新版本，最新为 ${latestVersion?.label || latestVersion?.id}` : "选择版本"}>
-        <span>版本</span>
-        <strong>{selectedVersionLabel}</strong>
+      <button className="version-dropdown-trigger compact-version-trigger" onClick={() => setVersionMenuOpen((open) => !open)} disabled={busy} aria-label={stale ? `不是最新版本，最新为 ${latestVersion?.label || latestVersion?.id}` : selectedVersionLabel}>
+        <strong>{compactSelectedVersionLabel}</strong>
       </button>
       {versionMenuOpen ? (
         <div className="version-dropdown-menu">
@@ -1266,7 +1623,7 @@ function SkillVersionPicker({ copy, onActivate, onDelete, busy, showAllVersions 
                       disabled={busy || protectedVersion}
                       onChange={() => toggleVersionDelete(version.id)}
                     />
-                    <strong>{version.label || version.id}</strong>
+                    <strong title={version.label || version.id}>{displayVersionLabel(version.label || version.id)}</strong>
                     <small>{active ? "当前" : version.active ? `使用中: ${(version.activeClients || []).join(", ")}` : formatDate(version.createdAt)}</small>
                   </label>
                   <button
@@ -1305,25 +1662,45 @@ function SkillVersionPicker({ copy, onActivate, onDelete, busy, showAllVersions 
   );
 }
 
-function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, baselineSourceId = "agents", agentScope = "all" }) {
+function Detail({
+  skill,
+  onSaved,
+  starred,
+  onStar,
+  onInstall,
+  onUninstall,
+  onDeleteRecords,
+  agentScope = "all",
+  installTargets = [],
+  topInstallLabel = "Install",
+  readOnly = false,
+  hideTopInstall = false,
+  hideHistory = false,
+  hideVersionActions = false,
+  hideTopEdit = true,
+  cardActionLabel = "",
+  onCardAction = null
+}) {
   const [activeFile, setActiveFile] = useState(null);
   const [activeCopyId, setActiveCopyId] = useState("");
-  const [syncDraft, setSyncDraft] = useState(null);
+  const [syncPending, setSyncPending] = useState(null);
   const [syncTargetIds, setSyncTargetIds] = useState([]);
-  const [baselineOverrides, setBaselineOverrides] = useState(() => readStoredJson(baselineOverridesStorageKey, null, {}));
   const [draft, setDraft] = useState("");
   const [mode, setMode] = useState("view");
   const [pendingNavigation, setPendingNavigation] = useState(null);
   const [history, setHistory] = useState([]);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [selectedHistoryVersionIds, setSelectedHistoryVersionIds] = useState([]);
   const [selectedVersion, setSelectedVersion] = useState(null);
   const [versionDetail, setVersionDetail] = useState(null);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [upgradeDetail, setUpgradeDetail] = useState(null);
+  const [upgradeDetails, setUpgradeDetails] = useState({});
   const [upgradeBusy, setUpgradeBusy] = useState(false);
-  const [upgradeTargetOpen, setUpgradeTargetOpen] = useState(false);
-  const [upgradeTargetCopyId, setUpgradeTargetCopyId] = useState("");
+  const [upgradeTargetPending, setUpgradeTargetPending] = useState(null);
+  const [upgradeTargetCopyIds, setUpgradeTargetCopyIds] = useState([]);
   const [upgradeCopy, setUpgradeCopy] = useState(null);
+  const [upgradeCopies, setUpgradeCopies] = useState([]);
   const [versionSwitching, setVersionSwitching] = useState(false);
   const [selectedDirPath, setSelectedDirPath] = useState("");
   const [treeMenu, setTreeMenu] = useState(null);
@@ -1331,11 +1708,20 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
   const [copyOverrides, setCopyOverrides] = useState({});
   const [selectedTreePaths, setSelectedTreePaths] = useState([]);
   const [lastTreePath, setLastTreePath] = useState("");
+  const [dirtyCopyIds, setDirtyCopyIds] = useState({});
   const [historyListWidth, setHistoryListWidth] = useState(190);
   const [fileError, setFileError] = useState("");
   const [fileNotice, setFileNotice] = useState("");
   const [saving, setSaving] = useState(false);
   const pendingDeletedPathsRef = useRef(new Set());
+
+  useEffect(() => {
+    if (!readOnly) return;
+    setMode("view");
+    setPendingNavigation(null);
+    setCreateEntryDraft(null);
+    setTreeMenu(null);
+  }, [readOnly, skill?.id]);
 
   async function loadHistory(filePath) {
     try {
@@ -1348,9 +1734,28 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
     }
   }
 
+  function markCopyDirty(copy = activeCopy) {
+    if (!copy?.id) return;
+    setDirtyCopyIds((current) => ({
+      ...current,
+      [copy.id]: true
+    }));
+  }
+
+  function clearCopiesDirty(copies = []) {
+    const ids = copies.map((copy) => copy?.id).filter(Boolean);
+    if (!ids.length) return;
+    setDirtyCopyIds((current) => {
+      const next = { ...current };
+      ids.forEach((id) => delete next[id]);
+      return next;
+    });
+  }
+
   async function openHistoryPanel() {
     if (!activeCopy) return;
     setHistoryOpen(true);
+    setSelectedHistoryVersionIds([]);
     const entries = historicalVersions(activeCopy);
     setHistory(entries);
     if (entries.length) {
@@ -1358,6 +1763,7 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
     } else {
       setSelectedVersion(null);
       setVersionDetail(null);
+      setSelectedHistoryVersionIds([]);
     }
   }
 
@@ -1372,11 +1778,21 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
           return {
             ...existing,
             ...fresh,
+            id: copy.id,
+            sourceId: copy.sourceId,
+            client: copy.client,
+            sourceLabel: copy.sourceLabel,
+            root: copy.root,
+            dir: copy.dir,
+            version: skillVersion(fresh) || skillVersion(existing),
+            latestVersion: fresh.latestVersion || existing.latestVersion,
+            metadata: fresh.metadata || existing.metadata,
+            frontmatter: fresh.frontmatter || existing.frontmatter,
+            raw: fresh.raw || existing.raw,
             directoryTree: fresh.detailLoaded ? fresh.directoryTree : existing.directoryTree,
             directoryCount: fresh.detailLoaded ? fresh.directoryCount : existing.directoryCount,
             directoryTruncated: fresh.detailLoaded ? fresh.directoryTruncated : existing.directoryTruncated,
-            detailLoaded: fresh.detailLoaded || existing.detailLoaded,
-            id: copy.id
+            detailLoaded: fresh.detailLoaded || existing.detailLoaded
           };
         })()
       }));
@@ -1406,6 +1822,7 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
         root: copy.root
       }
     }).then((fresh) => {
+      if (fresh?.missing) return;
       if (!fresh?.id) return;
       const safeTree = withoutPendingDeletedNodes(fresh.directoryTree || []);
       setCopyOverrides((current) => ({
@@ -1413,11 +1830,22 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
         [copy.id]: {
           ...copy,
           ...fresh,
+          id: copy.id,
+          sourceId: copy.sourceId,
+          client: copy.client,
+          sourceLabel: copy.sourceLabel,
+          root: copy.root,
+          dir: copy.dir,
           directoryTree: safeTree,
-          directoryCount: countTree(safeTree),
-          id: copy.id
+          directoryCount: countTree(safeTree)
         }
       }));
+      if (historyOpen && copy.id === activeCopyId) {
+        const refreshedCopy = { ...copy, ...fresh, directoryTree: safeTree, directoryCount: countTree(safeTree) };
+        const entries = historicalVersions(refreshedCopy);
+        setHistory(entries);
+        if (entries.length) selectVersionForCopy(entries[0], refreshedCopy);
+      }
     }).catch(() => {});
   }
 
@@ -1426,7 +1854,12 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
     const nextCopy = {
       ...copy,
       ...snapshot,
-      id: copy.id
+      id: copy.id,
+      sourceId: copy.sourceId,
+      client: copy.client,
+      sourceLabel: copy.sourceLabel,
+      root: copy.root,
+      dir: copy.dir
     };
     setCopyOverrides((current) => ({
       ...current,
@@ -1452,6 +1885,7 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
     setHistoryOpen(false);
     setSelectedVersion(null);
     setVersionDetail(null);
+    setSelectedHistoryVersionIds([]);
     setSelectedTreePaths([]);
     setLastTreePath("");
     loadHistory(file.path);
@@ -1627,24 +2061,44 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
 
   function historicalVersions(copy) {
     const info = copy?.versionInfo || {};
-    return (info.versions || []).filter((version) => (
-      version.id !== info.activeArchiveId
-      && !(version.hash === info.currentHash && (!info.currentLabel || version.label === info.currentLabel))
+    const versions = (info.versions || []).filter((version) => (
+      version.sourceId === copy?.sourceId
+      || (version.sourceIds || []).includes(copy?.sourceId)
+      || version.id === info.activeArchiveId
+      || (version.duplicateIds || []).includes(info.activeArchiveId)
     ));
+    const latest = versions[0] || null;
+    const active = versions.find((version) => isActiveHistoryVersion(version, copy));
+    if (active && latest && (active.id === latest.id || (latest.duplicateIds || []).includes(active.id))) {
+      return versions.filter((version) => version.id !== active.id && !(active.duplicateIds || []).includes(version.id));
+    }
+    return versions;
   }
 
-  async function selectVersion(entry) {
-    if (!activeCopy) return;
+  function isActiveHistoryVersion(entry, copy = activeCopy) {
+    const info = copy?.versionInfo || {};
+    const currentLabel = info.currentLabel || (skillVersion(copy) ? `v${skillVersion(copy)}` : info.activeLabel || "");
+    return entry?.id === info.activeArchiveId
+      || (entry?.duplicateIds || []).includes(info.activeArchiveId)
+      || (entry?.hash === info.currentHash && (!currentLabel || entry?.label === currentLabel));
+  }
+
+  async function selectVersionForCopy(entry, copy = activeCopy) {
+    if (!copy) return;
     setSelectedVersion(entry);
     setFileError("");
     try {
       setVersionDetail(await window.skillStudio.skillVersionDiff({
-        skillDir: activeCopy.dir,
+        skillDir: copy.dir,
         archiveId: entry.id
       }));
     } catch (err) {
       setFileError(err.message || String(err));
     }
+  }
+
+  async function selectVersion(entry) {
+    return selectVersionForCopy(entry, activeCopy);
   }
 
   function hasUnsavedChanges() {
@@ -1716,21 +2170,27 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
     setMode(nextMode);
     setPendingNavigation(null);
     setFileError("");
-    setHistoryOpen(false);
     setSelectedVersion(null);
     setVersionDetail(null);
-    loadHistory(file.path);
+    if (historyOpen && !hideHistory) {
+      const entries = historicalVersions(nextCopy);
+      setHistory(entries);
+      if (entries.length) await selectVersionForCopy(entries[0], nextCopy);
+    } else {
+      loadHistory(file.path);
+    }
     if (!options.skipDetailLoad) loadFullSkillDetail(copy);
   }
 
   useEffect(() => {
     if (!skill) return;
     const copies = skill.installations || [skill];
-    const skillBaselineId = baselineOverrides[skillGroupKey(skill)] || baselineSourceId;
-    const preferred = copies.find((copy) => copy.id === activeCopyId)
-      || copies.find((copy) => copy.sourceId === skillBaselineId)
-      || copies[0]
-      || skill;
+    const current = copies.find((copy) => copy.id === activeCopyId);
+    if (current) {
+      setActiveCopyId(current.id);
+      return;
+    }
+    const preferred = copies[0] || skill;
     if (activeFile?.path?.startsWith(`${preferred.dir}/`)) {
       setActiveCopyId(preferred.id);
       openTreeFileNow({
@@ -1741,6 +2201,16 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
     } else {
       openSkillCopy(preferred);
     }
+  }, [skill]);
+
+  useEffect(() => {
+    if (!skill) return;
+    const copies = skill.installations || [skill];
+    copies.forEach((copy) => {
+      if (!copyOverrides[copy.id]?.versionInfo && !copy.versionInfo) {
+        loadFullSkillDetail(copy);
+      }
+    });
   }, [skill]);
 
   useEffect(() => {
@@ -1846,6 +2316,7 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
         }
       });
       setCreateEntryDraft(null);
+      markCopyDirty(activeCopy);
       insertTreeNodeOptimistic(result, targetBaseDir);
       if (result.type === "file") {
         const file = {
@@ -1906,6 +2377,7 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
         }
       });
       setCreateEntryDraft(null);
+      markCopyDirty(activeCopy);
       renameTreeNodeOptimistic(filePath, result);
       const refreshed = await onSaved?.();
       applyRefreshedCopy(refreshed);
@@ -1938,12 +2410,13 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
     ));
     if (!targets.length) return;
     const preview = targets.slice(0, 8).map((item) => `- ${shortPath(item.path)}`).join("\n");
-    const confirmed = window.confirm(`确认删除 ${targets.length} 个项目？\n${preview}${targets.length > 8 ? "\n..." : ""}\n\n删除后可在升级前的历史版本中找回，但当前工作目录会移除它。`);
+    const confirmed = window.confirm(`确认删除 ${targets.length} 个项目？\n${preview}${targets.length > 8 ? "\n..." : ""}\n\n删除后可在发布版本前的历史版本中找回，但当前工作目录会移除它。`);
     if (!confirmed) return;
     setTreeMenu(null);
     setSaving(true);
     setFileError("");
     const targetPaths = targets.map((target) => target.path);
+    markCopyDirty(activeCopy);
     targetPaths.forEach((targetPath) => pendingDeletedPathsRef.current.add(targetPath));
     removeTreeNodesOptimistic(targetPaths);
     try {
@@ -2024,20 +2497,12 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
       const savedContent = result.content ?? draft;
       setActiveFile({ ...activeFile, content: savedContent, size: result.size, updatedAt: result.updatedAt });
       setDraft(savedContent);
+      if (savedContent !== activeFile.content) {
+        markCopyDirty(activeCopy);
+      }
       await loadHistory(activeFile.path);
       setSelectedVersion(null);
       setVersionDetail(null);
-      const syncTargets = installations.filter((copy) => copy.id !== activeCopy.id);
-      if (activeCopy.sourceId === effectiveBaselineSourceId && syncTargets.length) {
-        setSyncDraft({
-          sourceCopy: activeCopy,
-          content: savedContent,
-          relativePath: copyRelativePath(activeCopy, activeFile.path),
-          fileName: activeFile.name,
-          savedAt: new Date().toISOString()
-        });
-        setSyncTargetIds(syncTargets.map((copy) => copy.id));
-      }
       onSaved?.();
       return true;
     } catch (err) {
@@ -2071,23 +2536,33 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
     }
   }
 
-  async function activateSkillPackageVersion(version) {
-    if (!activeCopy || !version) return;
-    const confirmed = window.confirm(`将 ${activeCopy.client} 的 ${skill.name} 回滚到 ${version.label || version.id}？\n当前目录会先自动保存为一个可回滚版本。`);
+  async function activateSkillPackageVersion(version, copy = activeCopy) {
+    if (!copy || !version) return;
+    const confirmed = window.confirm(`将 ${copy.client} 的 ${skill.name} 选择为 ${version.label || version.id}？\n当前目录会先自动保存为一个可回滚版本。`);
     if (!confirmed) return;
     setVersionSwitching(true);
     setFileError("");
     try {
       const result = await window.skillStudio.activateSkillVersion({
-        skillDir: activeCopy.dir,
+        skillDir: copy.dir,
         archiveId: version.id,
         sourceInfo: {
-          sourceId: activeCopy.sourceId,
-          client: activeCopy.client,
-          sourceLabel: activeCopy.sourceLabel
+          sourceId: copy.sourceId,
+          client: copy.client,
+          sourceLabel: copy.sourceLabel
         }
       });
-      const nextCopy = applyCopySnapshot(result.skill, activeCopy) || activeCopy;
+      const nextCopy = copy.id === activeCopy?.id
+        ? applyCopySnapshot(result.skill, copy) || copy
+        : applyRefreshedCopy({ skills: [result.skill] }, copy) || copy;
+      if (historyOpen && copy.id === activeCopy?.id) {
+        const entries = historicalVersions(nextCopy);
+        setHistory(entries);
+        const activeEntry = entries.find((entry) => isActiveHistoryVersion(entry, nextCopy)) || entries[0] || null;
+        setSelectedVersion(activeEntry);
+        if (activeEntry) await selectVersionForCopy(activeEntry, nextCopy);
+        else setVersionDetail(null);
+      }
       refreshCopyInBackground(nextCopy);
     } catch (err) {
       setFileError(err.message || String(err));
@@ -2096,25 +2571,39 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
     }
   }
 
-  async function deleteSkillPackageVersions(versionIds, afterDelete) {
-    if (!activeCopy || !versionIds?.length) return;
-    const confirmed = window.confirm(`确认删除选中的 ${versionIds.length} 个历史版本？\n当前正在使用的版本不会被删除。`);
+  async function deleteSkillPackageVersions(versionIds, afterDelete, copy = activeCopy, skipConfirm = false) {
+    if (!copy || !versionIds?.length) return;
+    const confirmed = skipConfirm || window.confirm(`确认删除 ${copy.client} 选中的 ${versionIds.length} 个历史版本？\n当前正在使用的版本不会被删除。`);
     if (!confirmed) return;
     setVersionSwitching(true);
     setFileError("");
     try {
       const result = await window.skillStudio.deleteSkillVersions({
-        skillDir: activeCopy.dir,
+        skillDir: copy.dir,
         archiveIds: versionIds
       });
-      updateActiveCopyOverride({
-        versionInfo: {
-          ...(activeCopy.versionInfo || {}),
-          versions: result.versions || []
+      setCopyOverrides((current) => ({
+        ...current,
+        [copy.id]: {
+          ...(current[copy.id] || copy),
+          versionInfo: {
+            ...(copy.versionInfo || {}),
+            versions: result.versions || []
+          }
         }
-      });
+      }));
       afterDelete?.();
-      refreshCopyInBackground(activeCopy);
+      if (historyOpen && copy.id === activeCopy?.id) {
+        const nextHistory = historicalVersions({ ...copy, versionInfo: { ...(copy.versionInfo || {}), versions: result.versions || [] } });
+        setHistory(nextHistory);
+        setSelectedHistoryVersionIds([]);
+        if (nextHistory.length) await selectVersionForCopy(nextHistory[0], copy);
+        else {
+          setSelectedVersion(null);
+          setVersionDetail(null);
+        }
+      }
+      refreshCopyInBackground(copy);
       if (result.skipped?.length) {
         const activeCount = result.skipped.filter((item) => item.reason === "active").length;
         const missingCount = result.skipped.filter((item) => item.reason === "missing").length;
@@ -2130,21 +2619,48 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
     }
   }
 
-  async function prepareUpgradePreview(copy = activeCopy) {
+  async function deleteSelectedHistoryVersions(ids = selectedHistoryVersionIds) {
+    const targetIds = ids.filter((id) => history.some((entry) => entry.id === id));
+    if (!targetIds.length) return;
+    const confirmed = window.confirm(`确认删除 ${targetIds.length} 个历史版本？\n删除后不可恢复，当前正在使用的版本不会被删除。`);
+    if (!confirmed) return;
+    await deleteSkillPackageVersions(targetIds, null, activeCopy, true);
+  }
+
+  async function prepareUpgradePreview(copy = activeCopy, copies = [copy]) {
     if (!copy) return;
     if (hasUnsavedChanges()) {
-      setFileError("请先保存或取消当前修改，再执行版本升级。");
+      setFileError("请先保存或取消当前修改，再发布版本。");
       return;
     }
     setUpgradeBusy(true);
     setFileError("");
     try {
-      const detail = await window.skillStudio.previewSkillUpgrade({
-        skillDir: copy.dir,
-        activeArchiveId: copy.versionInfo?.activeArchiveId
-      });
-      setUpgradeDetail(detail);
-      setUpgradeCopy(copy);
+      const targetCopies = copies.filter(Boolean);
+      const previews = await Promise.all(targetCopies.map(async (targetCopy) => {
+        const detail = await window.skillStudio.previewSkillUpgrade({
+          skillDir: targetCopy.dir,
+          activeArchiveId: targetCopy.versionInfo?.activeArchiveId,
+          forceContentChanges: Boolean(dirtyCopyIds[targetCopy.id]),
+          sourceInfo: {
+            sourceId: targetCopy.sourceId,
+            client: targetCopy.client,
+            sourceLabel: targetCopy.sourceLabel
+          }
+        });
+        return { copy: targetCopy, detail };
+      }));
+      const changedPreviews = previews.filter(({ detail }) => detail.hasContentChanges);
+      if (!changedPreviews.length) {
+        setFileError(`${copy.client} 无内容改动，不能发布版本。`);
+        return;
+      }
+      const detailMap = Object.fromEntries(changedPreviews.map(({ copy: targetCopy, detail }) => [targetCopy.id, detail]));
+      const previewCopy = changedPreviews.find(({ copy: targetCopy }) => targetCopy.id === copy.id)?.copy || changedPreviews[0].copy;
+      setUpgradeDetails(detailMap);
+      setUpgradeDetail(detailMap[previewCopy.id] || changedPreviews[0].detail);
+      setUpgradeCopy(previewCopy);
+      setUpgradeCopies(changedPreviews.map(({ copy: targetCopy }) => targetCopy));
       setUpgradeOpen(true);
     } catch (err) {
       setFileError(err.message || String(err));
@@ -2156,31 +2672,92 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
   async function openUpgradePreview() {
     if (!activeCopy) return;
     if (installations.length > 1 && agentScope === "all") {
-      setUpgradeTargetCopyId(activeCopy.id);
-      setUpgradeTargetOpen(true);
+      setUpgradeBusy(true);
+      setFileError("");
+      let targets = [];
+      try {
+        const statuses = await Promise.all(installations.map(async (copy) => {
+          try {
+            const detail = await window.skillStudio.previewSkillUpgrade({
+              skillDir: copy.dir,
+              activeArchiveId: copy.versionInfo?.activeArchiveId,
+              forceContentChanges: Boolean(dirtyCopyIds[copy.id]),
+              sourceInfo: {
+                sourceId: copy.sourceId,
+                client: copy.client,
+                sourceLabel: copy.sourceLabel
+              }
+            });
+            return { copy, hasContentChanges: Boolean(detail.hasContentChanges) };
+          } catch {
+            return { copy, hasContentChanges: false };
+          }
+        }));
+        targets = statuses.map(({ copy, hasContentChanges }) => ({
+          id: copy.id,
+          client: copy.client,
+          root: copy.dir,
+          dir: copy.dir,
+          skill: copy,
+          version: skillVersion(copy),
+          versionLabel: skillVersionLabel(copy),
+          disabled: !hasContentChanges,
+          disabledReason: hasContentChanges ? "" : "无内容改动"
+        }));
+      } finally {
+        setUpgradeBusy(false);
+      }
+      const remembered = readStoredJson(versionTargetsStorageKey, null, []);
+      const enabledTargetIds = targets.filter((target) => !target.disabled).map((target) => target.id);
+      if (!enabledTargetIds.length) {
+        setFileError("所有 Agent 都没有内容改动，不能发布版本。");
+        return;
+      }
+      const validRemembered = remembered.filter((id) => enabledTargetIds.includes(id));
+      setUpgradeTargetCopyIds(validRemembered.length ? validRemembered : (enabledTargetIds.includes(activeCopy.id) ? [activeCopy.id] : [enabledTargetIds[0]]));
+      setUpgradeTargetPending({
+        type: "upgrade",
+        item: skill,
+        targets
+      });
       return;
     }
-    await prepareUpgradePreview(activeCopy);
+    await prepareUpgradePreview(activeCopy, [activeCopy]);
   }
 
   async function confirmSkillUpgrade() {
-    const targetCopy = upgradeCopy || activeCopy;
-    if (!targetCopy || !upgradeDetail) return;
+    const targetCopies = upgradeCopies.length ? upgradeCopies : [upgradeCopy || activeCopy].filter(Boolean);
+    if (!targetCopies.length || !upgradeDetail) return;
     setUpgradeBusy(true);
     setFileError("");
     try {
-      const result = await window.skillStudio.commitSkillUpgrade({
-        skillDir: targetCopy.dir,
-        nextVersion: upgradeDetail.toVersion,
-        sourceInfo: {
-          sourceId: targetCopy.sourceId,
-          client: targetCopy.client,
-          sourceLabel: targetCopy.sourceLabel
-        }
-      });
+      const results = [];
+      for (const targetCopy of targetCopies) {
+        const previewVersion = upgradeDetails[targetCopy.id]?.toVersion || upgradeDetail?.toVersion || "";
+        results.push(await window.skillStudio.commitSkillUpgrade({
+          skillDir: targetCopy.dir,
+          nextVersion: previewVersion,
+          sourceInfo: {
+            sourceId: targetCopy.sourceId,
+            client: targetCopy.client,
+            sourceLabel: targetCopy.sourceLabel
+          }
+        }));
+      }
+      localStorage.setItem(versionTargetsStorageKey, JSON.stringify(targetCopies.map((copy) => copy.id)));
+      const result = results.find((item, index) => targetCopies[index]?.id === activeCopy?.id) || results[0];
+      clearCopiesDirty(targetCopies);
       setUpgradeOpen(false);
       setUpgradeDetail(null);
+      setUpgradeDetails({});
       setUpgradeCopy(null);
+      setUpgradeCopies([]);
+      results.forEach((item, index) => {
+        const targetCopy = targetCopies[index];
+        if (item?.skill && targetCopy) {
+          applyCopyPatch(targetCopy, item.skill);
+        }
+      });
       if (activeFile?.path === result.path) {
         const nextFile = {
           ...activeFile,
@@ -2191,7 +2768,11 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
         setActiveFile(nextFile);
         setDraft(result.content);
       }
-      refreshCopyInBackground(targetCopy);
+      Promise.resolve(onSaved?.())
+        .then((refreshed) => {
+          targetCopies.forEach((targetCopy) => applyRefreshedCopy(refreshed, targetCopy));
+        })
+        .catch(() => {});
     } catch (err) {
       setFileError(err.message || String(err));
     } finally {
@@ -2209,24 +2790,102 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
   }
   const installations = (skill.installations || [skill]).map((copy) => copyOverrides[copy.id] ? { ...copy, ...copyOverrides[copy.id] } : copy);
   const activeCopy = installations.find((copy) => copy.id === activeCopyId) || installations[0] || skill;
-  const baselineKey = skillGroupKey(skill);
-  const requestedBaselineSourceId = baselineOverrides[baselineKey] || baselineSourceId;
-  const baselineCopy = installations.find((copy) => copy.sourceId === requestedBaselineSourceId) || installations.find((copy) => copy.sourceId === "agents") || installations[0] || skill;
-  const effectiveBaselineSourceId = baselineCopy.sourceId;
   const allAgentsScope = agentScope === "all" && installations.length > 1;
-  const editTargetCopy = allAgentsScope ? baselineCopy : activeCopy;
-  const syncTargets = installations.filter((copy) => copy.id !== syncDraft?.sourceCopy?.id);
   const installationAgents = [...new Set(installations.map((copy) => copy.client))];
   const isUninstalledSkill = skill.sourceId === "uninstalled";
   const uninstallSource = skill.uninstallMeta?.sourceClient || skill.uninstallMeta?.sourceLabel || "未知";
-  const activeVersion = skillVersion(activeCopy || skill);
+  const copyClientLabel = (copy) => isUninstalledSkill
+    ? (copy.uninstallMeta?.sourceClient || copy.uninstallMeta?.sourceLabel || copy.client)
+    : copy.client;
 
-  function selectSkillBaseline(sourceId) {
-    const next = { ...baselineOverrides, [baselineKey]: sourceId };
-    if (sourceId === baselineSourceId) delete next[baselineKey];
-    setBaselineOverrides(next);
-    localStorage.setItem(baselineOverridesStorageKey, JSON.stringify(next));
-    setSyncDraft(null);
+  function applyCopyPatch(copy, patch) {
+    if (!copy?.id || !patch?.id) return null;
+    const nextCopy = {
+      ...copy,
+      ...patch,
+      id: copy.id,
+      sourceId: copy.sourceId,
+      client: copy.client,
+      sourceLabel: copy.sourceLabel,
+      root: copy.root,
+      dir: copy.dir
+    };
+    setCopyOverrides((current) => ({
+      ...current,
+      [copy.id]: {
+        ...(current[copy.id] || copy),
+        ...nextCopy
+      }
+    }));
+    return nextCopy;
+  }
+
+  function beginSyncCopy(sourceCopy) {
+    const installedBySource = new Map(installations.map((copy) => [copy.sourceId, copy]));
+    const availableTargets = installTargets.length
+      ? installTargets
+      : installations.map((copy) => ({
+        id: copy.sourceId || copy.id,
+        client: copy.client,
+        label: copy.sourceLabel,
+        root: copy.root || copy.dir
+      }));
+    const targets = availableTargets
+      .filter((target) => target.id !== sourceCopy.sourceId && target.client !== sourceCopy.client)
+      .map((target) => {
+        const installedCopy = installedBySource.get(target.id)
+          || installations.find((copy) => copy.client === target.client);
+        return {
+          id: target.id,
+          client: target.client,
+          root: target.root || installedCopy?.root || installedCopy?.dir,
+          dir: installedCopy?.dir,
+          sourceId: target.id,
+          sourceLabel: target.label || installedCopy?.sourceLabel,
+          skill: installedCopy || null,
+          installed: Boolean(installedCopy),
+          version: installedCopy ? skillVersion(installedCopy) : "",
+          versionLabel: installedCopy ? skillVersionLabel(installedCopy) : ""
+        };
+      });
+    if (!targets.length) {
+      setFileError("没有可同步的其它 Agent。");
+      return;
+    }
+    const notInstalledTargetIds = targets.filter((target) => !target.installed).map((target) => target.id);
+    setSyncTargetIds(notInstalledTargetIds.length ? notInstalledTargetIds : targets.map((target) => target.id));
+    setSyncPending({ type: "sync", item: sourceCopy, sourceCopy, targets });
+  }
+
+  async function confirmSyncCopy() {
+    if (!syncPending?.sourceCopy) return;
+    const targets = (syncPending.targets || []).filter((target) => syncTargetIds.includes(target.id));
+    if (!targets.length) return;
+    setSaving(true);
+    setFileError("");
+    try {
+      await window.skillStudio.submitEvent({
+        type: "sync-skill",
+        title: syncPending.sourceCopy.name || skill.name,
+        sourceDir: syncPending.sourceCopy.dir,
+        skillName: syncPending.sourceCopy.name || skill.name,
+        targets: targets.map((target) => ({
+          dir: target.dir,
+          sourceId: target.skill?.sourceId || target.sourceId || target.id,
+          client: target.client,
+          sourceLabel: target.skill?.sourceLabel || target.sourceLabel,
+          root: target.skill?.root || target.root
+        }))
+      });
+      setSyncPending(null);
+      setSyncTargetIds([]);
+      setFileNotice(`已提交同步到 ${targets.length} 个 Agent。`);
+      window.setTimeout(() => setFileNotice(""), 1600);
+    } catch (err) {
+      setFileError(err.message || String(err));
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -2237,75 +2896,96 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
           <h2>{skill.name}</h2>
           <p>{skill.description || "暂无描述"}</p>
         </div>
-        <button className="history-top-button" onClick={openHistoryPanel}>
+        {!hideHistory ? <button className="history-top-button" onClick={openHistoryPanel}>
           <History size={16} />
           历史版本
-        </button>
+        </button> : null}
       </div>
       <div className="detail-actions">
-        <button className="action-install" onClick={() => onInstall?.(skill)}>
+        {onInstall && !hideTopInstall ? <button className="action-install" onClick={() => onInstall?.(skill)}>
           <FileCode2 size={16} />
-          Install
-        </button>
+          {topInstallLabel}
+        </button> : null}
         {onUninstall ? (
         <button className="action-uninstall" onClick={() => onUninstall(skill, installations)}>
           <RotateCcw size={16} />
           Uninstall
         </button>
         ) : null}
-        <SkillVersionPicker copy={activeCopy} onActivate={activateSkillPackageVersion} onDelete={deleteSkillPackageVersions} busy={versionSwitching} showAllVersions={allAgentsScope} />
-        <button className={`action-baseline action-upgrade ${upgradeBusy || upgradeOpen ? "is-busy" : ""}`} onClick={openUpgradePreview} disabled={upgradeBusy || upgradeOpen}>
+        {!hideVersionActions ? <button className={`action-baseline action-upgrade ${upgradeBusy || upgradeOpen ? "is-busy" : ""}`} onClick={openUpgradePreview} disabled={upgradeBusy || upgradeOpen}>
           <History size={16} />
-          {upgradeBusy ? "升级中" : upgradeOpen ? "确认升级" : "升级"}
-        </button>
-        {allAgentsScope ? (
-          <label className="baseline-picker">
-            <span>基准</span>
-            <select value={effectiveBaselineSourceId} onChange={(event) => selectSkillBaseline(event.target.value)}>
-              {installations.map((copy) => (
-                <option key={copy.id} value={copy.sourceId}>{copy.client}</option>
-              ))}
-            </select>
-          </label>
+          {upgradeBusy ? "发布中" : upgradeOpen ? "确认发布" : "发布版本"}
+        </button> : null}
+        {onDeleteRecords ? (
+          <button className="action-uninstall" onClick={() => onDeleteRecords(skill)}>
+            <Trash2 size={16} />
+            清空记录
+          </button>
         ) : null}
-        <button className="action-baseline" onClick={() => (mode === "edit" && activeCopy.id === editTargetCopy.id ? exitEditMode() : openSkillCopy(editTargetCopy, "edit"))}>
-          <Edit3 size={16} />
-          {mode === "edit" && activeCopy.id === editTargetCopy.id ? "取消编辑" : allAgentsScope ? "编辑基准" : "编辑"}
-        </button>
         <StarButton active={starred} className="detail-star" label onClick={(event) => { event.stopPropagation(); onStar?.(skill); }} />
       </div>
       <MetaStrip
         items={[
-          { label: isUninstalledSkill ? "卸载来源" : "已安装", value: isUninstalledSkill ? uninstallSource : installationAgents.join(", ") },
-          { label: "版本", value: activeVersion ? `v${activeVersion}` : "" },
-          ...(allAgentsScope ? [
-            { label: "基准", value: baselineCopy.client },
-            { label: "当前副本", value: activeCopy.client }
-          ] : []),
+          { label: isUninstalledSkill ? "卸载来源" : "已安装", value: isUninstalledSkill ? [...new Set(installations.map(copyClientLabel))].join(", ") : installationAgents.join(", ") },
+          ...(allAgentsScope ? [{ label: "当前副本", value: copyClientLabel(activeCopy) }] : []),
           { label: "行数", value: activeCopy.lines },
           { label: "大小", value: `${Math.round((activeCopy.bytes || 0) / 1024)} KB` },
           { label: "更新", value: formatDate(activeCopy.updatedAt) }
         ]}
       />
       <div className={`installations-panel ${installations.length === 1 ? "single" : ""}`}>
-        {(installations.length > 1 ? installations : [activeCopy]).map((copy) => (
+        {(installations.length > 1 ? installations : [activeCopy]).map((copy) => {
+          const readonlyVersionLabel = readOnly ? skillVersionLabel(copy) : "";
+          const readonlyVersionFullLabel = readonlyVersionLabel ? displayVersionLabel(readonlyVersionLabel) : "";
+          return (
             <div
               key={copy.id}
               className={`installation-card ${copy.id === activeCopy.id ? "active" : ""}`}
               onClick={() => openSkillCopy(copy)}
-              title={`${copy.client} · 点击选择副本`}
             >
               <div className="copy-card-main">
-                <strong>{copy.client}</strong>
-                <button onClick={(event) => { event.stopPropagation(); copy.id === activeCopy.id && mode === "edit" ? exitEditMode() : openSkillCopy(copy, "edit"); }}>
+                <strong>{copyClientLabel(copy)}</strong>
+                {!hideVersionActions ? <div className="copy-version-picker" onClick={(event) => event.stopPropagation()}>
+                  <SkillVersionPicker
+                    copy={copy}
+                    onActivate={(version) => activateSkillPackageVersion(version, copy)}
+                    onDelete={(versionIds, afterDelete) => deleteSkillPackageVersions(versionIds, afterDelete, copy)}
+                    busy={versionSwitching}
+                    showAllVersions={false}
+                  />
+                </div> : null}
+                {readonlyVersionLabel ? (
+                  <span className="copy-version-readonly" aria-label={`版本 ${readonlyVersionFullLabel}`} onClick={(event) => event.stopPropagation()}>
+                    <em className="copy-version">{compactVersionLabel(readonlyVersionLabel)}</em>
+                    <span className="copy-version-popover" role="tooltip">
+                      <strong>{readonlyVersionFullLabel}</strong>
+                    </span>
+                  </span>
+                ) : null}
+                {!readOnly ? (
+                  <button onClick={(event) => { event.stopPropagation(); beginSyncCopy(copy); }}>
+                    同步
+                  </button>
+                ) : null}
+                {!readOnly ? <button onClick={(event) => { event.stopPropagation(); copy.id === activeCopy.id && mode === "edit" ? exitEditMode() : openSkillCopy(copy, "edit"); }}>
                   {copy.id === activeCopy.id && mode === "edit" ? "取消编辑" : "编辑"}
-                </button>
+                </button> : null}
+                {cardActionLabel && onCardAction ? (
+                  <button onClick={(event) => { event.stopPropagation(); onCardAction(copy); }}>
+                    {cardActionLabel}
+                  </button>
+                ) : null}
               </div>
-              <button className="copy-path-row" onClick={(event) => { event.stopPropagation(); window.skillStudio.reveal(copy.dir); }} title="点击定位目录">
-                {shortPath(copy.dir)}
-              </button>
+              {readOnly && !isUninstalledSkill ? (
+                <div className="copy-path-row">{shortPath(copy.dir)}</div>
+              ) : (
+                <button className="copy-path-row" onClick={(event) => { event.stopPropagation(); window.skillStudio.reveal(copy.dir); }} title="点击定位目录">
+                  {shortPath(copy.dir)}
+                </button>
+              )}
             </div>
-        ))}
+          );
+        })}
       </div>
       {versionSwitching ? <div className="version-switching-note">正在切换版本...</div> : null}
       {mode === "edit" ? (
@@ -2341,63 +3021,15 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
           </button>
         </div>
       ) : null}
-      {syncDraft ? (
-        <div className="copy-sync-panel">
-          <div>
-            <strong>同步基准修改</strong>
-            <span>{syncDraft.sourceCopy.client} 已保存 {syncDraft.relativePath}，可同步到其它 Agent。</span>
-          </div>
-          <div className="sync-target-list">
-            {syncTargets.map((copy) => (
-              <label key={copy.id}>
-                <input
-                  type="checkbox"
-                  checked={syncTargetIds.includes(copy.id)}
-                  onChange={(event) => {
-                    setSyncTargetIds((current) => event.target.checked ? [...new Set([...current, copy.id])] : current.filter((id) => id !== copy.id));
-                  }}
-                />
-                <span>{copy.client}</span>
-              </label>
-            ))}
-          </div>
-          <div className="sync-actions">
-            <button onClick={() => setSyncTargetIds(syncTargets.map((copy) => copy.id))}>全选</button>
-            <button className="soft-button" onClick={() => setSyncDraft(null)}>稍后</button>
-            <button
-              className="primary"
-              disabled={!syncTargetIds.length || saving}
-              onClick={async () => {
-                setSaving(true);
-                setFileError("");
-                try {
-                  const targets = syncTargets.filter((copy) => syncTargetIds.includes(copy.id));
-                  for (const copy of targets) {
-                    await window.skillStudio.saveFile(copyFilePath(copy, syncDraft.relativePath), syncDraft.content, {
-                      skillDir: copy.dir,
-                      skipAutoIncrement: true,
-                      sourceInfo: {
-                        sourceId: copy.sourceId,
-                        client: copy.client,
-                        sourceLabel: copy.sourceLabel
-                      }
-                    });
-                  }
-                  setSyncDraft(null);
-                  setSyncTargetIds([]);
-                  onSaved?.();
-                } catch (err) {
-                  setFileError(err.message || String(err));
-                } finally {
-                  setSaving(false);
-                }
-              }}
-            >
-              同步到选中 Agent
-            </button>
-          </div>
-        </div>
-      ) : null}
+      <InstallTargetDialog
+        pending={syncPending}
+        targets={syncPending?.targets || []}
+        selectedTargets={syncTargetIds}
+        onChangeTargets={setSyncTargetIds}
+        onCancel={() => setSyncPending(null)}
+        onConfirm={confirmSyncCopy}
+        busy={saving}
+      />
       <div className="detail-tags">
         {(skill.tags || []).length ? skill.tags.map((tag) => <TagPill key={tag} tag={tag} />) : <TagPill tag="untagged" />}
       </div>
@@ -2415,7 +3047,7 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
             setSelectedDirPath(dirPath);
             setCreateEntryDraft((current) => current ? { ...current, baseDir: dirPath } : current);
           }}
-          onContextMenu={openTreeContextMenu}
+          onContextMenu={readOnly ? undefined : openTreeContextMenu}
           draft={createEntryDraft}
           onDraftChange={(name) => setCreateEntryDraft((current) => current ? { ...current, name } : current)}
           onDraftSubmit={submitTreeDraft}
@@ -2428,11 +3060,11 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
               <strong>{activeFile?.name || "SKILL.md"}</strong>
               <small>{shortPath(activeFile?.path)}</small>
             </span>
-            <button title="在当前目录新增文件" onClick={() => beginCreateEntry("file")}>+ 文件</button>
-            <button title="在当前目录新增目录" onClick={() => beginCreateEntry("directory")}>+ 目录</button>
-            <button className="reader-mode-toggle" onClick={() => setMode(mode === "edit" ? "view" : "edit")}>
+            {!readOnly ? <button title="在当前目录新增文件" onClick={() => beginCreateEntry("file")}>+ 文件</button> : null}
+            {!readOnly ? <button title="在当前目录新增目录" onClick={() => beginCreateEntry("directory")}>+ 目录</button> : null}
+            {!readOnly ? <button className="reader-mode-toggle" onClick={() => setMode(mode === "edit" ? "view" : "edit")}>
               {mode === "edit" ? "编辑模式" : "阅读模式"}
-            </button>
+            </button> : null}
           </div>
           {mode === "edit" ? (
             <HighlightedEditor
@@ -2472,18 +3104,38 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
           <div className="history-panel">
             <div className="history-head">
               <div>
-                <h3>历史版本</h3>
+                <h3>{skill.name} · 历史版本</h3>
                 <p>{activeCopy?.client} · {history.length} 个历史目录版本</p>
               </div>
-              <button onClick={() => setHistoryOpen(false)}>关闭</button>
+              <div className="modal-actions">
+                <button className="soft-button" onClick={() => deleteSelectedHistoryVersions()} disabled={!selectedHistoryVersionIds.length || versionSwitching}>
+                  删除选中{selectedHistoryVersionIds.length ? ` (${selectedHistoryVersionIds.length})` : ""}
+                </button>
+                <button className="soft-button" onClick={() => deleteSelectedHistoryVersions(history.map((entry) => entry.id))} disabled={!history.length || versionSwitching}>
+                  清除全部
+                </button>
+                <button onClick={() => setHistoryOpen(false)}>关闭</button>
+              </div>
             </div>
             <div className="history-body" style={{ "--history-list-width": `${historyListWidth}px` }}>
               <div className="history-list">
                 {history.length ? history.map((entry) => (
-                  <button key={entry.id} className={selectedVersion?.id === entry.id ? "selected" : ""} onClick={() => selectVersion(entry)}>
-                    <strong>{entry.label || entry.id}</strong>
-                    <span>{entry.reason} · {formatDate(entry.createdAt)}</span>
-                  </button>
+                  <div key={entry.id} className={`history-list-row ${selectedVersion?.id === entry.id ? "selected" : ""}`}>
+                    <input
+                      type="checkbox"
+                      checked={selectedHistoryVersionIds.includes(entry.id)}
+                      disabled={isActiveHistoryVersion(entry)}
+                      onChange={(event) => {
+                        setSelectedHistoryVersionIds((current) => (
+                          event.target.checked ? [...current, entry.id] : current.filter((id) => id !== entry.id)
+                        ));
+                      }}
+                    />
+                    <button onClick={() => selectVersion(entry)}>
+                      <strong>{entry.label || entry.id}</strong>
+                      <span>{isActiveHistoryVersion(entry) ? "当前版本" : entry.reason} · {formatDate(entry.createdAt)}</span>
+                    </button>
+                  </div>
                 )) : <p>还没有历史版本。保存 skill 后会自动创建目录版本。</p>}
               </div>
               <div
@@ -2508,9 +3160,12 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
                   <>
                     <div className="diff-toolbar">
                       <span>对比当前目录与 {versionDetail.version?.label || selectedVersion?.label || "历史版本"}</span>
-                      <button onClick={() => restoreVersion(versionDetail.version?.id || selectedVersion?.id)} disabled={saving}>
+                      <button
+                        onClick={() => activateSkillPackageVersion(selectedVersion, activeCopy)}
+                        disabled={saving || versionSwitching || !selectedVersion || isActiveHistoryVersion(selectedVersion)}
+                      >
                         <RotateCcw size={13} />
-                        回滚到此版本
+                        选择此版本
                       </button>
                     </div>
                     <DirectoryDiffViewer detail={versionDetail} />
@@ -2523,75 +3178,73 @@ function Detail({ skill, onSaved, starred, onStar, onInstall, onUninstall, basel
           </div>
         </div>
       ) : null}
-      {upgradeTargetOpen ? (
-        <div className="history-overlay">
-          <div className="history-panel upgrade-target-panel">
-            <div className="history-head">
-              <div>
-                <h3>选择升级的 Agent</h3>
-                <p>{skill.name} · 每次升级只写入选中的 Agent 目录</p>
-              </div>
-              <button onClick={() => setUpgradeTargetOpen(false)} disabled={upgradeBusy}>关闭</button>
-            </div>
-            <div className="upgrade-target-list">
-              {installations.map((copy) => (
-                <label key={copy.id} className={upgradeTargetCopyId === copy.id ? "selected" : ""}>
-                  <input
-                    type="radio"
-                    name="upgrade-target-copy"
-                    checked={upgradeTargetCopyId === copy.id}
-                    onChange={() => setUpgradeTargetCopyId(copy.id)}
-                  />
-                  <span>
-                    <strong>{copy.client}</strong>
-                    <small>{shortPath(copy.dir)}</small>
-                  </span>
-                  <em>{skillVersion(copy) ? `v${skillVersion(copy)}` : "无版本"}</em>
-                </label>
-              ))}
-            </div>
-            <div className="modal-actions upgrade-target-actions">
-              <button className="soft-button" onClick={() => setUpgradeTargetOpen(false)} disabled={upgradeBusy}>取消</button>
-              <button
-                className="action-install"
-                disabled={upgradeBusy || !upgradeTargetCopyId}
-                onClick={async () => {
-                  const copy = installations.find((item) => item.id === upgradeTargetCopyId) || activeCopy;
-                  setUpgradeTargetOpen(false);
-                  await prepareUpgradePreview(copy);
-                }}
-              >
-                继续
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <InstallTargetDialog
+        pending={upgradeTargetPending}
+        targets={upgradeTargetPending?.targets || []}
+        selectedTargets={upgradeTargetCopyIds}
+        onChangeTargets={setUpgradeTargetCopyIds}
+        onCancel={() => setUpgradeTargetPending(null)}
+        onConfirm={async () => {
+          const enabledTargets = upgradeTargetPending?.targets?.filter((target) => !target.disabled) || [];
+          const selectedCopies = installations.filter((item) => upgradeTargetCopyIds.includes(item.id) && enabledTargets.some((target) => target.id === item.id));
+          const previewCopy = activeCopy;
+          setUpgradeTargetPending(null);
+          await prepareUpgradePreview(previewCopy, selectedCopies.length ? selectedCopies : [previewCopy]);
+        }}
+        busy={upgradeBusy}
+      />
       {upgradeOpen ? (
         <div className="history-overlay">
           <div className={`history-panel upgrade-panel ${upgradeBusy ? "is-upgrading" : ""}`}>
             <div className="history-head">
               <div>
-                <h3>确认升级</h3>
-                <p>{(upgradeCopy || activeCopy)?.client} · {upgradeDetail?.fromVersion || "-"} {"->"} {upgradeDetail?.toVersion || "-"}</p>
+                <h3>{skill.name} · 确认发布版本</h3>
+                <p>
+                  {(upgradeCopies.length ? upgradeCopies : [upgradeCopy || activeCopy]).map((copy) => copy?.client).filter(Boolean).join(", ")}
+                  {upgradeCopies.length > 1
+                    ? " · 每个 Agent 独立发布自己的版本"
+                    : ` · ${upgradeDetail?.fromVersion || "-"} -> ${upgradeDetail?.toVersion || "-"}`}
+                </p>
               </div>
               <div className="modal-actions">
-                <button className="soft-button" onClick={() => { setUpgradeOpen(false); setUpgradeCopy(null); }} disabled={upgradeBusy}>取消</button>
+                <button className="soft-button" onClick={() => { setUpgradeOpen(false); setUpgradeDetail(null); setUpgradeDetails({}); setUpgradeCopy(null); setUpgradeCopies([]); }} disabled={upgradeBusy}>取消</button>
                 <button className={upgradeBusy ? "upgrade-confirm-busy" : ""} onClick={confirmSkillUpgrade} disabled={upgradeBusy || !upgradeDetail?.files?.length}>
-                  {upgradeBusy ? "升级中..." : `升级到 v${upgradeDetail?.toVersion || ""}`}
+                  {upgradeBusy ? "发布中..." : `为 ${upgradeCopies.length || 1} 个 Agent 发布版本`}
                 </button>
               </div>
             </div>
-            <div className="upgrade-body">
+            <div className={`upgrade-body ${upgradeCopies.length > 1 ? "has-tabs" : ""}`}>
               {upgradeDetail ? (
                 <>
+                  {upgradeCopies.length > 1 ? (
+                    <div className="upgrade-agent-tabs">
+                      {upgradeCopies.map((copy) => {
+                        const detail = upgradeDetails[copy.id];
+                        const active = copy.id === upgradeCopy?.id;
+                        return (
+                          <button
+                            key={copy.id}
+                            className={active ? "active" : ""}
+                            onClick={() => {
+                              setUpgradeCopy(copy);
+                              setUpgradeDetail(detail || null);
+                            }}
+                            title={shortPath(copy.dir)}
+                          >
+                            <strong>{copy.client}</strong>
+                            <span>{detail?.fromVersion || "-"} → {detail?.toVersion || "-"}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
                   <div className="diff-toolbar">
-                    <span>升级前后差异。确认后才会写入 SKILL.md 并创建新的 skill 版本。</span>
+                    <span>{upgradeCopy?.client ? `${upgradeCopy.client} · ` : ""}发布前后差异。确认后会写入 SKILL.md version，并创建新的 skill 版本。</span>
                   </div>
                   <DirectoryDiffViewer detail={upgradeDetail} />
                 </>
               ) : (
-                <div className="diff-empty">正在生成升级差异。</div>
+                <div className="diff-empty">正在生成发布差异。</div>
               )}
             </div>
           </div>
@@ -2606,7 +3259,6 @@ function SettingsPage({ settings, onSave, saving }) {
     sources: [],
     ignorePatterns: [],
     installSourceId: "agents",
-    baselineSourceId: "agents",
     installTargetMode: "remember-last",
     mergeDuplicateSkills: true,
     skillVersionRetentionDays: 30,
@@ -2617,7 +3269,6 @@ function SettingsPage({ settings, onSave, saving }) {
     sources: [],
     ignorePatterns: [],
     installSourceId: "agents",
-    baselineSourceId: "agents",
     installTargetMode: "remember-last",
     mergeDuplicateSkills: true,
     skillVersionRetentionDays: 30,
@@ -2686,8 +3337,7 @@ function SettingsPage({ settings, onSave, saving }) {
       return {
         ...current,
         sources,
-        installSourceId: current.installSourceId === id ? (sources.find((source) => source.enabled)?.id || "agents") : current.installSourceId,
-        baselineSourceId: current.baselineSourceId === id ? (sources.find((source) => source.enabled)?.id || "agents") : current.baselineSourceId
+        installSourceId: current.installSourceId === id ? (sources.find((source) => source.enabled)?.id || "agents") : current.installSourceId
       };
     });
   }
@@ -2779,14 +3429,6 @@ function SettingsPage({ settings, onSave, saving }) {
           <label className="settings-field">
             <span>Install to Agent</span>
             <select value={draft.installSourceId || "agents"} onChange={(event) => setDraft({ ...draft, installSourceId: event.target.value })}>
-              {installable.map((source) => (
-                <option key={source.id} value={source.id}>{source.client} · {shortPath(source.root)}</option>
-              ))}
-            </select>
-          </label>
-          <label className="settings-field">
-            <span>默认基准 Agent</span>
-            <select value={draft.baselineSourceId || "agents"} onChange={(event) => setDraft({ ...draft, baselineSourceId: event.target.value })}>
               {installable.map((source) => (
                 <option key={source.id} value={source.id}>{source.client} · {shortPath(source.root)}</option>
               ))}
@@ -2905,35 +3547,103 @@ function InstallTargetDialog({ pending, targets, selectedTargets, onChangeTarget
   if (!pending) return null;
   const name = pending.item?.name || pending.item?.slug || "skill";
   const isUninstall = pending.type === "uninstall";
+  const isUpgrade = pending.type === "upgrade";
+  const isSync = pending.type === "sync";
+  const isRestore = pending.type === "uninstalled";
+  const isDeleteUninstalled = pending.type === "delete-uninstalled";
   const isUpdate = pending.forceUpdate;
   const selectedSet = new Set(selectedTargets);
+  const selectableTargets = targets.filter((target) => !target.disabled);
+  const allSelected = selectableTargets.length > 0 && selectableTargets.every((target) => selectedSet.has(target.id));
   function toggleTarget(id) {
+    const target = targets.find((item) => item.id === id);
+    if (target?.disabled) return;
     const next = new Set(selectedSet);
     if (next.has(id)) next.delete(id);
     else next.add(id);
     onChangeTargets([...next]);
   }
+  function selectAllTargets() {
+    onChangeTargets(selectableTargets.map((target) => target.id));
+  }
+  function clearTargets() {
+    onChangeTargets([]);
+  }
   return (
     <div className="modal-overlay">
       <div className="install-dialog">
         <div>
-          <h3>{isUninstall ? "选择卸载的 Agent" : isUpdate ? "选择更新的 Agent" : "选择安装到的 Agent"}</h3>
-          <p>{name}</p>
+          <h3>{isUninstall ? "选择卸载的 Agent" : isUpgrade ? "选择发布版本的 Agent" : isSync ? "选择同步到的 Agent" : isRestore ? "选择 Recover 到的 Agent" : isDeleteUninstalled ? "选择删除的 Uninstalled 记录" : isUpdate ? "选择更新的 Agent" : "选择安装到的 Agent"}</h3>
+          <p>{isSync ? `从 ${pending.sourceCopy?.client || name} 同步` : name}</p>
+        </div>
+        <div className="target-select-tools">
+          <span>已选择 {selectedTargets.length} / {selectableTargets.length}</span>
+          <button className="soft-button" onClick={allSelected ? clearTargets : selectAllTargets} disabled={!selectableTargets.length || busy}>
+            {allSelected ? "取消全选" : "全选"}
+          </button>
         </div>
         <div className="target-check-list">
           {targets.map((target) => (
-            <label key={target.id} className="target-check">
-              <input type="checkbox" checked={selectedSet.has(target.id)} onChange={() => toggleTarget(target.id)} />
-              <span>
-                <strong>{target.client}</strong>
-                <em>{shortPath(target.root || target.dir)}</em>
-              </span>
-            </label>
+            (() => {
+              const versionLabel = targetVersionLabel(target);
+              return (
+                <label key={target.id} className={`target-check ${target.disabled ? "disabled" : ""}`}>
+                  <input type="checkbox" checked={selectedSet.has(target.id)} disabled={target.disabled} onChange={() => toggleTarget(target.id)} />
+                  <span>
+                    <strong>{target.client}</strong>
+                    <em>{shortPath(target.root || target.dir)}</em>
+                    {target.disabledReason ? <em>{target.disabledReason}</em> : null}
+                    {isDeleteUninstalled && versionLabel ? <em>快照 {versionLabel}</em> : target.installed && versionLabel ? <em>已安装 {versionLabel}</em> : target.installed ? <em>已安装</em> : (isSync || isRestore ? <em>未安装</em> : null)}
+                    {isDeleteUninstalled && target.recordScope !== "skill" ? <em>{shortPath(target.dir || target.root)}</em> : null}
+                  </span>
+                </label>
+              );
+            })()
           ))}
         </div>
         <div className="dialog-actions">
           <button className="soft-button" onClick={onCancel} disabled={busy}>取消</button>
-          <button onClick={onConfirm} disabled={busy || !selectedTargets.length}>{busy ? "处理中" : isUninstall ? "卸载" : isUpdate ? "更新" : "安装"}</button>
+          <button onClick={onConfirm} disabled={busy || !selectedTargets.length}>{busy ? "处理中" : isUninstall ? "卸载" : isUpgrade ? "发布版本" : isSync ? "同步" : isRestore ? "Recover" : isDeleteUninstalled ? "删除" : isUpdate ? "更新" : "安装"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InstallConflictDialog({ pending, conflicts, actions, onChangeAction, onViewDiff, onCancel, onConfirm, busy }) {
+  if (!pending || !conflicts?.length) return null;
+  const isUpdate = pending.type === "discover" && pending.forceUpdate;
+  const title = pending.type === "uninstalled" ? "Recover 冲突确认" : isUpdate ? "Update 冲突确认" : "Install 冲突确认";
+  return (
+    <div className="modal-overlay">
+      <div className="install-dialog conflict-dialog">
+        <div>
+          <h3>{title}</h3>
+          <p>目标 Agent 已存在同名 skill，请为每个冲突选择处理方式。</p>
+        </div>
+        <div className="conflict-list">
+          {conflicts.map((conflict) => (
+            <div key={conflict.id} className="conflict-row">
+              <div>
+                <strong>{conflict.client}</strong>
+                <span>{conflict.sourceLabel}</span>
+                <em>当前 {conflict.currentVersion || "版本未知"} · 待写入 {conflict.incomingVersion || "版本未知"}</em>
+                {conflict.warning ? <small>{conflict.warning}</small> : null}
+              </div>
+              <select value={actions[conflict.id] || conflict.defaultAction} onChange={(event) => onChangeAction(conflict.id, event.target.value)}>
+                <option value="skip">跳过</option>
+                <option value="replace">覆盖</option>
+              </select>
+              <button className="conflict-diff-button" onClick={() => onViewDiff(conflict)} disabled={!conflict.canDiff}>
+                查看差异
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="conflict-note">Discover 远端安装前没有本地目录时无法直接比较；替换前会自动归档当前目录。</div>
+        <div className="dialog-actions">
+          <button className="soft-button" onClick={onCancel} disabled={busy}>返回</button>
+          <button onClick={onConfirm} disabled={busy}>{busy ? "提交中" : "确认提交"}</button>
         </div>
       </div>
     </div>
@@ -3058,7 +3768,7 @@ function TagSkillPanel({ tag, skills, onOpenSkill }) {
             <div className="skill-glyph">{skill.name.slice(0, 1).toUpperCase()}</div>
             <span>
               <strong>{skill.name}</strong>
-              <em>{skill.installationCount ? `${[...new Set((skill.installations || [skill]).map((copy) => copy.client))].join(", ")} · ${skill.installationCount} copies` : skill.client}</em>
+              <em>{skill.installationCount ? `${[...new Set((skill.installations || [skill]).map((copy) => copy.client))].join(", ")} · ${skill.installationCount} agents` : skill.client}</em>
               <small>{skill.description || "暂无描述"}</small>
             </span>
           </button>
@@ -3111,7 +3821,6 @@ function App() {
   const { data, loading, error, refresh } = useSkillData();
   const [discoverSort, setDiscoverSort] = useState("alltime");
   const discoverSource = discoverSort;
-  const githubTrends = useGithubTrends(discoverSource);
   const [uninstalledData, setUninstalledData] = useState(null);
   const [settings, setSettings] = useState(null);
   const [query, setQuery] = useState("");
@@ -3124,18 +3833,28 @@ function App() {
     content: false
   });
   const [listMode, setListMode] = useState("installed");
+  const discoverQuery = useDebouncedValue(listMode === "discover" ? query.trim() : "", 260);
+  const githubTrends = useGithubTrends(discoverSource, discoverQuery);
   const [localSort, setLocalSort] = useState("updated");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [tagCloudOpen, setTagCloudOpen] = useState(false);
+  const tagFilterRef = useRef(null);
   const [activeTags, setActiveTags] = useState([]);
   const [tagMatchMode, setTagMatchMode] = useState("and");
   const [selected, setSelected] = useState(null);
+  const [selectedUninstalledIds, setSelectedUninstalledIds] = useState([]);
+  const [lastUninstalledSelectId, setLastUninstalledSelectId] = useState("");
   const [selectedDiscover, setSelectedDiscover] = useState(null);
   const [selectedStarred, setSelectedStarred] = useState(null);
+  const [starSourceFilters, setStarSourceFilters] = useState(["all"]);
+  const [starSourceOpen, setStarSourceOpen] = useState(false);
+  const starSourceRef = useRef(null);
   const [selectedTag, setSelectedTag] = useState("");
   const [selectedInstallTargets, setSelectedInstallTargets] = useState(["agents"]);
   const [dialogTargetIds, setDialogTargetIds] = useState(["agents"]);
   const [pendingInstall, setPendingInstall] = useState(null);
+  const [pendingConflict, setPendingConflict] = useState(null);
+  const [conflictActions, setConflictActions] = useState({});
   const [starredMap, setStarredMap] = useState({});
   const [operationLogs, setOperationLogs] = useState([]);
   const [operationEvents, setOperationEvents] = useState([]);
@@ -3202,6 +3921,24 @@ function App() {
   }, [notice]);
 
   useEffect(() => {
+    if (!starSourceOpen) return undefined;
+    const close = (event) => {
+      if (!starSourceRef.current?.contains(event.target)) setStarSourceOpen(false);
+    };
+    window.addEventListener("pointerdown", close);
+    return () => window.removeEventListener("pointerdown", close);
+  }, [starSourceOpen]);
+
+  useEffect(() => {
+    if (!tagCloudOpen) return undefined;
+    const close = (event) => {
+      if (!tagFilterRef.current?.contains(event.target)) setTagCloudOpen(false);
+    };
+    window.addEventListener("pointerdown", close);
+    return () => window.removeEventListener("pointerdown", close);
+  }, [tagCloudOpen]);
+
+  useEffect(() => {
     const timer = window.setInterval(async () => {
       await refreshEvents();
       const hasRunning = operationEvents.some((event) => event.status === "queued" || event.status === "running");
@@ -3215,16 +3952,84 @@ function App() {
     localStorage.setItem(starStorageKey, JSON.stringify(next));
   }
 
+  function pruneLocalStarred(next = starredMap) {
+    const installedReady = !loading && Array.isArray(data?.skills);
+    const uninstalledReady = Array.isArray(uninstalledData?.skills);
+    if (!installedReady && !uninstalledReady) return next;
+    const installedGroups = installedReady
+      ? new Set((data.skills || []).map((skill) => skillGroupKey(skill)))
+      : null;
+    const uninstalledGroups = uninstalledReady
+      ? new Set((uninstalledData.skills || []).map((skill) => skillGroupKey(skill)))
+      : null;
+    let changed = false;
+    const pruned = {};
+    Object.entries(next || {}).forEach(([key, entry]) => {
+      const item = entry?.item || entry;
+      const type = normalizeStarType(entry?.type, item);
+      const group = skillGroupKey(item);
+      const missingInstalled = type === "installed" && installedGroups && !installedGroups.has(group);
+      const missingUninstalled = type === "uninstalled" && uninstalledGroups && !uninstalledGroups.has(group);
+      if (missingInstalled || missingUninstalled) {
+        changed = true;
+        return;
+      }
+      pruned[key] = entry;
+    });
+    if (changed) saveStarred(pruned);
+    return changed ? pruned : next;
+  }
+
   function toggleStar(type, item) {
     const snapshot = starSnapshot(type, item);
     const next = { ...starredMap };
-    if (next[snapshot.key]) delete next[snapshot.key];
-    else next[snapshot.key] = snapshot;
+    const groupKey = starGroupKey(type, item);
+    const matchedKeys = Object.values(next)
+      .filter((entry) => entry.type === type && starGroupKey(entry.type, entry.item) === groupKey)
+      .map((entry) => entry.key);
+    if (next[snapshot.key] || matchedKeys.length) {
+      [snapshot.key, ...matchedKeys].forEach((key) => delete next[key]);
+    } else {
+      next[snapshot.key] = snapshot;
+    }
     saveStarred(next);
   }
 
+  useEffect(() => {
+    pruneLocalStarred(starredMap);
+  }, [data?.skills, uninstalledData?.skills, loading]);
+
   function isStarred(type, item) {
-    return Boolean(starredMap[starKey(type, item)]);
+    const directKey = starKey(type, item);
+    if (starredMap[directKey]) return true;
+    const groupKey = starGroupKey(type, item);
+    return Object.values(starredMap).some((entry) => entry.type === type && starGroupKey(entry.type, entry.item) === groupKey);
+  }
+
+  function unstarEntry(entry) {
+    const key = entry?.storageKey || entry?.key || starKey(entry?.type, entry?.item);
+    const next = { ...starredMap };
+    const keys = entry?.storageKeys?.length ? entry.storageKeys : [key];
+    keys.forEach((itemKey) => delete next[itemKey]);
+    saveStarred(next);
+  }
+
+  function toggleStarSourceFilter(source) {
+    setStarSourceFilters((current) => {
+      const allSources = starSourceOptions.map(([value]) => value);
+      const allSelected = current.includes("all") || allSources.every((item) => current.includes(item));
+      if (source === "all") return allSelected ? [] : ["all"];
+      if (current.includes("all")) {
+        const next = allSources.filter((item) => item !== source);
+        return next.length === allSources.length ? ["all"] : next;
+      }
+      const withoutAll = current.filter((item) => item !== "all");
+      const next = withoutAll.includes(source)
+        ? withoutAll.filter((item) => item !== source)
+        : [...withoutAll, source];
+      if (next.length === allSources.length) return ["all"];
+      return next;
+    });
   }
 
   async function uninstallSkill(skill, skipConfirm = false) {
@@ -3257,21 +4062,72 @@ function App() {
   }
 
   function openInstallDialog(type, item, targets = installTargets, extras = {}) {
-    const nextTargets = defaultTargetSelection().filter((id) => targets.some((target) => target.id === id));
+    const preferredTargets = Array.isArray(extras.defaultTargetIds) && extras.defaultTargetIds.length
+      ? extras.defaultTargetIds
+      : defaultTargetSelection();
+    const nextTargets = preferredTargets.filter((id) => targets.some((target) => target.id === id));
     setDialogTargetIds(nextTargets.length ? nextTargets : targets.slice(0, 1).map((target) => target.id));
-    setPendingInstall({ type, item, targets, ...extras });
+    const { defaultTargetIds: _defaultTargetIds, ...dialogExtras } = extras;
+    setPendingInstall({ type, item, targets, ...dialogExtras });
+  }
+
+  function installTargetsWithInstalledVersions(item) {
+    const key = skillGroupKey(item);
+    const installed = (data?.skills || []).filter((skill) => skillGroupKey(skill) === key);
+    return installTargets.map((target) => {
+      const match = installed.find((skill) => skill.sourceId === target.id || skill.client === target.client);
+      return {
+        ...target,
+        installed: Boolean(match),
+        skill: match || null,
+        version: match ? skillVersion(match) : "",
+        versionLabel: match ? skillVersionLabel(match) : ""
+      };
+    });
   }
 
   function beginInstallDiscover(item, forceUpdate = false) {
-    openInstallDialog("discover", item, installTargets, { forceUpdate });
+    const installed = installedForDiscover(item);
+    const targets = installTargets.map((target) => {
+      const match = installed.find((skill) => skill.sourceId === target.id || skill.client === target.client);
+      return {
+        ...target,
+        installed: Boolean(match),
+        skill: match || null,
+        version: match ? skillVersion(match) : "",
+        versionLabel: match ? skillVersionLabel(match) : ""
+      };
+    });
+    openInstallDialog("discover", item, targets, { forceUpdate });
   }
 
   function beginRestoreSkill(skill) {
-    openInstallDialog("uninstalled", skill);
+    const targets = installTargetsWithInstalledVersions(skill);
+    const records = skill.installations || [skill];
+    const defaultTargetIds = [...new Set(records.map((record) => {
+      const sourceId = record.uninstallMeta?.sourceId || record.sourceId;
+      const sourceClient = record.uninstallMeta?.sourceClient || record.uninstallMeta?.sourceLabel || record.client;
+      const target = targets.find((item) => item.id === sourceId)
+        || targets.find((item) => item.client === sourceClient);
+      return target?.id;
+    }).filter(Boolean))];
+    openInstallDialog("uninstalled", skill, targets, { defaultTargetIds });
+  }
+
+  function beginRecoverOriginalAgent(skill) {
+    const targets = installTargetsWithInstalledVersions(skill);
+    const sourceId = skill.uninstallMeta?.sourceId || skill.sourceId;
+    const sourceClient = skill.uninstallMeta?.sourceClient || skill.uninstallMeta?.sourceLabel || skill.client;
+    const target = targets.find((item) => item.id === sourceId)
+      || targets.find((item) => item.client === sourceClient)
+      || targets[0];
+    if (!target) return;
+    openInstallDialog("uninstalled", skill, [target]);
+    setDialogTargetIds([target.id]);
   }
 
   function beginInstallLocal(skill) {
-    openInstallDialog("local", skill);
+    openInstallDialog("local", skill, installTargetsWithInstalledVersions(skill));
   }
 
   function beginUninstallMany(item, skills) {
@@ -3280,54 +4136,246 @@ function App() {
       client: skill.client,
       root: skill.dir,
       dir: skill.dir,
-      skill
+      skill,
+      installed: true,
+      version: skillVersion(skill),
+      versionLabel: skillVersionLabel(skill)
     }));
-    setDialogTargetIds(targets.map((target) => target.id));
+    const remembered = readStoredJson(uninstallTargetsStorageKey, null, []);
+    const validRemembered = remembered.filter((id) => targets.some((target) => target.id === id));
+    setDialogTargetIds(validRemembered.length ? validRemembered : targets.map((target) => target.id));
     setPendingInstall({ type: "uninstall", item, targets });
+  }
+
+  function beginDeleteUninstalledRecords(item, options = {}) {
+    const items = Array.isArray(item) ? item : (item ? [item] : []);
+    const targets = options.skillScope
+      ? items.map((entry) => {
+        const records = entry?.installations || (entry ? [entry] : []);
+        return {
+          id: entry.id || skillGroupKey(entry),
+          client: entry.name,
+          root: `${records.length} 个 Agent 记录`,
+          dirs: records.map((record) => record.dir).filter(Boolean),
+          skill: entry,
+          recordScope: "skill",
+          disabled: !records.length
+        };
+      })
+      : items.flatMap((entry) => entry?.installations || (entry ? [entry] : [])).map((skill) => ({
+        id: skill.id,
+        client: skill.uninstallMeta?.sourceClient || skill.uninstallMeta?.sourceLabel || skill.client,
+        root: skill.dir,
+        dir: skill.dir,
+        skill,
+        version: skillVersion(skill),
+        versionLabel: skillVersionLabel(skill)
+      }));
+    if (!targets.length) return;
+    setDialogTargetIds(targets.map((target) => target.id));
+    setPendingInstall({ type: "delete-uninstalled", item, targets });
+  }
+
+  function toggleUninstalledSelection(skill, event = {}) {
+    if (!skill?.id) return;
+    const ids = uninstalledFiltered.map((item) => item.id);
+    setSelectedUninstalledIds((current) => {
+      if (event.shiftKey && lastUninstalledSelectId) {
+        const start = ids.indexOf(lastUninstalledSelectId);
+        const end = ids.indexOf(skill.id);
+        if (start >= 0 && end >= 0) {
+          const [from, to] = start < end ? [start, end] : [end, start];
+          const range = ids.slice(from, to + 1);
+          return [...new Set([...(event.metaKey || event.ctrlKey ? current : []), ...range])];
+        }
+      }
+      if (current.includes(skill.id)) return current.filter((id) => id !== skill.id);
+      return [...current, skill.id];
+    });
+    setLastUninstalledSelectId(skill.id);
+  }
+
+  function selectedUninstalledItems() {
+    return uninstalledFiltered.filter((skill) => selectedUninstalledIds.includes(skill.id));
+  }
+
+  async function clearUninstalledRecords(items) {
+    const skillItems = (Array.isArray(items) ? items : (items ? [items] : []))
+      .filter(Boolean);
+    const records = skillItems
+      .flatMap((entry) => entry?.installations || (entry ? [entry] : []));
+    const dirs = records.map((record) => record.dir).filter(Boolean);
+    if (!dirs.length) return;
+    const confirmed = window.confirm(`确认清空 ${skillItems.length} 条 Uninstalled 记录？\n删除后不可恢复，也不会影响当前已安装的 skill。`);
+    if (!confirmed) return;
+    setBusyAction("delete-uninstalled:direct");
+    try {
+      await window.skillStudio.deleteUninstalledRecords(dirs);
+      await refreshAll();
+      setSelected(null);
+      setSelectedUninstalledIds([]);
+      setLastUninstalledSelectId("");
+      setNotice(`已清空 ${skillItems.length} 条 Uninstalled 记录。`);
+    } catch (err) {
+      setNotice(`清空失败：${err.message || String(err)}`);
+    } finally {
+      setBusyAction("");
+    }
+  }
+
+  function restoreRecordForTarget(item, target) {
+    const records = item?.installations || (item ? [item] : []);
+    return records.find((record) => {
+      const sourceId = record.uninstallMeta?.sourceId || record.sourceId;
+      const sourceClient = record.uninstallMeta?.sourceClient || record.uninstallMeta?.sourceLabel || record.client;
+      return sourceId === target?.id || sourceClient === target?.client;
+    }) || null;
+  }
+
+  function buildInstallConflicts(pending, targetIds) {
+    if (!["discover", "local", "uninstalled"].includes(pending?.type)) return [];
+    const incomingVersion = skillVersion(pending.item);
+    return (pending.targets || [])
+      .filter((target) => targetIds.includes(target.id) && target.installed)
+      .map((target) => {
+        const restoreRecord = pending.type === "uninstalled" ? restoreRecordForTarget(pending.item, target) : null;
+        const currentVersion = target.version || "";
+        const targetIncomingVersion = restoreRecord ? skillVersion(restoreRecord) : incomingVersion;
+        const currentVersionLabel = targetVersionLabel(target);
+        const incomingVersionLabel = restoreRecord ? skillVersionLabel(restoreRecord) : (targetIncomingVersion ? `v${targetIncomingVersion}` : "");
+        const versionCompare = targetIncomingVersion && currentVersion ? compareVersionAsc(targetIncomingVersion, currentVersion) : null;
+        const existingDir = target.skill?.dir || "";
+        const incomingDir = pending.type === "discover" ? "" : (restoreRecord?.dir || pending.item?.dir || "");
+        const warning = !targetIncomingVersion || !currentVersion
+          ? "任一方版本未知，不会自动判断新旧。"
+          : versionCompare < 0
+            ? "待写入版本低于当前版本，可能降级。"
+            : "";
+        return {
+          ...target,
+          currentVersion: currentVersionLabel || (currentVersion ? `v${currentVersion}` : ""),
+          incomingVersion: incomingVersionLabel || (targetIncomingVersion ? `v${targetIncomingVersion}` : ""),
+          warning,
+          defaultAction: pending.type === "discover" && pending.forceUpdate ? "replace" : "skip",
+          sourceLabel: pending.type === "uninstalled" ? "Recover" : pending.type === "discover" ? "Discover" : "Local",
+          existingDir,
+          incomingDir,
+          canDiff: pending.type !== "discover" && Boolean(existingDir && incomingDir)
+        };
+      });
+  }
+
+  async function viewInstallConflictDiff(conflict) {
+    if (!conflict?.canDiff) return;
+    try {
+      const result = await window.skillStudio.diffDirs({
+        beforeDir: conflict.existingDir,
+        afterDir: conflict.incomingDir
+      });
+      const files = result.files || [];
+      const summary = files.reduce((acc, file) => {
+        acc[file.type] = (acc[file.type] || 0) + 1;
+        return acc;
+      }, {});
+      const preview = files.slice(0, 12).map((file) => `- ${file.type}: ${file.path}`).join("\n");
+      window.alert(`目录差异：${conflict.client}\n新增 ${summary.added || 0} · 删除 ${summary.deleted || 0} · 修改 ${summary.modified || 0}\n\n${preview || "没有发现文本文件差异。"}`);
+    } catch (err) {
+      setNotice(`差异查看失败：${err.message || String(err)}`);
+    }
+  }
+
+  function eventPayloadForPending(pending, targetIds, actions = {}) {
+    return pending.type === "discover" ? {
+      type: "install-discover",
+      title: pending.item.name,
+      item: pending.item,
+      targetIds,
+      forceUpdate: pending.forceUpdate,
+      conflictActions: actions
+    } : pending.type === "local" ? {
+      type: "install-local",
+      title: pending.item.name,
+      skillName: pending.item.name,
+      skillDir: pending.item.dir,
+      targetIds,
+      conflictActions: actions
+    } : pending.type === "uninstalled" ? {
+      type: "restore",
+      title: pending.item.name,
+      skillName: pending.item.name,
+      skillDir: pending.item.dir,
+      targetIds,
+      restoreRecords: Object.fromEntries(targetIds.map((targetId) => {
+        const target = pending.targets?.find((item) => item.id === targetId);
+        const record = restoreRecordForTarget(pending.item, target);
+        return [targetId, record?.dir || ""];
+      })),
+      conflictActions: actions
+    } : {
+      type: "uninstall",
+      title: pending.item.name,
+      skills: pending.targets.filter((target) => targetIds.includes(target.id)).map((target) => ({
+        dir: target.skill.dir,
+        client: target.skill.client,
+        sourceId: target.skill.sourceId,
+        sourceLabel: target.skill.sourceLabel
+      }))
+    };
+  }
+
+  async function submitPendingOperation(pending, targetIds, actions = {}) {
+    const eventPayload = eventPayloadForPending(pending, targetIds, actions);
+    try {
+      await window.skillStudio.submitEvent(eventPayload);
+      if (pending.type === "uninstall") {
+        localStorage.setItem(uninstallTargetsStorageKey, JSON.stringify(targetIds));
+      } else if (settings?.installTargetMode !== "always-default") {
+        setSelectedInstallTargets(targetIds);
+        localStorage.setItem(installTargetsStorageKey, JSON.stringify(targetIds));
+      }
+      setPendingInstall(null);
+      setPendingConflict(null);
+      setConflictActions({});
+      await refreshEvents();
+      setNotice(`${pending.item.name} 已提交后台执行。`);
+    } catch (err) {
+      setNotice(`提交失败：${err.message || String(err)}`);
+    }
   }
 
   async function confirmPendingInstall() {
     if (!pendingInstall) return;
     const targetIds = dialogTargetIds.filter((id) => pendingInstall.targets?.some((target) => target.id === id));
     if (!targetIds.length) return;
-    const eventPayload = pendingInstall.type === "discover" ? {
-      type: "install-discover",
-      title: pendingInstall.item.name,
-      item: pendingInstall.item,
-      targetIds,
-      forceUpdate: pendingInstall.forceUpdate
-    } : pendingInstall.type === "local" ? {
-      type: "install-local",
-      title: pendingInstall.item.name,
-      skillName: pendingInstall.item.name,
-      skillDir: pendingInstall.item.dir,
-      targetIds
-    } : pendingInstall.type === "uninstalled" ? {
-      type: "restore",
-      title: pendingInstall.item.name,
-      skillName: pendingInstall.item.name,
-      skillDir: pendingInstall.item.dir,
-      targetIds
-    } : {
-      type: "uninstall",
-      title: pendingInstall.item.name,
-      skills: pendingInstall.targets.filter((target) => targetIds.includes(target.id)).map((target) => ({
-        dir: target.skill.dir,
-        client: target.skill.client
-      }))
-    };
-    try {
-      await window.skillStudio.submitEvent(eventPayload);
-      if (settings?.installTargetMode !== "always-default" && pendingInstall.type !== "uninstall") {
-        setSelectedInstallTargets(targetIds);
-        localStorage.setItem(installTargetsStorageKey, JSON.stringify(targetIds));
+    if (pendingInstall.type === "delete-uninstalled") {
+      const targets = pendingInstall.targets?.filter((target) => targetIds.includes(target.id)) || [];
+      const confirmed = window.confirm(`确认删除 ${targets.length} 个 Uninstalled 记录？\n删除后不可恢复，也不会影响当前已安装的 skill。`);
+      if (!confirmed) return;
+      setBusyAction(`delete-uninstalled:${pendingInstall.item?.id || "batch"}`);
+      try {
+        const dirs = targets.flatMap((target) => target.dirs || target.dir || []).filter(Boolean);
+        await window.skillStudio.deleteUninstalledRecords(dirs);
+        setPendingInstall(null);
+        await refreshAll();
+        setSelected(null);
+        setSelectedUninstalledIds([]);
+        setLastUninstalledSelectId("");
+        setNotice(`已删除 ${dirs.length} 个 Uninstalled 记录。`);
+      } catch (err) {
+        setNotice(`删除失败：${err.message || String(err)}`);
+      } finally {
+        setBusyAction("");
       }
-      setPendingInstall(null);
-      await refreshEvents();
-      setNotice(`${pendingInstall.item.name} 已提交后台执行。`);
-    } catch (err) {
-      setNotice(`提交失败：${err.message || String(err)}`);
+      return;
     }
+    const conflicts = buildInstallConflicts(pendingInstall, targetIds);
+    if (conflicts.length) {
+      const defaults = Object.fromEntries(conflicts.map((conflict) => [conflict.id, conflict.defaultAction]));
+      setConflictActions(defaults);
+      setPendingConflict({ pending: pendingInstall, targetIds, conflicts });
+      return;
+    }
+    await submitPendingOperation(pendingInstall, targetIds, {});
   }
 
   async function restoreSkill(skill, targetSourceId = selectedInstallTargets[0]) {
@@ -3419,7 +4467,9 @@ function App() {
     try {
       for (let index = 0; index < targetIds.length; index += 1) {
         const targetId = targetIds[index];
-        if (index === targetIds.length - 1) await window.skillStudio.restoreSkill(skill.dir, targetId);
+        const target = installTargets.find((item) => item.id === targetId);
+        const record = restoreRecordForTarget(skill, target);
+        if (record?.dir) await window.skillStudio.restoreSkill(record.dir, targetId);
         else await window.skillStudio.installLocalSkill(skill.dir, targetId);
         ok += 1;
       }
@@ -3444,7 +4494,11 @@ function App() {
     let ok = 0;
     try {
       for (const skill of skills) {
-        await window.skillStudio.uninstallSkill(skill.dir);
+        await window.skillStudio.uninstallSkill(skill.dir, {
+          client: skill.client,
+          sourceId: skill.sourceId,
+          sourceLabel: skill.sourceLabel
+        });
         ok += 1;
       }
       await refreshAll();
@@ -3509,9 +4563,14 @@ function App() {
 
   const tagCounts = useMemo(() => {
     const map = new Map();
-    (data?.skills || []).forEach((skill) => {
-      if (sourceFilter !== "all" && skill.client !== sourceFilter) return;
-      (skill.tags || []).forEach((tag) => {
+    const source = listMode === "uninstalled"
+      ? (uninstalledData?.skills || [])
+      : listMode === "starred"
+        ? Object.values(starredMap).map((entry) => entry.item).filter(Boolean)
+        : (data?.skills || []);
+    source.forEach((skill) => {
+      if (listMode === "installed" && sourceFilter !== "all" && skill.client !== sourceFilter) return;
+      skillTags(skill).forEach((tag) => {
         if (!tag) return;
         map.set(tag, (map.get(tag) || 0) + 1);
       });
@@ -3519,7 +4578,7 @@ function App() {
     return [...map.entries()]
       .map(([tag, count]) => ({ tag, count }))
       .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
-  }, [data, sourceFilter]);
+  }, [data, uninstalledData, starredMap, listMode, sourceFilter]);
 
   const allTagCounts = useMemo(() => {
     const map = new Map();
@@ -3544,18 +4603,31 @@ function App() {
   const uninstalledFiltered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const matches = (uninstalledData?.skills || []).filter((skill) => {
+      if (activeTags.length) {
+        const tags = skillTags(skill);
+        const tagOk = tagMatchMode === "or"
+          ? activeTags.some((tag) => tags.includes(tag))
+          : activeTags.every((tag) => tags.includes(tag));
+        if (!tagOk) return false;
+      }
       return matchesSearchFields(localSkillSearchValues(skill, searchOptions), q);
     });
-    const visible = settings?.mergeDuplicateSkills !== false ? mergeSkillCopies(matches) : matches;
-    return visible.sort((a, b) => a.name.localeCompare(b.name));
-  }, [uninstalledData, query, searchOptions, settings]);
+    const latestBySource = new Map();
+    matches.forEach((skill) => {
+      const sourceKey = skill.uninstallMeta?.sourceId || skill.uninstallMeta?.sourceClient || skill.client || skill.sourceId || "unknown";
+      const key = `${skillGroupKey(skill)}:${sourceKey}`;
+      const existing = latestBySource.get(key);
+      if (!existing || new Date(skillJoinTime(skill) || 0) > new Date(skillJoinTime(existing) || 0)) latestBySource.set(key, skill);
+    });
+    const latest = [...latestBySource.values()];
+    const visible = mergeSkillCopies(latest);
+    return visible.sort((a, b) => groupedJoinTime(b) - groupedJoinTime(a));
+  }, [uninstalledData, query, activeTags, tagMatchMode, searchOptions]);
 
   const discoverItems = useMemo(() => {
-    const q = query.trim().toLowerCase();
     return githubTrends.items
-      .filter((item) => matchesSearchFields(discoverSearchValues(item, searchOptions), q))
       .sort((a, b) => (a.rank || 999999) - (b.rank || 999999) || b.stars - a.stars);
-  }, [githubTrends.items, query, discoverSource, searchOptions]);
+  }, [githubTrends.items, discoverSource, discoverQuery]);
 
   const discoverInstalledMap = useMemo(() => {
     const map = new Map();
@@ -3573,42 +4645,71 @@ function App() {
   }, [data]);
 
   function installedForDiscover(item) {
-    return discoverInstalledMap.get(normalizeSkillName(item?.name)) || [];
+    return uniqueInstalledSkills(discoverInstalledMap.get(normalizeSkillName(item?.name)) || []);
   }
 
   const visibleDiscoverItems = discoverItems;
-  const starredItems = useMemo(() => Object.values(starredMap), [starredMap]);
+  const starredItems = useMemo(() => Object.values(starredMap).map((entry) => {
+    const item = entry.item || entry;
+    return {
+      ...entry,
+      item,
+      type: normalizeStarType(entry.type, item)
+    };
+  }), [starredMap]);
   const starredFiltered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const refreshedEntries = starredItems.flatMap((entry) => {
-      if (entry.type === "discover") return [entry];
-      const pool = entry.type === "uninstalled" ? (uninstalledData?.skills || []) : (data?.skills || []);
-      const key = skillGroupKey(entry.item);
-      const matches = pool.filter((skill) => skillGroupKey(skill) === key);
-      return (matches.length ? matches : [entry.item]).map((item) => ({ ...entry, item }));
+    const groups = new Map();
+    starredItems.forEach((entry) => {
+      const key = starGroupKey(entry.type, entry.item);
+      const group = groups.get(key) || [];
+      group.push(entry);
+      groups.set(key, group);
+    });
+    const refreshedEntries = [...groups.values()].flatMap((entries) => {
+      const sortedEntries = [...entries].sort((a, b) => new Date(b.createdAt || skillJoinTime(b.item) || 0) - new Date(a.createdAt || skillJoinTime(a.item) || 0));
+      const first = sortedEntries[0];
+      const storageKeys = sortedEntries.map((entry) => entry.key).filter(Boolean);
+      const createdAt = first.createdAt || skillJoinTime(first.item) || "";
+      if (first.type === "discover") {
+        return [{
+          ...first,
+          createdAt,
+          storageKeys,
+          item: first.item
+        }];
+      }
+      const pool = first.type === "uninstalled" ? (uninstalledData?.skills || []) : (data?.skills || []);
+      const groupKey = skillGroupKey(first.item);
+      const matches = pool.filter((skill) => skillGroupKey(skill) === groupKey);
+      const items = matches.length ? mergeSkillCopies(matches) : [first.item];
+      return items.map((item) => ({
+        ...first,
+        createdAt,
+        storageKeys,
+        item
+      }));
     });
     const filtered = refreshedEntries.filter((entry) => {
+      if (!starSourceFilters.includes("all") && !starSourceFilters.includes(entry.type)) return false;
+      if (activeTags.length) {
+        const tags = skillTags(entry.item);
+        const tagOk = tagMatchMode === "or"
+          ? activeTags.some((tag) => tags.includes(tag))
+          : activeTags.every((tag) => tags.includes(tag));
+        if (!tagOk) return false;
+      }
       if (!q) return true;
       const item = entry.item || {};
       const values = entry.type === "discover" ? discoverSearchValues(item, searchOptions) : localSkillSearchValues(item, searchOptions);
       return matchesSearchFields(values, q);
     });
-    if (settings?.mergeDuplicateSkills === false) return filtered;
-    const installedEntries = filtered.filter((entry) => entry.type === "installed");
-    const uninstalledEntries = filtered.filter((entry) => entry.type === "uninstalled");
-    const discoverEntries = filtered.filter((entry) => entry.type === "discover");
-    const groupedInstalled = mergeSkillCopies(installedEntries.map((entry) => entry.item)).map((skill) => ({
-      type: "installed",
-      key: `starred:${skill.id}`,
-      item: skill
-    }));
-    const groupedUninstalled = mergeSkillCopies(uninstalledEntries.map((entry) => entry.item)).map((skill) => ({
-      type: "uninstalled",
-      key: `starred:${skill.id}`,
-      item: skill
-    }));
-    return [...discoverEntries, ...groupedInstalled, ...groupedUninstalled];
-  }, [starredItems, query, searchOptions, settings, data, uninstalledData]);
+    return filtered.map((entry, index) => ({
+      ...entry,
+      storageKey: entry.key,
+      key: `${entry.type}:${skillGroupKey(entry.item)}:${entry.item?.id || index}`
+    })).sort((a, b) => new Date(b.createdAt || groupedJoinTime(b.item) || 0) - new Date(a.createdAt || groupedJoinTime(a.item) || 0));
+  }, [starredItems, query, activeTags, tagMatchMode, searchOptions, data, uninstalledData, starSourceFilters]);
 
   useEffect(() => {
     if (listMode === "settings" || listMode === "logs" || listMode === "events" || listMode === "tags") {
@@ -3664,10 +4765,19 @@ function App() {
     if (listMode === "events") refreshEvents();
   }, [listMode]);
 
-  const installedCount = data?.skills?.length || 0;
-  const uninstalledCount = uninstalledData?.skills?.length || 0;
+  useEffect(() => {
+    const valid = new Set(uninstalledFiltered.map((skill) => skill.id));
+    setSelectedUninstalledIds((current) => current.filter((id) => valid.has(id)));
+  }, [uninstalledFiltered]);
+
+  const installedCount = new Set((data?.skills || []).map((skill) => skillGroupKey(skill))).size;
+  const uninstalledCount = new Set((uninstalledData?.skills || []).map((skill) => skillGroupKey(skill))).size;
   const visibleCount = listMode === "discover" ? discoverItems.length : listMode === "tags" ? allTagCounts.length : listMode === "starred" ? starredFiltered.length : listMode === "uninstalled" ? uninstalledFiltered.length : installedFiltered.length;
-  const discoverTotalLabel = githubTrends.meta?.totalLabel || githubTrends.items.length || 0;
+  const discoverTotalLabel = githubTrends.meta?.tabLabels?.alltime || githubTrends.meta?.totalLabel || githubTrends.items.length || 0;
+  const discoverModeTotalLabel = githubTrends.meta?.totalLabel || (discoverSource === "alltime" ? discoverTotalLabel : "");
+  const discoverMetaCount = query.trim()
+    ? `${visibleCount} 个匹配项`
+    : `${discoverModeTotalLabel || visibleCount} 个匹配项`;
   const discoverTabLabels = githubTrends.meta?.tabLabels || {};
   const installTargets = useMemo(() => {
     const sources = settings?.sources?.length ? settings.sources : data?.sources || [];
@@ -3676,6 +4786,50 @@ function App() {
 
   function toggleActiveTag(tag) {
     setActiveTags((current) => current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]);
+  }
+
+  function renderTagFilter() {
+    return (
+      <div className="tag-filter-wrap" ref={tagFilterRef}>
+        <button className={`tag-cloud-toggle ${tagCloudOpen ? "on" : ""}`} onClick={() => setTagCloudOpen((open) => !open)}>
+          <Tags size={15} />
+          标签
+          {activeTags.length ? <em>{activeTags.length}</em> : null}
+        </button>
+        {tagCloudOpen ? (
+          <div className="tag-cloud-panel">
+            <div className="tag-cloud-head">
+              <div>
+                <span>多选标签</span>
+                {activeTags.length ? <button onClick={() => setActiveTags([])}>清除</button> : null}
+              </div>
+              <div>
+                <span>关系</span>
+                <div className="tag-match-switch">
+                  <button className={tagMatchMode === "and" ? "on" : ""} onClick={() => setTagMatchMode("and")} title="必须同时包含所有已选标签">AND</button>
+                  <button className={tagMatchMode === "or" ? "on" : ""} onClick={() => setTagMatchMode("or")} title="包含任意一个已选标签即可">OR</button>
+                </div>
+              </div>
+            </div>
+            <div className="tag-cloud">
+              {tagCounts.length ? tagCounts.slice(0, 80).map(({ tag, count }) => (
+                <TagPill
+                  key={tag}
+                  tag={tag}
+                  as="button"
+                  className={`cloud-tag ${activeTags.includes(tag) ? "active" : ""}`}
+                  onClick={() => toggleActiveTag(tag)}
+                >
+                  <i>{activeTags.includes(tag) ? "✓" : ""}</i>
+                  <strong>{tag}</strong>
+                  <em>{count}</em>
+                </TagPill>
+              )) : <span className="tag-cloud-empty">暂无标签</span>}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
   }
 
   useEffect(() => {
@@ -3760,70 +4914,105 @@ function App() {
         <section className="results">
           <div className="result-head">
             <div>
-              <h2>{listMode === "discover" ? "Discover Skills" : listMode === "tags" ? "Tags" : listMode === "starred" ? "Star" : listMode === "uninstalled" ? "Uninstalled" : "Installed"}</h2>
-              <p>{loading ? "正在扫描..." : (listMode === "discover" ? "" : `${visibleCount} 个匹配项 · ${data?.scannedAt ? formatDate(data.scannedAt) : ""}`)}</p>
+              <h2>{listMode === "discover" ? "Discover" : listMode === "tags" ? "Tags" : listMode === "starred" ? "Starred" : listMode === "uninstalled" ? "Uninstalled" : "Installed"}</h2>
+              <p className="result-meta">
+                {listMode === "discover" ? (
+                  <span className="result-meta-main">
+                    <span>{discoverMetaCount}</span>
+                    <span>{githubTrends.meta?.cachedAt ? formatDate(githubTrends.meta.cachedAt) : "skills.sh"}</span>
+                  </span>
+                ) : (
+                  <span className="result-meta-main">
+                    <span>{visibleCount} 个匹配项</span>
+                    <span>{data?.scannedAt ? formatDate(data.scannedAt) : "准备中"}</span>
+                  </span>
+                )}
+                {((listMode === "discover" && githubTrends.loading) || (listMode !== "discover" && loading)) ? (
+                  <span className="result-scan-state">
+                    <em>{listMode === "discover" ? "加载中" : "扫描中"}</em>
+                    <i aria-hidden="true"><b /><b /><b /></i>
+                  </span>
+                ) : null}
+              </p>
             </div>
             <div className="result-controls">
               {listMode === "installed" ? (
                 <>
                   <select value={localSort} onChange={(event) => setLocalSort(event.target.value)}>
-                    <option value="updated">按更新时间</option>
-                    <option value="alpha">按字母顺序</option>
+                    <option value="updated">更新时间</option>
+                    <option value="alpha">字母顺序</option>
                   </select>
-                  <div className="tag-filter-wrap">
-                    <button className={`tag-cloud-toggle ${tagCloudOpen ? "on" : ""}`} onClick={() => setTagCloudOpen((open) => !open)}>
-                      <Tags size={15} />
-                      标签
-                      {activeTags.length ? <em>{activeTags.length}</em> : null}
-                    </button>
-                    {tagCloudOpen ? (
-                      <div className="tag-cloud-panel">
-                        <div className="tag-cloud-head">
-                          <div>
-                            <span>多选标签</span>
-                            {activeTags.length ? <button onClick={() => setActiveTags([])}>清除</button> : null}
-                          </div>
-                          <div>
-                            <span>关系</span>
-                            <div className="tag-match-switch">
-                              <button className={tagMatchMode === "and" ? "on" : ""} onClick={() => setTagMatchMode("and")} title="必须同时包含所有已选标签">AND</button>
-                              <button className={tagMatchMode === "or" ? "on" : ""} onClick={() => setTagMatchMode("or")} title="包含任意一个已选标签即可">OR</button>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="tag-cloud">
-                          {tagCounts.length ? tagCounts.slice(0, 80).map(({ tag, count }) => {
-                            return (
-                              <TagPill
-                                key={tag}
-                                tag={tag}
-                                as="button"
-                                className={`cloud-tag ${activeTags.includes(tag) ? "active" : ""}`}
-                                onClick={() => toggleActiveTag(tag)}
-                              >
-                                <i>{activeTags.includes(tag) ? "✓" : ""}</i>
-                                <strong>{tag}</strong>
-                                <em>{count}</em>
-                              </TagPill>
-                            );
-                          }) : <span className="tag-cloud-empty">暂无标签</span>}
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
+                  {renderTagFilter()}
                 </>
               ) : listMode === "discover" ? (
                 <>
                   <div className="segmented">
-                    <button className={discoverSort === "alltime" ? "on" : ""} onClick={() => setDiscoverSort("alltime")}>All Time {discoverTabLabels.alltime ? `(${discoverTabLabels.alltime})` : ""}</button>
-                    <button className={discoverSort === "trending" ? "on" : ""} onClick={() => setDiscoverSort("trending")}>Trending (24h)</button>
+                    <button className={discoverSort === "alltime" ? "on" : ""} onClick={() => setDiscoverSort("alltime")}>All</button>
+                    <button className={discoverSort === "trending" ? "on" : ""} onClick={() => setDiscoverSort("trending")}>Trend</button>
                     <button className={discoverSort === "hot" ? "on" : ""} onClick={() => setDiscoverSort("hot")}>Hot</button>
                   </div>
                 </>
+              ) : listMode === "starred" ? (
+                <>
+                  <div className="star-source-wrap" ref={starSourceRef}>
+                    <button className={`star-source-toggle ${starSourceOpen ? "on" : ""}`} onClick={() => setStarSourceOpen((open) => !open)}>
+                      <Star size={14} />
+                      来源
+                      <em>{starSourceFilters.includes("all") ? "全部" : starSourceFilters.length ? starSourceFilters.length : "无"}</em>
+                    </button>
+                    {starSourceOpen ? (
+                      <div className="star-source-panel">
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={starSourceFilters.includes("all")}
+                            onChange={() => toggleStarSourceFilter("all")}
+                          />
+                          <span>所有来源</span>
+                        </label>
+                        {starSourceOptions.map(([value, label]) => (
+                          <label key={value}>
+                            <input
+                              type="checkbox"
+                              checked={starSourceFilters.includes("all") || starSourceFilters.includes(value)}
+                              onChange={() => toggleStarSourceFilter(value)}
+                            />
+                            <span>{label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                  {renderTagFilter()}
+                </>
+              ) : listMode === "uninstalled" ? (
+                <div className="uninstalled-tools">
+                  <div className="uninstalled-action-row">
+                    {uninstalledFiltered.length ? (
+                      <button
+                        className={selectedUninstalledIds.length ? "compact-danger-button" : "compact-ghost-button"}
+                        onClick={() => clearUninstalledRecords(selectedUninstalledIds.length ? selectedUninstalledItems() : uninstalledFiltered)}
+                      >
+                        {selectedUninstalledIds.length ? `清空 ${selectedUninstalledIds.length} 条记录` : "清空记录"}
+                      </button>
+                    ) : null}
+                    {selectedUninstalledIds.length ? (
+                      <button
+                        className="tag-cloud-toggle uninstalled-cancel-toggle"
+                        onClick={() => {
+                          setSelectedUninstalledIds([]);
+                          setLastUninstalledSelectId("");
+                        }}
+                      >
+                        取消勾选
+                      </button>
+                    ) : renderTagFilter()}
+                  </div>
+                </div>
               ) : null}
             </div>
           </div>
-          {listMode === "installed" && activeTags.length ? (
+          {["installed", "uninstalled", "starred"].includes(listMode) && activeTags.length ? (
             <div className="active-filter-row">
               {activeTags.map((tag) => (
                 <TagPill key={tag} tag={tag} as="button" onClick={() => toggleActiveTag(tag)}>标签：{tag}</TagPill>
@@ -3831,7 +5020,16 @@ function App() {
               <button onClick={() => setActiveTags([])}>清除</button>
             </div>
           ) : null}
-          <div className="skill-list">
+          <div
+            className="skill-list"
+            onScroll={(event) => {
+              if (listMode !== "discover") return;
+              const element = event.currentTarget;
+              if (element.scrollTop + element.clientHeight >= element.scrollHeight - 220) {
+                githubTrends.loadMore?.();
+              }
+            }}
+          >
             {listMode === "discover" && !githubTrends.loading && (githubTrends.error || githubTrends.meta?.stale) ? (
               <div className={`discover-status ${githubTrends.error ? "warn" : ""}`}>
                 {githubTrends.meta?.stale
@@ -3859,21 +5057,30 @@ function App() {
                   );
                 })}
               </div>
-            ) : listMode === "discover" ? visibleDiscoverItems.map((item, index) => (
-              <DiscoverRow
-                key={item.id}
-                item={item}
-                index={item.rank ? item.rank - 1 : index}
-                selected={selectedDiscover?.id === item.id}
-                onSelect={setSelectedDiscover}
-                onInstall={beginInstallDiscover}
-                onUninstall={beginUninstallMany}
-                busy={busyAction === `discover:${item.id}` || installedForDiscover(item).some((skill) => busyAction === `uninstall:${skill.id}`)}
-                starred={isStarred("discover", item)}
-                onStar={(starItem) => toggleStar("discover", starItem)}
-                installedSkills={installedForDiscover(item)}
-              />
-            )) : listMode === "starred" ? starredFiltered.map((entry, index) => entry.type === "discover" ? (
+            ) : listMode === "discover" ? (
+              <>
+                {visibleDiscoverItems.map((item, index) => (
+                  <DiscoverRow
+                    key={item.id}
+                    item={item}
+                    index={item.rank ? item.rank - 1 : index}
+                    selected={selectedDiscover?.id === item.id}
+                    onSelect={setSelectedDiscover}
+                    onInstall={beginInstallDiscover}
+                    onUninstall={beginUninstallMany}
+                    busy={busyAction === `discover:${item.id}` || installedForDiscover(item).some((skill) => busyAction === `uninstall:${skill.id}`)}
+                    starred={isStarred("discover", item)}
+                    onStar={(starItem) => toggleStar("discover", starItem)}
+                    installedSkills={installedForDiscover(item)}
+                  />
+                ))}
+                {githubTrends.loadingMore ? (
+                  <div className="discover-load-more">
+                    <LoadingMoment title="继续加载 Skills" seed={`discover-more-${discoverSource}`} compact />
+                  </div>
+                ) : null}
+              </>
+            ) : listMode === "starred" ? starredFiltered.map((entry, index) => entry.type === "discover" ? (
               <DiscoverRow
                 key={entry.key}
                 item={entry.item}
@@ -3884,37 +5091,45 @@ function App() {
                 onUninstall={beginUninstallMany}
                 busy={busyAction === `discover:${entry.item.id}` || installedForDiscover(entry.item).some((skill) => busyAction === `uninstall:${skill.id}`)}
                 starred
-                onStar={() => toggleStar(entry.type, entry.item)}
+                onStar={() => unstarEntry(entry)}
                 installedSkills={installedForDiscover(entry.item)}
               />
             ) : (
               <SkillRow
                 key={entry.key}
                 skill={entry.item}
+                index={index}
+                tone="starred"
                 selected={selectedStarred?.key === entry.key}
                 onSelect={() => setSelectedStarred(entry)}
-                actionLabel={entry.type === "uninstalled" ? "Install" : "Uninstall"}
-                onAction={entry.type === "uninstalled" ? beginRestoreSkill : (skill) => beginUninstallMany(skill, skill.installations || [skill])}
+                actionLabel={entry.type === "installed" ? "Uninstall" : ""}
+                onAction={entry.type === "installed" ? (skill) => beginUninstallMany(skill, skill.installations || [skill]) : null}
                 busy={busyAction === `${entry.type === "uninstalled" ? "restore" : "uninstall"}:${entry.item.id}`}
                 starred
-                onStar={() => toggleStar(entry.type, entry.item)}
+                onStar={() => unstarEntry(entry)}
+                sourceLabel={entry.type}
               />
-            )) : listMode === "uninstalled" ? uninstalledFiltered.map((skill) => (
+            )) : listMode === "uninstalled" ? uninstalledFiltered.map((skill, index) => (
               <SkillRow
                 key={skill.id}
                 skill={skill}
+                index={index}
+                tone="uninstalled"
                 selected={selected?.id === skill.id}
                 onSelect={setSelected}
-                actionLabel="Install"
-                onAction={beginRestoreSkill}
+                selectable
+                checked={selectedUninstalledIds.includes(skill.id)}
+                onToggleSelect={toggleUninstalledSelection}
                 busy={busyAction === `restore:${skill.id}`}
                 starred={isStarred("uninstalled", skill)}
                 onStar={(starItem) => toggleStar("uninstalled", starItem)}
               />
-            )) : installedFiltered.map((skill) => (
+            )) : installedFiltered.map((skill, index) => (
               <SkillRow
                 key={skill.id}
                 skill={skill}
+                index={index}
+                tone="installed"
                 selected={selected?.id === skill.id}
                 onSelect={setSelected}
                 actionLabel="Uninstall"
@@ -3956,7 +5171,7 @@ function App() {
               onUninstall={beginUninstallMany}
               busy={busyAction === `discover:${selectedStarred.item.id}` || installedForDiscover(selectedStarred.item).some((skill) => busyAction === `uninstall:${skill.id}`)}
               starred
-              onStar={(item) => toggleStar("discover", item)}
+              onStar={() => unstarEntry(selectedStarred)}
               installedSkills={installedForDiscover(selectedStarred.item)}
             />
           ) : (
@@ -3964,11 +5179,20 @@ function App() {
               skill={selectedStarred?.item || null}
               onSaved={refresh}
               starred={Boolean(selectedStarred)}
-              onStar={(item) => toggleStar(selectedStarred?.type || "installed", item)}
-              onInstall={selectedStarred?.type === "uninstalled" ? beginRestoreSkill : beginInstallLocal}
+              onStar={() => unstarEntry(selectedStarred)}
+              onInstall={selectedStarred?.type === "uninstalled" ? beginRestoreSkill : null}
+              topInstallLabel={selectedStarred?.type === "uninstalled" ? "Recover" : "Install"}
+              hideTopInstall={selectedStarred?.type !== "uninstalled"}
               onUninstall={selectedStarred?.type === "uninstalled" ? null : beginUninstallMany}
-              baselineSourceId={settings?.baselineSourceId || "agents"}
+              onDeleteRecords={selectedStarred?.type === "uninstalled" ? beginDeleteUninstalledRecords : null}
               agentScope={sourceFilter}
+              installTargets={installTargets}
+              readOnly={selectedStarred?.type === "uninstalled"}
+              hideHistory={selectedStarred?.type === "uninstalled"}
+              hideVersionActions={selectedStarred?.type === "uninstalled"}
+              hideTopEdit={selectedStarred?.type === "uninstalled"}
+              cardActionLabel={selectedStarred?.type === "uninstalled" ? "Recover" : ""}
+              onCardAction={selectedStarred?.type === "uninstalled" ? beginRecoverOriginalAgent : null}
             />
           )
         ) : (
@@ -3977,10 +5201,19 @@ function App() {
             onSaved={refresh}
             starred={selected ? isStarred(listMode === "uninstalled" ? "uninstalled" : "installed", selected) : false}
             onStar={(item) => toggleStar(listMode === "uninstalled" ? "uninstalled" : "installed", item)}
-            onInstall={listMode === "uninstalled" ? beginRestoreSkill : beginInstallLocal}
+            onInstall={listMode === "uninstalled" ? beginRestoreSkill : null}
+            topInstallLabel={listMode === "uninstalled" ? "Recover" : "Install"}
+            hideTopInstall={listMode !== "uninstalled"}
             onUninstall={listMode === "uninstalled" ? null : beginUninstallMany}
-            baselineSourceId={settings?.baselineSourceId || "agents"}
+            onDeleteRecords={listMode === "uninstalled" ? beginDeleteUninstalledRecords : null}
             agentScope={sourceFilter}
+            installTargets={installTargets}
+            readOnly={listMode === "uninstalled"}
+            hideHistory={listMode === "uninstalled"}
+            hideVersionActions={listMode === "uninstalled"}
+            hideTopEdit={listMode === "uninstalled"}
+            cardActionLabel={listMode === "uninstalled" ? "Recover" : ""}
+            onCardAction={listMode === "uninstalled" ? beginRecoverOriginalAgent : null}
           />
         )}
         </>
@@ -3991,8 +5224,25 @@ function App() {
         targets={pendingInstall?.targets || installTargets}
         selectedTargets={dialogTargetIds}
         onChangeTargets={setDialogTargetIds}
-        onCancel={() => setPendingInstall(null)}
+        onCancel={() => {
+          setPendingInstall(null);
+          setPendingConflict(null);
+          setConflictActions({});
+        }}
         onConfirm={confirmPendingInstall}
+        busy={Boolean(busyAction)}
+      />
+      <InstallConflictDialog
+        pending={pendingConflict?.pending}
+        conflicts={pendingConflict?.conflicts || []}
+        actions={conflictActions}
+        onChangeAction={(id, action) => setConflictActions((current) => ({ ...current, [id]: action }))}
+        onViewDiff={viewInstallConflictDiff}
+        onCancel={() => {
+          setPendingConflict(null);
+          setConflictActions({});
+        }}
+        onConfirm={() => submitPendingOperation(pendingConflict.pending, pendingConflict.targetIds, conflictActions)}
         busy={Boolean(busyAction)}
       />
     </main>

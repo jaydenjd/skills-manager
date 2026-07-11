@@ -1,88 +1,147 @@
 # Skill Manager
 
-[English](README.en.md) | 中文
+中文 | [English](README.en.md)
 
-Skill Manager 是一个本地桌面应用，用来管理不同 AI Agent 客户端里的 skills。它可以扫描本地已经安装的 `SKILL.md`，展示 skill 目录结构，支持阅读、编辑、历史版本、回滚、收藏，也可以从 skills.sh 发现热门 skill，并安装到一个或多个 Agent 目录。
+Skill Manager 是一个本地桌面端的 **AI Agent Skill 管理器**。它把散落在不同客户端目录里的 `SKILL.md` 统一扫描、浏览、安装、卸载、恢复、收藏和版本管理，也可以直接从 [skills.sh](https://www.skills.sh/) 发现热门 skill 并安装到指定 Agent。
 
-项目基于 Electron、React 和 Vite 构建。
+如果你同时使用 Codex、Claude、Qoder、Agents 等多个客户端，Skill Manager 的目标就是让 skill 不再变成一堆难找、难同步、难回滚的本地文件夹。
+
+## 它解决什么问题
+
+- **本地 skill 太分散**：不同 Agent 有不同目录，手动找 `SKILL.md` 很麻烦。
+- **安装和卸载不透明**：不知道装到了哪个 Agent，也不知道是否能恢复。
+- **修改后不好回滚**：skill 可能被自己或 Agent 改过，但缺少目录级历史。
+- **发现新 skill 成本高**：需要自己去 GitHub 或 skills.sh 找，再手动安装。
+- **多 Agent 同步困难**：同一个 skill 可能要装到多个客户端，还要知道各自版本。
 
 ## 截图
 
-### Discover Skills
+### Discover
 
-浏览 skills.sh 排行榜，支持 All Time、Trending、Hot 排序，搜索 skill，查看仓库信息，并安装到指定 Agent。
+Discover 对齐 skills.sh：支持 All / Trend / Hot 排名、搜索、安装量展示、本地已安装状态、来源仓库和一键安装。
 
 ![Discover skills](docs/screenshots/discover.png)
 
 ### 本地 Skill 详情
 
-查看已安装或收藏的 skill，阅读 `SKILL.md`，浏览完整目录树，并查看当前 skill 安装到了哪些 Agent。
+本地详情会展示 skill 的元信息、标签、安装到哪些 Agent、目录树、`SKILL.md` 阅读/编辑，以及每个 Agent 副本的版本。
 
 ![Installed skills](docs/screenshots/installed-skills.jpg)
 
 ### 多 Agent 安装
 
-安装、卸载、恢复、更新都支持选择多个 Agent 目录。应用可以记住上次选择，也可以使用设置里的默认安装目标。
+安装、卸载、恢复、同步和发布版本都支持选择多个 Agent。弹窗会显示目标 Agent 当前是否已安装，以及已安装版本。
 
 ![Choose install agents](docs/screenshots/install-agents_v2.png)
 
-## 主要能力
+## 核心特性
 
-- 从 skills.sh 发现 skill，支持 All Time、Trending、Hot 排序。
-- 支持搜索本地和 Discover skill，搜索范围可配置。
-- 管理多个 Agent 目录下的本地 skill。
-- 支持标签浏览，按标签云查看和筛选相关 skill。
-- 安装、卸载、恢复、更新通过后台事件执行，并展示进度和状态。
-- 卸载时不会直接删除 skill，而是移动到应用数据目录，方便恢复。
-- 以适合 skill 阅读的方式展示 `SKILL.md` 和完整目录树。
-- 支持编辑本地 skill 文件，并提供历史版本、diff 和回滚。
-- Discover、Installed、Uninstalled 都支持收藏。
-- 支持配置 Agent、忽略规则、日志/事件保留时间、默认安装目标。
-- 设置页支持可视化配置和 JSON 配置切换。
+### Discover skills.sh
 
-## 默认 Agent 来源
+- 默认来源为 skills.sh。
+- 支持 All、Trend、Hot 排名。
+- 搜索使用 skills.sh 的搜索接口，结果和官网搜索保持一致。
+- 卡片展示来源仓库、本地安装 Agent、累计安装量和近 8 周安装量。
+- 已安装的 skill 会显示安装位置，并支持卸载或更新。
+
+### 本地多 Agent 管理
+
+- 扫描多个 Agent 的 skills 目录。
+- 只识别一级 skill 目录，并要求目录内存在 `SKILL.md`。
+- All Agents 视图可合并同名 skill，并在详情里展示所有 Agent 副本。
+- 支持 Installed、Uninstalled、Starred、Tags 多个视图。
+- 标签优先读取 `SKILL.md` frontmatter 的 `tags` / `keywords` / `categories`，缺失时再自动推断。
+
+### Skill 友好的阅读和编辑
+
+- 默认展示 `SKILL.md` 内容。
+- 左侧按真实目录树展示文件。
+- 支持新增文件、目录、重命名、删除、复制相对路径、复制绝对路径。
+- 阅读和编辑模式可切换；编辑模式下切换文件仍保持编辑状态。
+- 代码文件支持更适合阅读的展示方式。
+
+### 安装、卸载、恢复和同步
+
+- Install / Uninstall / Recover / Sync 都支持多选 Agent。
+- 操作走后台事件，不阻塞界面。
+- Events 会展示状态流转和进度。
+- Logs 记录操作结果。
+- 卸载不会直接删除，而是移动到应用自己的数据目录，方便恢复。
+- Uninstalled 以 skill 为维度展示最近卸载记录，恢复后记录会被清除。
+
+### 版本和历史
+
+- 每个 Agent 的 skill 版本独立管理。
+- 如果 `SKILL.md` 有 `version`，优先使用真实版本。
+- 如果没有版本，会根据目录内文件的最新修改时间显示临时版本。
+- 通过应用“发布版本”后，会写入 `SKILL.md` version，并创建目录级版本快照。
+- 历史版本按目录展示变更文件，支持查看 diff、选择版本、删除历史版本。
+- 默认历史版本保留 30 天，可在 Settings 里修改。
+
+### 设置
+
+- 可视化配置和 JSON 配置可切换。
+- 可配置 Agent 名称、目录、是否启用。
+- 可配置默认安装 Agent、安装弹窗默认选择逻辑。
+- 可配置 ignore 规则，类似 gitignore，例如默认忽略 `*.pyc`。
+- 可配置 Logs / Events / Skill Versions 保留时间。
+
+## 默认 Agent 目录
 
 默认扫描以下目录：
 
-- Codex: `~/.codex/skills`
-- Agents: `~/.agents/skills`
-- Claude: `~/.claude/skills`
-- Qoder: `~/.qoder/skills`
-- QoderWork: `~/.qoderwork/skills`
-- OpenClaw: `~/.openclaw/skills`
+| Agent | 目录 |
+| --- | --- |
+| Codex | `~/.codex/skills` |
+| Agents | `~/.agents/skills` |
+| Claude | `~/.claude/skills` |
+| Qoder | `~/.qoder/skills` |
+| QoderWork | `~/.qoderwork/skills` |
+| OpenClaw | `~/.openclaw/skills` |
 
-这些目录可以在设置里修改、增加或删除。
+这些都可以在 Settings 里修改、禁用、删除或新增。
 
-## 应用数据目录
+## 如何安装
 
-运行时数据保存在 Electron 的 app data 目录：
+### 下载安装包
 
-```text
-~/Library/Application Support/skill-manager
-```
+从 GitHub Releases 下载对应平台安装包：
 
-主要内容：
+- macOS: `Skill Manager-<version>-arm64.dmg` 或 Intel 版本
+- Windows: `Skill Manager Setup <version>.exe`
 
-- `settings.json`：设置、日志、事件、Agent 配置、忽略规则等。
-- `history/`：编辑历史和可回滚版本。
-- `managed-skills/uninstalled/`：卸载后移动过来的 skill。
-- `managed-skills/skills/`：应用管理的复制 skill。
+macOS 推荐使用已签名并公证的 DMG。未签名包可能被系统提示“已损坏”或无法直接打开。
 
-## 开发环境要求
+### Discover 安装 skill 的运行要求
 
-开发需要：
+如果要从 Discover 安装远端 skill，用户机器需要：
+
+- Node.js / `npx`
+- Git
+- 可访问 skills.sh 和 GitHub
+
+当 Git 不可用或 Git clone 失败时，应用会尝试使用 GitHub zip 下载作为 fallback。
+
+## 如何使用
+
+1. 打开应用，等待左侧 Library 和 Agents 扫描完成。
+2. 在 **Discover** 里搜索或浏览 skills.sh 榜单。
+3. 点击 skill，查看来源、安装量、Summary 和 `SKILL.md` 内容。
+4. 点击 **Install**，选择要安装到哪些 Agent。
+5. 在 **Installed** 里查看本地 skill，按标签、Agent 或搜索筛选。
+6. 进入详情后，可查看目录树、编辑文件、发布版本、查看历史版本。
+7. 如果卸载，记录会进入 **Uninstalled**，之后可以 Recover。
+8. 常用 skill 可以 Star，在 **Starred** 里统一查看。
+
+## 本地开发
+
+### 环境要求
 
 - Node.js
 - npm
 - Git
 
-Discover 安装功能在用户机器上需要：
-
-- Node.js / `npx`
-- Git
-- 能访问 skills.sh 和 GitHub 的网络环境
-
-## 安装依赖
+### 安装依赖
 
 ```bash
 npm install
@@ -95,7 +154,7 @@ rm package-lock.json
 npm install --registry=https://registry.npmjs.org/
 ```
 
-## 本地开发
+### 启动开发环境
 
 ```bash
 npm run start
@@ -103,41 +162,25 @@ npm run start
 
 这个命令会同时启动 Vite 和 Electron。
 
-## 构建前端
+### 构建前端
 
 ```bash
 npm run build
 ```
 
-构建产物会输出到 `dist/`。
+构建产物输出到 `dist/`。
 
-## 打包 macOS 应用
+## 打包
 
-普通 macOS DMG 构建：
+### macOS
+
+普通 DMG：
 
 ```bash
 npm run dist:mac
 ```
 
-输出示例：
-
-```text
-release/Skill Manager-<version>-arm64.dmg
-```
-
-应用图标配置在：
-
-```text
-build/icon.icns
-```
-
-macOS 构建已经配置 Developer ID 签名和 Apple 公证。当前签名身份：
-
-```text
-JUNDE WU (A8DZ968K75)
-```
-
-在已经安装证书的 Mac 上构建签名并公证的 DMG：
+Apple Developer ID 签名和公证：
 
 ```bash
 npm run dist:mac:signed
@@ -149,7 +192,7 @@ npm run dist:mac:signed
 skill-manager-notary
 ```
 
-Apple 签名和公证的完整配置说明见：
+Apple 签名和公证配置说明见：
 
 [docs/apple-notarization.md](docs/apple-notarization.md)
 
@@ -166,39 +209,39 @@ codesign --verify --deep --strict --verbose=2 "release/mac-arm64/Skill Manager.a
 spctl --assess --type execute --verbose "release/mac-arm64/Skill Manager.app"
 ```
 
-## 打包 Windows 应用
+### Windows
 
-Windows 使用 NSIS 安装包，配置在 `package.json`。图标文件：
+Windows 使用 NSIS 安装包，图标在 `build/icon.ico`。
 
-```text
-build/icon.ico
-```
-
-在 Windows 机器上构建：
+建议在 Windows 机器上构建：
 
 ```bash
 npm install
 npm run dist:win
 ```
 
-构建产物输出到 `release/`。
+未签名的 Windows 安装包可能触发 SmartScreen 提示。公开分发建议配置 Windows 代码签名证书。
 
-建议在 Windows 上重点验证：
+## 应用数据目录
 
-- Agent 目录识别和路径处理。
-- 安装、卸载、恢复、更新流程。
-- 打开文件和定位目录。
-- `npx skills add` 执行。
-- Git 是否可用。
-- 设置、日志和事件是否持久化。
+运行时数据保存在 Electron app data 目录：
 
-未签名的 Windows 安装包可能触发 SmartScreen 提示。如需公开分发，建议配置 Windows 代码签名证书。
+```text
+~/Library/Application Support/skill-manager
+```
+
+主要内容：
+
+- `settings.json`：设置、日志、事件、Agent 配置、ignore 规则等。
+- `managed-skills/uninstalled/`：卸载后移动过来的 skill 快照。
+- `managed-skills/versions/`：应用发布版本后的目录级版本快照。
+- `managed-skills/skills/`：应用管理的 skill 复制数据。
 
 ## 项目结构
 
 ```text
 electron/
-  main.cjs       Electron 主进程，处理文件系统、安装/卸载、事件等。
+  main.cjs       Electron 主进程，处理文件系统、安装/卸载、版本、事件等。
   preload.cjs    安全 IPC bridge，暴露给 React。
   scanner.cjs    本地 skill 扫描、默认来源、ignore 规则。
 
@@ -212,15 +255,16 @@ build/
   icon.icns      macOS 应用图标。
   icon.ico       Windows 应用图标。
 
+docs/
+  screenshots/   README 截图。
+
 dist/            前端构建产物。
 release/         本地打包输出。
-docs/            文档和截图。
 ```
 
-## 说明
+## 备注
 
-- 卸载 skill 不会直接删除文件，而是移动到应用管理的 uninstalled 目录。
-- 设置支持可视化编辑和 JSON 编辑。
-- Logs 和 Events 支持配置保留时间，默认永久保留。
-- 标签从本地 skill 元数据里计算，可用于浏览相关 skill。
+- Skill Manager 不会把 `~/.agents/skills` 视为所有 Agent 都一定能加载的通用目录；每个 Agent 是否加载哪个目录，以 Settings 配置为准。
+- 卸载记录是恢复用快照，不等同于长期版本库；如果清空 Uninstalled 记录，对应快照会被删除。
+- 如果远端 skill 没有版本，应用不会凭空判断新旧；冲突时会提示用户选择跳过、替换或查看差异。
 - 当前主要体验聚焦 macOS，同时已配置 Windows 打包流程。

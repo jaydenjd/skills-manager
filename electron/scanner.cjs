@@ -185,10 +185,6 @@ async function collectDirectoryStats(root, ignore, options = {}) {
       } catch {
         continue;
       }
-      if (stats.mtimeMs > summary.mtimeMs) {
-        summary.mtimeMs = stats.mtimeMs;
-        summary.mtime = stats.mtime;
-      }
       if (stats.birthtimeMs < summary.birthtimeMs) {
         summary.birthtimeMs = stats.birthtimeMs;
         summary.birthtime = stats.birthtime;
@@ -196,6 +192,10 @@ async function collectDirectoryStats(root, ignore, options = {}) {
       if (entry.isDirectory()) {
         await walk(fullPath);
       } else if (entry.isFile()) {
+        if (stats.mtimeMs > summary.mtimeMs) {
+          summary.mtimeMs = stats.mtimeMs;
+          summary.mtime = stats.mtime;
+        }
         summary.bytes += stats.size;
         if (readLines && stats.size <= 1024 * 1024) {
           try {
@@ -215,10 +215,16 @@ async function collectDirectoryStats(root, ignore, options = {}) {
       const stats = await fs.stat(root);
       summary.birthtime = stats.birthtime;
       summary.birthtimeMs = stats.birthtimeMs;
+    } catch {
+      summary.birthtime = new Date();
+    }
+  }
+  if (!summary.mtimeMs) {
+    try {
+      const stats = await fs.stat(root);
       summary.mtime = stats.mtime;
       summary.mtimeMs = stats.mtimeMs;
     } catch {
-      summary.birthtime = new Date();
       summary.mtime = new Date();
     }
   }
