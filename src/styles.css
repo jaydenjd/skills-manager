@@ -168,6 +168,36 @@ button {
   -webkit-app-region: no-drag;
 }
 
+.language-select {
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 9px;
+  border: 1px solid #c9c3b4;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.74);
+  color: #62675e;
+  font-size: 12px;
+  -webkit-app-region: no-drag;
+}
+
+.language-select span {
+  color: #7b8178;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.language-select select {
+  min-width: 70px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #1f211d;
+  font: inherit;
+  font-weight: 700;
+}
+
 .search-config-wrap {
   position: relative;
 }

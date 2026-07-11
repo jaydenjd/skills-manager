@@ -59,6 +59,7 @@ function defaultSettings() {
     ignorePatterns: defaultIgnorePatterns(),
     installSourceId: "agents",
     installTargetMode: "remember-last",
+    language: "zh",
     mergeDuplicateSkills: true,
     skillVersionRetentionDays: 30,
     logRetentionDays: null,
@@ -85,6 +86,7 @@ function getSettings() {
     ignorePatterns: getStoreValue("ignorePatterns", defaultIgnorePatterns()),
     installSourceId: sources.some((source) => source.id === installSourceId) ? installSourceId : "agents",
     installTargetMode: getStoreValue("installTargetMode", "remember-last"),
+    language: getStoreValue("language", "zh") === "en" ? "en" : "zh",
     mergeDuplicateSkills: getStoreValue("mergeDuplicateSkills", true),
     skillVersionRetentionDays: normalizeRetentionDays(getStoreValue("skillVersionRetentionDays", 30)) || 30,
     logRetentionDays: normalizeRetentionDays(getStoreValue("logRetentionDays", null)),
@@ -99,6 +101,7 @@ function saveSettings(settings) {
     ignorePatterns: Array.isArray(settings?.ignorePatterns) ? settings.ignorePatterns : defaultIgnorePatterns(),
     installSourceId: sources.some((source) => source.id === settings?.installSourceId) ? settings.installSourceId : "agents",
     installTargetMode: settings?.installTargetMode === "always-default" ? "always-default" : "remember-last",
+    language: settings?.language === "en" ? "en" : "zh",
     mergeDuplicateSkills: settings?.mergeDuplicateSkills !== false,
     skillVersionRetentionDays: normalizeRetentionDays(settings?.skillVersionRetentionDays) || 30,
     logRetentionDays: normalizeRetentionDays(settings?.logRetentionDays),
@@ -108,6 +111,7 @@ function saveSettings(settings) {
   setStoreValue("ignorePatterns", next.ignorePatterns);
   setStoreValue("installSourceId", next.installSourceId);
   setStoreValue("installTargetMode", next.installTargetMode);
+  setStoreValue("language", next.language);
   setStoreValue("mergeDuplicateSkills", next.mergeDuplicateSkills);
   setStoreValue("skillVersionRetentionDays", next.skillVersionRetentionDays);
   setStoreValue("logRetentionDays", next.logRetentionDays);
@@ -131,6 +135,9 @@ function summarizeSettingsChange(before, after) {
   }
   if (before.installTargetMode !== after.installTargetMode) {
     changes.push(`安装弹窗默认选择：${settingModeLabel(before.installTargetMode)} -> ${settingModeLabel(after.installTargetMode)}`);
+  }
+  if (before.language !== after.language) {
+    changes.push(`语言：${before.language || "zh"} -> ${after.language || "zh"}`);
   }
   if (before.mergeDuplicateSkills !== after.mergeDuplicateSkills) {
     changes.push(`All Agents 同名合并：${before.mergeDuplicateSkills ? "开启" : "关闭"} -> ${after.mergeDuplicateSkills ? "开启" : "关闭"}`);

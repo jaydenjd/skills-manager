@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Activity,
@@ -43,6 +43,316 @@ const starSourceOptions = [
   ["installed", "Installed"],
   ["uninstalled", "Uninstalled"]
 ];
+
+const I18nContext = createContext({ lang: "zh", t: (key) => key });
+
+const messages = {
+  zh: {
+    appSubtitle: "本地多客户端 skill 管理器",
+    language: "语言",
+    zh: "中文",
+    en: "English",
+    library: "资料库",
+    discover: "发现",
+    installed: "已安装",
+    uninstalled: "已卸载",
+    starred: "收藏",
+    tags: "标签",
+    agents: "Agents",
+    allAgents: "全部 Agents",
+    events: "事件",
+    logs: "日志",
+    settings: "设置",
+    loading: "加载中",
+    scanning: "扫描中",
+    preparing: "准备中",
+    matches: "个匹配项",
+    searchConfig: "搜索配置",
+    rescan: "重新扫描",
+    sortUpdated: "更新时间",
+    sortAlpha: "字母顺序",
+    tagFilter: "标签",
+    selectedTags: "多选标签",
+    clear: "清除",
+    relation: "关系",
+    all: "全部",
+    source: "来源",
+    installedLabel: "已安装",
+    totalInstalls: "累计",
+    recentEightWeeks: "近 8 周",
+    install: "安装",
+    uninstall: "卸载",
+    update: "更新",
+    recover: "恢复",
+    sync: "同步",
+    delete: "删除",
+    cancel: "取消",
+    confirm: "确认",
+    processing: "处理中",
+    installing: "安装中",
+    publishVersion: "发布版本",
+    publishing: "发布中",
+    confirmPublish: "确认发布",
+    edit: "编辑",
+    cancelEdit: "取消编辑",
+    history: "历史版本",
+    clearRecords: "清空记录",
+    cancelSelection: "取消勾选",
+    refresh: "刷新",
+    clearLogs: "清空日志",
+    clearEvents: "清空事件",
+    operationLogs: "操作日志",
+    operationEvents: "操作事件",
+    operationLogsDesc: "查看安装、卸载、恢复和设置的最近操作结果。",
+    operationEventsDesc: "后台安装、卸载、更新、恢复的状态流转和进度。",
+    noLogs: "还没有操作日志。",
+    noEvents: "还没有操作事件。",
+    settingsDesc: "管理安装目标、agent 命名和 skill 目录展示规则。",
+    saveSettings: "保存设置",
+    saving: "保存中",
+    visual: "可视化",
+    json: "JSON",
+    appVersion: "应用版本",
+    packagedApp: "已打包应用",
+    devMode: "开发模式",
+    jsonSettings: "JSON 配置",
+    jsonSettingsDesc: "直接编辑完整 settings。保存时会校验 JSON，并继续应用默认值与来源过滤规则。",
+    defaultInstallTarget: "默认安装目标",
+    defaultInstallTargetDesc: "发现页安装和已卸载恢复默认会放到这里。",
+    installToAgent: "安装到 agent",
+    installDialogDefault: "安装弹窗默认选择",
+    rememberLast: "记住上次选择",
+    alwaysDefault: "每次使用默认 agent",
+    mergeAllAgents: "All Agents 下合并同名 skill",
+    retention: "记录保留",
+    retentionDesc: "Events 和 Logs 默认永久保留；填写天数后会自动清理更早的记录。",
+    retentionDays: "保留天数",
+    forever: "永久保留",
+    customDays: "按天数保留",
+    ignoreTitle: "目录 Ignore",
+    ignoreDesc: "类似 gitignore。配置后文件不会出现在 skill 目录树里。",
+    agentsDesc: "配置左侧 Agents 的命名，以及每个 agent 对应的 skills 目录。",
+    addAgent: "新增 agent",
+    enabled: "启用",
+    name: "名称",
+    description: "说明",
+    directory: "目录",
+    remove: "移除",
+    chooseInstallAgent: "选择安装到的 agent",
+    chooseUninstallAgent: "选择卸载的 agent",
+    chooseUpgradeAgent: "选择发布版本的 agent",
+    chooseSyncAgent: "选择同步到的 agent",
+    chooseRecoverAgent: "选择恢复到的 agent",
+    chooseDeleteUninstalled: "选择删除的已卸载记录",
+    chooseUpdateAgent: "选择更新的 agent",
+    selectAll: "全选",
+    deselectAll: "取消全选",
+    snapshot: "快照",
+    notInstalled: "未安装",
+    searchScope: "搜索范围",
+    searchName: "名称",
+    searchDescription: "描述",
+    searchTags: "标签/来源",
+    searchPath: "路径",
+    searchContent: "内容",
+    customSearch: "可自定义",
+    sourceFilter: "来源",
+    allSources: "所有来源",
+    noSource: "无",
+    selectTagHint: "选择一个标签，查看包含该标签的所有 skill。",
+    tagContains: "个 skill 包含这个标签",
+    noDescription: "暂无描述",
+    clearLogsConfirm: "确认清空所有操作日志？此操作不可撤销。",
+    clearEventsConfirm: "确认清空所有操作事件？此操作不可撤销。",
+    selectedCount: "已选择",
+    submit: "确认提交",
+    submitting: "提交中",
+    back: "返回",
+    viewDiff: "查看差异",
+    unknownVersion: "版本未知",
+    installedVersion: "已安装",
+    snapshotVersion: "快照",
+    skip: "跳过",
+    replace: "覆盖",
+    conflictHint: "目标 agent 已存在同名 skill，请为每个冲突选择处理方式。",
+    conflictNote: "Discover 远端安装前没有本地目录时无法直接比较；替换前会自动归档当前目录。",
+    installConflict: "安装冲突确认",
+    updateConflict: "更新冲突确认",
+    recoverConflict: "恢复冲突确认",
+    star: "Star",
+    unstar: "取消 Star",
+    repository: "仓库",
+    openOn: "打开",
+    localScanning: "本地 skills 扫描中",
+    discoverScanning: "正在加载 skills.sh",
+    emptyUninstalled: "已卸载里还没有可恢复的 skill。",
+    emptyStarred: "收藏里还没有收藏的 skill。",
+    emptyDiscover: "当前发现条件下没有匹配结果。",
+    emptyTags: "当前还没有可统计的标签。",
+    emptyLocal: "当前条件下没有本地 skill。",
+    discoverEmptyHint: "选择一个发现页 skill 查看来源、热度、仓库和安装信息。"
+  },
+  en: {
+    appSubtitle: "Local multi-client skill manager",
+    language: "Language",
+    zh: "中文",
+    en: "English",
+    library: "Library",
+    discover: "Discover",
+    installed: "Installed",
+    uninstalled: "Uninstalled",
+    starred: "Starred",
+    tags: "Tags",
+    agents: "Agents",
+    allAgents: "All Agents",
+    events: "Events",
+    logs: "Logs",
+    settings: "Settings",
+    loading: "Loading",
+    scanning: "Scanning",
+    preparing: "Preparing",
+    matches: "matches",
+    searchConfig: "Search settings",
+    rescan: "Rescan",
+    sortUpdated: "Updated",
+    sortAlpha: "A-Z",
+    tagFilter: "Tags",
+    selectedTags: "Select tags",
+    clear: "Clear",
+    relation: "Match",
+    all: "All",
+    source: "Source",
+    installedLabel: "Installed",
+    totalInstalls: "Total",
+    recentEightWeeks: "Last 8 weeks",
+    install: "Install",
+    uninstall: "Uninstall",
+    update: "Update",
+    recover: "Recover",
+    sync: "Sync",
+    delete: "Delete",
+    cancel: "Cancel",
+    confirm: "Confirm",
+    processing: "Processing",
+    installing: "Installing",
+    publishVersion: "Publish version",
+    publishing: "Publishing",
+    confirmPublish: "Confirm publish",
+    edit: "Edit",
+    cancelEdit: "Cancel edit",
+    history: "History",
+    clearRecords: "Clear records",
+    cancelSelection: "Cancel selection",
+    refresh: "Refresh",
+    clearLogs: "Clear logs",
+    clearEvents: "Clear events",
+    operationLogs: "Operation Logs",
+    operationEvents: "Operation Events",
+    operationLogsDesc: "Review recent install, uninstall, recover, and settings operation results.",
+    operationEventsDesc: "Track background install, uninstall, update, and recover status and progress.",
+    noLogs: "No operation logs yet.",
+    noEvents: "No operation events yet.",
+    settingsDesc: "Manage install targets, agent names, and skill directory display rules.",
+    saveSettings: "Save settings",
+    saving: "Saving",
+    visual: "Visual",
+    json: "JSON",
+    appVersion: "App version",
+    packagedApp: "Packaged app",
+    devMode: "Development mode",
+    jsonSettings: "JSON settings",
+    jsonSettingsDesc: "Edit the full settings object. Saving validates JSON and applies defaults and source filters.",
+    defaultInstallTarget: "Default install target",
+    defaultInstallTargetDesc: "Discover installs and Uninstalled recovery use this target by default.",
+    installToAgent: "Install to agent",
+    installDialogDefault: "Install dialog default",
+    rememberLast: "Remember last selection",
+    alwaysDefault: "Always use default agent",
+    mergeAllAgents: "Merge same-name skills under All Agents",
+    retention: "Retention",
+    retentionDesc: "Events and Logs are kept forever by default. Set days to prune older records.",
+    retentionDays: "Days",
+    forever: "Forever",
+    customDays: "Custom days",
+    ignoreTitle: "Directory Ignore",
+    ignoreDesc: "Similar to gitignore. Matched files are hidden from the skill tree.",
+    agentsDesc: "Configure left-side Agents names and each agent's skills directory.",
+    addAgent: "Add agent",
+    enabled: "Enabled",
+    name: "Name",
+    description: "Description",
+    directory: "Directory",
+    remove: "Remove",
+    chooseInstallAgent: "Choose install agents",
+    chooseUninstallAgent: "Choose uninstall agents",
+    chooseUpgradeAgent: "Choose publish-version agents",
+    chooseSyncAgent: "Choose sync targets",
+    chooseRecoverAgent: "Choose recover targets",
+    chooseDeleteUninstalled: "Choose Uninstalled records to delete",
+    chooseUpdateAgent: "Choose update agents",
+    selectAll: "Select all",
+    deselectAll: "Deselect all",
+    snapshot: "Snapshot",
+    notInstalled: "Not installed",
+    searchScope: "Search scope",
+    searchName: "Name",
+    searchDescription: "Description",
+    searchTags: "Tags/source",
+    searchPath: "Path",
+    searchContent: "Content",
+    customSearch: "customizable",
+    sourceFilter: "Source",
+    allSources: "All sources",
+    noSource: "None",
+    selectTagHint: "Select a tag to view all skills with it.",
+    tagContains: "skills include this tag",
+    noDescription: "No description",
+    clearLogsConfirm: "Clear all Operation Logs? This cannot be undone.",
+    clearEventsConfirm: "Clear all Operation Events? This cannot be undone.",
+    selectedCount: "Selected",
+    submit: "Submit",
+    submitting: "Submitting",
+    back: "Back",
+    viewDiff: "View diff",
+    unknownVersion: "unknown version",
+    installedVersion: "installed",
+    snapshotVersion: "snapshot",
+    skip: "Skip",
+    replace: "Replace",
+    conflictHint: "The target agent already has a skill with the same name. Choose how to handle each conflict.",
+    conflictNote: "Discover installs cannot be diffed before the remote directory exists; the current directory is archived before replacement.",
+    installConflict: "Install conflict",
+    updateConflict: "Update conflict",
+    recoverConflict: "Recover conflict",
+    star: "Star",
+    unstar: "Unstar",
+    repository: "Repository",
+    openOn: "Open on",
+    localScanning: "Scanning local skills",
+    discoverScanning: "Loading skills.sh",
+    emptyUninstalled: "No recoverable skills in Uninstalled.",
+    emptyStarred: "No starred skills yet.",
+    emptyDiscover: "No results match the current Discover filters.",
+    emptyTags: "No tags to summarize yet.",
+    emptyLocal: "No local skills match the current filters.",
+    discoverEmptyHint: "Select a Discover skill to view source, popularity, repository, and install information."
+  }
+};
+
+function useI18n() {
+  return useContext(I18nContext);
+}
+
+function createTranslator(lang) {
+  return (key) => messages[lang]?.[key] ?? messages.zh[key] ?? key;
+}
+
+function sourceFilterLabel(value, t) {
+  if (value === "discover") return t("discover");
+  if (value === "installed") return t("installed");
+  if (value === "uninstalled") return t("uninstalled");
+  return value;
+}
 
 function readStoredJson(primaryKey, legacyKey, fallback) {
   const primary = localStorage.getItem(primaryKey);
@@ -817,10 +1127,11 @@ function CountRow({ label, count, active, onClick }) {
 }
 
 function StarButton({ active, onClick, className = "", label = false }) {
+  const { t } = useI18n();
   return (
-    <button className={`star-button ${className} ${active ? "active" : ""}`} onClick={onClick} title={active ? "取消 Star" : "Star"}>
+    <button className={`star-button ${className} ${active ? "active" : ""}`} onClick={onClick} title={active ? t("unstar") : t("star")}>
       <Star size={16} />
-      {label ? <span>{active ? "Starred" : "Star"}</span> : null}
+      {label ? <span>{active ? t("starred") : t("star")}</span> : null}
     </button>
   );
 }
@@ -852,7 +1163,7 @@ function SkillManagerLogo() {
 }
 
 function SkillRow({ skill, index = 0, tone = "installed", selected, onSelect, actionLabel, onAction, busy, starred, onStar, sourceLabel, selectable = false, checked = false, onToggleSelect }) {
-  const actionClass = actionLabel === "Uninstall" ? "action-uninstall" : "action-install";
+  const actionClass = actionLabel === "Uninstall" || actionLabel === "卸载" ? "action-uninstall" : "action-install";
   const copies = skill.installations || [skill];
   const copyAgents = [...new Set(copies.map((copy) => (
     skill.sourceId === "uninstalled"
@@ -911,14 +1222,15 @@ function SkillRow({ skill, index = 0, tone = "installed", selected, onSelect, ac
 }
 
 function DiscoverRow({ item, index, selected, onSelect, onInstall, onUninstall, busy, starred, onStar, installedSkills = [] }) {
-  const popularity = item.installsLabel ? `累计 ${item.installsLabel}` : `★ ${formatNumber(item.stars)}`;
+  const { t } = useI18n();
+  const popularity = item.installsLabel ? `${t("totalInstalls")} ${item.installsLabel}` : `★ ${formatNumber(item.stars)}`;
   const sourceName = item.sourceName || item.fullName;
   const version = skillVersion(item);
   const installedCopies = uniqueInstalledSkills(installedSkills);
   const installedAgents = installedCopies.map((skill) => skill.client);
   const description = item.description && item.description !== `${item.name} from ${sourceName}` ? item.description : "";
   const updateAvailable = isDiscoverUpdateAvailable(item, installedCopies);
-  const actionLabel = installedCopies.length ? (updateAvailable ? "Update" : "Uninstall") : "Install";
+  const actionLabel = installedCopies.length ? (updateAvailable ? t("update") : t("uninstall")) : t("install");
   const actionClass = updateAvailable ? "action-update" : installedCopies.length ? "action-uninstall" : "action-install";
   return (
     <div className={`discover-row ${selected ? "selected" : ""}`} onClick={() => onSelect(item)}>
@@ -930,15 +1242,15 @@ function DiscoverRow({ item, index, selected, onSelect, onInstall, onUninstall, 
             <strong>{item.name}</strong>
             {version ? <span className="version-badge">v{version}</span> : null}
           </div>
-          <div className="row-source row-source-repo"><span>来源</span>{sourceName}</div>
-          {installedAgents.length ? <div className="row-source row-source-sub"><span>已安装</span>{compactAgentSummary(installedAgents)}</div> : null}
+          <div className="row-source row-source-repo"><span>{t("source")}</span>{sourceName}</div>
+          {installedAgents.length ? <div className="row-source row-source-sub"><span>{t("installedLabel")}</span>{compactAgentSummary(installedAgents)}</div> : null}
           {description ? <p>{description}</p> : null}
         </div>
       </div>
       <div className="row-meta">
-        <span>{popularity}{item.weeklyLabel ? ` · 近 8 周 ${item.weeklyLabel}` : ""}</span>
+        <span>{popularity}{item.weeklyLabel ? ` · ${t("recentEightWeeks")} ${item.weeklyLabel}` : ""}</span>
         <button className={actionClass} disabled={busy} onClick={(event) => { event.stopPropagation(); installedCopies.length && !updateAvailable ? onUninstall(item, installedCopies) : onInstall(item, updateAvailable); }}>
-          {busy ? "处理中" : actionLabel}
+          {busy ? t("processing") : actionLabel}
         </button>
       </div>
     </div>
@@ -983,25 +1295,27 @@ function LoadingMoment({ title, seed = "", compact = false }) {
 }
 
 function EmptyList({ mode, scanning = false }) {
+  const { t } = useI18n();
   if (scanning && mode === "installed") {
-    return <LoadingMoment title="本地 skills 扫描中" seed="installed-scan" />;
+    return <LoadingMoment title={t("localScanning")} seed="installed-scan" />;
   }
   if (scanning && mode === "discover") {
-    return <LoadingMoment title="正在加载 skills.sh" seed="discover-scan" />;
+    return <LoadingMoment title={t("discoverScanning")} seed="discover-scan" />;
   }
   const text = mode === "uninstalled"
-    ? "Uninstalled 里还没有可恢复的 skill。"
+    ? t("emptyUninstalled")
     : mode === "starred"
-      ? "Starred 里还没有收藏的 skill。"
+      ? t("emptyStarred")
       : mode === "discover"
-        ? "当前 Discover 条件下没有匹配结果。"
+        ? t("emptyDiscover")
         : mode === "tags"
-          ? "当前还没有可统计的标签。"
-          : "当前条件下没有本地 skill。";
+          ? t("emptyTags")
+          : t("emptyLocal");
   return <div className="list-empty">{text}</div>;
 }
 
 function DiscoverDetail({ item, onInstall, onUninstall, busy, starred, onStar, installedSkills = [] }) {
+  const { t } = useI18n();
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
@@ -1032,7 +1346,7 @@ function DiscoverDetail({ item, onInstall, onUninstall, busy, starred, onStar, i
     return (
       <section className="detail empty">
         <Sparkles size={34} />
-        <p>选择一个 Discover skill 查看来源、热度、仓库和安装信息。</p>
+        <p>{t("discoverEmptyHint")}</p>
       </section>
     );
   }
@@ -1051,7 +1365,7 @@ function DiscoverDetail({ item, onInstall, onUninstall, busy, starred, onStar, i
         <div className="detail-icon github-icon"><Github size={24} /></div>
         <div>
           <h2>{item.name}</h2>
-          <p>{item.description || "暂无描述"}</p>
+          <p>{item.description || t("noDescription")}</p>
           <div className="detail-source-line">
             <span>{sourceName}</span>
             <span>skills.sh</span>
@@ -1061,22 +1375,22 @@ function DiscoverDetail({ item, onInstall, onUninstall, busy, starred, onStar, i
       <div className="detail-actions">
         <button className="action-install" onClick={() => onInstall(item)} disabled={busy}>
           <FileCode2 size={16} />
-          {busy ? "安装中" : "Install"}
+          {busy ? t("installing") : t("install")}
         </button>
         {installedCopies.length ? (
           <button className={updateAvailable ? "action-update" : "action-uninstall"} onClick={() => updateAvailable ? onInstall(item, true) : onUninstall(item, installedCopies)} disabled={busy}>
             <RotateCcw size={16} />
-            {busy ? "处理中" : updateAvailable ? "Update" : "Uninstall"}
+            {busy ? t("processing") : updateAvailable ? t("update") : t("uninstall")}
           </button>
         ) : null}
         <StarButton active={starred} className="detail-star" label onClick={(event) => { event.stopPropagation(); onStar?.(item); }} />
         <button className="soft-button" onClick={() => window.skillStudio.open(item.repositoryUrl || item.url)}>
           <Github size={16} />
-          Repository
+          {t("repository")}
         </button>
         <button className="soft-button" onClick={() => window.skillStudio.open(item.url)}>
           <ExternalLink size={16} />
-          Open on {item.sourceLabel || "GitHub"}
+          {t("openOn")} {item.sourceLabel || "GitHub"}
         </button>
       </div>
       <MetaStrip
@@ -3255,11 +3569,13 @@ function Detail({
 }
 
 function SettingsPage({ settings, onSave, saving }) {
+  const { t } = useI18n();
   const fallbackSettings = {
     sources: [],
     ignorePatterns: [],
     installSourceId: "agents",
     installTargetMode: "remember-last",
+    language: "zh",
     mergeDuplicateSkills: true,
     skillVersionRetentionDays: 30,
     logRetentionDays: null,
@@ -3270,6 +3586,7 @@ function SettingsPage({ settings, onSave, saving }) {
     ignorePatterns: [],
     installSourceId: "agents",
     installTargetMode: "remember-last",
+    language: "zh",
     mergeDuplicateSkills: true,
     skillVersionRetentionDays: 30,
     logRetentionDays: null,
@@ -3379,34 +3696,34 @@ function SettingsPage({ settings, onSave, saving }) {
     <section className="settings-page">
       <div className="settings-head">
         <div>
-          <h2>Settings</h2>
-          <p>管理安装目标、Agent 命名和 skill 目录展示规则。</p>
+          <h2>{t("settings")}</h2>
+          <p>{t("settingsDesc")}</p>
         </div>
         <div className="settings-head-actions">
           <div className="settings-mode-switch">
-            <button className={settingsMode === "visual" ? "on" : ""} onClick={() => switchSettingsMode("visual")}>可视化</button>
-            <button className={settingsMode === "json" ? "on" : ""} onClick={() => switchSettingsMode("json")}>JSON</button>
+            <button className={settingsMode === "visual" ? "on" : ""} onClick={() => switchSettingsMode("visual")}>{t("visual")}</button>
+            <button className={settingsMode === "json" ? "on" : ""} onClick={() => switchSettingsMode("json")}>{t("json")}</button>
           </div>
           <button onClick={save} disabled={saving}>
             <Save size={16} />
-            {saving ? "保存中" : "保存设置"}
+            {saving ? t("saving") : t("saveSettings")}
           </button>
         </div>
       </div>
 
       <section className="settings-version-card">
         <div>
-          <span>应用版本</span>
+          <span>{t("appVersion")}</span>
           <strong>{appInfo?.version ? `v${appInfo.version}` : "读取中"}</strong>
         </div>
-        <p>{appInfo?.name || "Skill Manager"} · {appInfo?.isPackaged ? "已打包应用" : "开发模式"}</p>
+        <p>{appInfo?.name || "Skill Manager"} · {appInfo?.isPackaged ? t("packagedApp") : t("devMode")}</p>
       </section>
 
       {settingsMode === "json" ? (
         <section className="settings-card settings-json-card">
           <div className="settings-card-head">
-            <h3>JSON 配置</h3>
-            <p>直接编辑完整 settings。保存时会校验 JSON，并继续应用默认值与来源过滤规则。</p>
+            <h3>{t("jsonSettings")}</h3>
+            <p>{t("jsonSettingsDesc")}</p>
           </div>
           <textarea
             className={`settings-json-editor ${jsonError ? "has-error" : ""}`}
@@ -3423,11 +3740,11 @@ function SettingsPage({ settings, onSave, saving }) {
       <div className="settings-grid">
         <section className="settings-card">
           <div className="settings-card-head">
-            <h3>默认安装目标</h3>
-            <p>Discover 安装和 Uninstalled 恢复默认会放到这里。</p>
+            <h3>{t("defaultInstallTarget")}</h3>
+            <p>{t("defaultInstallTargetDesc")}</p>
           </div>
           <label className="settings-field">
-            <span>Install to Agent</span>
+            <span>{t("installToAgent")}</span>
             <select value={draft.installSourceId || "agents"} onChange={(event) => setDraft({ ...draft, installSourceId: event.target.value })}>
               {installable.map((source) => (
                 <option key={source.id} value={source.id}>{source.client} · {shortPath(source.root)}</option>
@@ -3435,26 +3752,33 @@ function SettingsPage({ settings, onSave, saving }) {
             </select>
           </label>
           <label className="settings-field">
-            <span>安装弹窗默认选择</span>
+            <span>{t("installDialogDefault")}</span>
             <select value={draft.installTargetMode || "remember-last"} onChange={(event) => setDraft({ ...draft, installTargetMode: event.target.value })}>
-              <option value="remember-last">记住上次选择</option>
-              <option value="always-default">每次使用默认 Agent</option>
+              <option value="remember-last">{t("rememberLast")}</option>
+              <option value="always-default">{t("alwaysDefault")}</option>
+            </select>
+          </label>
+          <label className="settings-field">
+            <span>{t("language")}</span>
+            <select value={draft.language || "zh"} onChange={(event) => setDraft({ ...draft, language: event.target.value })}>
+              <option value="zh">{t("zh")}</option>
+              <option value="en">{t("en")}</option>
             </select>
           </label>
           <label className="toggle-field settings-toggle">
             <input type="checkbox" checked={draft.mergeDuplicateSkills !== false} onChange={(event) => setDraft({ ...draft, mergeDuplicateSkills: event.target.checked })} />
-            All Agents 下合并同名 skill
+            {t("mergeAllAgents")}
           </label>
         </section>
 
         <section className="settings-card">
           <div className="settings-card-head">
-            <h3>记录保留</h3>
-            <p>Events 和 Logs 默认永久保留；填写天数后会自动清理更早的记录。</p>
+            <h3>{t("retention")}</h3>
+            <p>{t("retentionDesc")}</p>
           </div>
           <label className="settings-field retention-field">
             <span>Skill Versions</span>
-            <em>保留天数</em>
+            <em>{t("retentionDays")}</em>
             <input
               type="number"
               min="1"
@@ -3465,8 +3789,8 @@ function SettingsPage({ settings, onSave, saving }) {
           <label className="settings-field retention-field">
             <span>Operation Events</span>
             <select value={draft.eventRetentionDays ? "custom" : "forever"} onChange={(event) => setRetention("eventRetentionDays", event.target.value)}>
-              <option value="forever">永久保留</option>
-              <option value="custom">按天数保留</option>
+              <option value="forever">{t("forever")}</option>
+              <option value="custom">{t("customDays")}</option>
             </select>
             <input
               type="number"
@@ -3479,8 +3803,8 @@ function SettingsPage({ settings, onSave, saving }) {
           <label className="settings-field retention-field">
             <span>Operation Logs</span>
             <select value={draft.logRetentionDays ? "custom" : "forever"} onChange={(event) => setRetention("logRetentionDays", event.target.value)}>
-              <option value="forever">永久保留</option>
-              <option value="custom">按天数保留</option>
+              <option value="forever">{t("forever")}</option>
+              <option value="custom">{t("customDays")}</option>
             </select>
             <input
               type="number"
@@ -3494,8 +3818,8 @@ function SettingsPage({ settings, onSave, saving }) {
 
         <section className="settings-card">
           <div className="settings-card-head">
-            <h3>目录 Ignore</h3>
-            <p>类似 gitignore。配置后文件不会出现在 skill 目录树里。</p>
+            <h3>{t("ignoreTitle")}</h3>
+            <p>{t("ignoreDesc")}</p>
           </div>
           <textarea
             className="ignore-editor"
@@ -3509,30 +3833,30 @@ function SettingsPage({ settings, onSave, saving }) {
           <div className="settings-card-head row">
             <div>
               <h3>Agents</h3>
-              <p>配置左侧 Agents 的命名，以及每个 Agent 对应的 skills 目录。</p>
+              <p>{t("agentsDesc")}</p>
             </div>
-            <button className="soft-button" onClick={addSource}>新增 Agent</button>
+            <button className="soft-button" onClick={addSource}>{t("addAgent")}</button>
           </div>
           <div className="agent-editor-list">
             {draft.sources.map((source) => (
               <div className="agent-editor-row" key={source.id}>
                 <label className="toggle-field">
                   <input type="checkbox" checked={source.enabled} onChange={(event) => updateSource(source.id, { enabled: event.target.checked })} />
-                  启用
+                  {t("enabled")}
                 </label>
                 <label>
-                  <span>名称</span>
+                  <span>{t("name")}</span>
                   <input value={source.client} onChange={(event) => updateSource(source.id, { client: event.target.value })} />
                 </label>
                 <label>
-                  <span>说明</span>
+                  <span>{t("description")}</span>
                   <input value={source.label} onChange={(event) => updateSource(source.id, { label: event.target.value })} />
                 </label>
                 <label>
-                  <span>目录</span>
+                  <span>{t("directory")}</span>
                   <input value={source.root} onChange={(event) => updateSource(source.id, { root: event.target.value })} />
                 </label>
-                <button className="tiny-danger" onClick={() => removeSource(source.id)}>移除</button>
+                <button className="tiny-danger" onClick={() => removeSource(source.id)}>{t("remove")}</button>
               </div>
             ))}
           </div>
@@ -3544,6 +3868,7 @@ function SettingsPage({ settings, onSave, saving }) {
 }
 
 function InstallTargetDialog({ pending, targets, selectedTargets, onChangeTargets, onCancel, onConfirm, busy }) {
+  const { t } = useI18n();
   if (!pending) return null;
   const name = pending.item?.name || pending.item?.slug || "skill";
   const isUninstall = pending.type === "uninstall";
@@ -3573,13 +3898,13 @@ function InstallTargetDialog({ pending, targets, selectedTargets, onChangeTarget
     <div className="modal-overlay">
       <div className="install-dialog">
         <div>
-          <h3>{isUninstall ? "选择卸载的 Agent" : isUpgrade ? "选择发布版本的 Agent" : isSync ? "选择同步到的 Agent" : isRestore ? "选择 Recover 到的 Agent" : isDeleteUninstalled ? "选择删除的 Uninstalled 记录" : isUpdate ? "选择更新的 Agent" : "选择安装到的 Agent"}</h3>
+          <h3>{isUninstall ? t("chooseUninstallAgent") : isUpgrade ? t("chooseUpgradeAgent") : isSync ? t("chooseSyncAgent") : isRestore ? t("chooseRecoverAgent") : isDeleteUninstalled ? t("chooseDeleteUninstalled") : isUpdate ? t("chooseUpdateAgent") : t("chooseInstallAgent")}</h3>
           <p>{isSync ? `从 ${pending.sourceCopy?.client || name} 同步` : name}</p>
         </div>
         <div className="target-select-tools">
-          <span>已选择 {selectedTargets.length} / {selectableTargets.length}</span>
+          <span>{t("selectedCount")} {selectedTargets.length} / {selectableTargets.length}</span>
           <button className="soft-button" onClick={allSelected ? clearTargets : selectAllTargets} disabled={!selectableTargets.length || busy}>
-            {allSelected ? "取消全选" : "全选"}
+            {allSelected ? t("deselectAll") : t("selectAll")}
           </button>
         </div>
         <div className="target-check-list">
@@ -3593,7 +3918,7 @@ function InstallTargetDialog({ pending, targets, selectedTargets, onChangeTarget
                     <strong>{target.client}</strong>
                     <em>{shortPath(target.root || target.dir)}</em>
                     {target.disabledReason ? <em>{target.disabledReason}</em> : null}
-                    {isDeleteUninstalled && versionLabel ? <em>快照 {versionLabel}</em> : target.installed && versionLabel ? <em>已安装 {versionLabel}</em> : target.installed ? <em>已安装</em> : (isSync || isRestore ? <em>未安装</em> : null)}
+                    {isDeleteUninstalled && versionLabel ? <em>{t("snapshotVersion")} {versionLabel}</em> : target.installed && versionLabel ? <em>{t("installedVersion")} {versionLabel}</em> : target.installed ? <em>{t("installedVersion")}</em> : (isSync || isRestore ? <em>{t("notInstalled")}</em> : null)}
                     {isDeleteUninstalled && target.recordScope !== "skill" ? <em>{shortPath(target.dir || target.root)}</em> : null}
                   </span>
                 </label>
@@ -3602,8 +3927,8 @@ function InstallTargetDialog({ pending, targets, selectedTargets, onChangeTarget
           ))}
         </div>
         <div className="dialog-actions">
-          <button className="soft-button" onClick={onCancel} disabled={busy}>取消</button>
-          <button onClick={onConfirm} disabled={busy || !selectedTargets.length}>{busy ? "处理中" : isUninstall ? "卸载" : isUpgrade ? "发布版本" : isSync ? "同步" : isRestore ? "Recover" : isDeleteUninstalled ? "删除" : isUpdate ? "更新" : "安装"}</button>
+          <button className="soft-button" onClick={onCancel} disabled={busy}>{t("cancel")}</button>
+          <button onClick={onConfirm} disabled={busy || !selectedTargets.length}>{busy ? t("processing") : isUninstall ? t("uninstall") : isUpgrade ? t("publishVersion") : isSync ? t("sync") : isRestore ? t("recover") : isDeleteUninstalled ? t("delete") : isUpdate ? t("update") : t("install")}</button>
         </div>
       </div>
     </div>
@@ -3611,15 +3936,16 @@ function InstallTargetDialog({ pending, targets, selectedTargets, onChangeTarget
 }
 
 function InstallConflictDialog({ pending, conflicts, actions, onChangeAction, onViewDiff, onCancel, onConfirm, busy }) {
+  const { t } = useI18n();
   if (!pending || !conflicts?.length) return null;
   const isUpdate = pending.type === "discover" && pending.forceUpdate;
-  const title = pending.type === "uninstalled" ? "Recover 冲突确认" : isUpdate ? "Update 冲突确认" : "Install 冲突确认";
+  const title = pending.type === "uninstalled" ? t("recoverConflict") : isUpdate ? t("updateConflict") : t("installConflict");
   return (
     <div className="modal-overlay">
       <div className="install-dialog conflict-dialog">
         <div>
           <h3>{title}</h3>
-          <p>目标 Agent 已存在同名 skill，请为每个冲突选择处理方式。</p>
+          <p>{t("conflictHint")}</p>
         </div>
         <div className="conflict-list">
           {conflicts.map((conflict) => (
@@ -3627,23 +3953,23 @@ function InstallConflictDialog({ pending, conflicts, actions, onChangeAction, on
               <div>
                 <strong>{conflict.client}</strong>
                 <span>{conflict.sourceLabel}</span>
-                <em>当前 {conflict.currentVersion || "版本未知"} · 待写入 {conflict.incomingVersion || "版本未知"}</em>
+                <em>当前 {conflict.currentVersion || t("unknownVersion")} · 待写入 {conflict.incomingVersion || t("unknownVersion")}</em>
                 {conflict.warning ? <small>{conflict.warning}</small> : null}
               </div>
               <select value={actions[conflict.id] || conflict.defaultAction} onChange={(event) => onChangeAction(conflict.id, event.target.value)}>
-                <option value="skip">跳过</option>
-                <option value="replace">覆盖</option>
+                <option value="skip">{t("skip")}</option>
+                <option value="replace">{t("replace")}</option>
               </select>
               <button className="conflict-diff-button" onClick={() => onViewDiff(conflict)} disabled={!conflict.canDiff}>
-                查看差异
+                {t("viewDiff")}
               </button>
             </div>
           ))}
         </div>
-        <div className="conflict-note">Discover 远端安装前没有本地目录时无法直接比较；替换前会自动归档当前目录。</div>
+        <div className="conflict-note">{t("conflictNote")}</div>
         <div className="dialog-actions">
-          <button className="soft-button" onClick={onCancel} disabled={busy}>返回</button>
-          <button onClick={onConfirm} disabled={busy}>{busy ? "提交中" : "确认提交"}</button>
+          <button className="soft-button" onClick={onCancel} disabled={busy}>{t("back")}</button>
+          <button onClick={onConfirm} disabled={busy}>{busy ? t("submitting") : t("submit")}</button>
         </div>
       </div>
     </div>
@@ -3651,19 +3977,20 @@ function InstallConflictDialog({ pending, conflicts, actions, onChangeAction, on
 }
 
 function OperationLogPage({ logs, onRefresh, onClear }) {
+  const { t } = useI18n();
   return (
     <section className="logs-page">
       <div className="settings-head">
         <div>
-          <h2>Operation Logs</h2>
-          <p>查看 install、uninstall、restore 和 settings 的最近操作结果。</p>
+          <h2>{t("operationLogs")}</h2>
+          <p>{t("operationLogsDesc")}</p>
         </div>
         <div className="log-actions">
           <button className="soft-button" onClick={onRefresh}>
             <RefreshCcw size={16} />
-            刷新
+            {t("refresh")}
           </button>
-          <button onClick={onClear}>清空日志</button>
+          <button onClick={onClear}>{t("clearLogs")}</button>
         </div>
       </div>
       <div className="log-list">
@@ -3678,7 +4005,7 @@ function OperationLogPage({ logs, onRefresh, onClear }) {
             {log.detail ? <code>{shortPath(log.detail)}</code> : null}
           </article>
         )) : (
-          <div className="list-empty">还没有操作日志。</div>
+          <div className="list-empty">{t("noLogs")}</div>
         )}
       </div>
     </section>
@@ -3686,6 +4013,7 @@ function OperationLogPage({ logs, onRefresh, onClear }) {
 }
 
 function OperationEventPage({ events, onRefresh, onClear }) {
+  const { t } = useI18n();
   const stages = ["queued", "running", "success"];
   function stageState(event, stage) {
     if (event.status === "failed") return stage === "success" ? "failed" : "done";
@@ -3699,15 +4027,15 @@ function OperationEventPage({ events, onRefresh, onClear }) {
     <section className="logs-page">
       <div className="settings-head">
         <div>
-          <h2>Operation Events</h2>
-          <p>后台 install、uninstall、update、restore 的状态流转和进度。</p>
+          <h2>{t("operationEvents")}</h2>
+          <p>{t("operationEventsDesc")}</p>
         </div>
         <div className="log-actions">
           <button className="soft-button" onClick={onRefresh}>
             <RefreshCcw size={16} />
-            刷新
+            {t("refresh")}
           </button>
-          <button onClick={onClear}>清空事件</button>
+          <button onClick={onClear}>{t("clearEvents")}</button>
         </div>
       </div>
       <div className="log-list">
@@ -3740,7 +4068,7 @@ function OperationEventPage({ events, onRefresh, onClear }) {
             </article>
           );
         }) : (
-          <div className="list-empty">还没有后台事件。</div>
+          <div className="list-empty">{t("noEvents")}</div>
         )}
       </div>
     </section>
@@ -3748,11 +4076,12 @@ function OperationEventPage({ events, onRefresh, onClear }) {
 }
 
 function TagSkillPanel({ tag, skills, onOpenSkill }) {
+  const { t } = useI18n();
   if (!tag) {
     return (
       <section className="detail empty">
         <Tags size={34} />
-        <p>选择一个标签，查看包含该标签的所有 skill。</p>
+        <p>{t("selectTagHint")}</p>
       </section>
     );
   }
@@ -3760,7 +4089,7 @@ function TagSkillPanel({ tag, skills, onOpenSkill }) {
     <section className="tag-skill-panel">
       <div className="tag-skill-head">
         <TagPill tag={tag}>标签：{tag}</TagPill>
-        <p>{skills.length} 个 skill 包含这个标签</p>
+        <p>{skills.length} {t("tagContains")}</p>
       </div>
       <div className="tag-skill-list">
         {skills.map((skill) => (
@@ -3769,7 +4098,7 @@ function TagSkillPanel({ tag, skills, onOpenSkill }) {
             <span>
               <strong>{skill.name}</strong>
               <em>{skill.installationCount ? `${[...new Set((skill.installations || [skill]).map((copy) => copy.client))].join(", ")} · ${skill.installationCount} agents` : skill.client}</em>
-              <small>{skill.description || "暂无描述"}</small>
+              <small>{skill.description || t("noDescription")}</small>
             </span>
           </button>
         ))}
@@ -3779,17 +4108,18 @@ function TagSkillPanel({ tag, skills, onOpenSkill }) {
 }
 
 function SearchConfig({ open, options, onChange }) {
+  const { t } = useI18n();
   const fields = [
-    ["name", "名称"],
-    ["description", "描述"],
-    ["tags", "标签/来源"],
-    ["path", "路径"],
-    ["content", "内容"]
+    ["name", t("searchName")],
+    ["description", t("searchDescription")],
+    ["tags", t("searchTags")],
+    ["path", t("searchPath")],
+    ["content", t("searchContent")]
   ];
   if (!open) return null;
   return (
     <div className="search-config-panel">
-      <div className="search-config-title">搜索范围</div>
+      <div className="search-config-title">{t("searchScope")}</div>
       {fields.map(([key, label]) => (
         <label key={key} className="search-check">
           <input
@@ -3804,17 +4134,19 @@ function SearchConfig({ open, options, onChange }) {
   );
 }
 
-function searchPlaceholder(options) {
+function searchPlaceholder(options, t) {
   const labels = [
-    ["name", "名称"],
-    ["description", "描述"],
-    ["tags", "标签"],
-    ["path", "路径"],
-    ["content", "内容"]
+    ["name", t("searchName")],
+    ["description", t("searchDescription")],
+    ["tags", t("tags")],
+    ["path", t("searchPath")],
+    ["content", t("searchContent")]
   ]
     .filter(([key]) => options[key])
     .map(([, label]) => label);
-  return `搜索${labels.length ? labels.join("、") : "名称"}，可自定义`;
+  const isEnglish = t("discover") === "Discover";
+  const scope = labels.length ? labels.join(isEnglish ? ", " : "、") : t("searchName");
+  return isEnglish ? `Search ${scope}, ${t("customSearch")}` : `搜索${scope}，${t("customSearch")}`;
 }
 
 function App() {
@@ -3861,6 +4193,9 @@ function App() {
   const [busyAction, setBusyAction] = useState("");
   const [notice, setNotice] = useState("");
   const [settingsSaving, setSettingsSaving] = useState(false);
+  const lang = settings?.language === "en" ? "en" : "zh";
+  const t = useMemo(() => createTranslator(lang), [lang]);
+  const i18nValue = useMemo(() => ({ lang, t }), [lang, t]);
 
   async function refreshAll() {
     await refresh();
@@ -3889,13 +4224,13 @@ function App() {
   }
 
   async function clearLogs() {
-    if (!window.confirm("确认清空所有 Operation Logs？此操作不可撤销。")) return;
+    if (!window.confirm(t("clearLogsConfirm"))) return;
     await window.skillStudio.clearOperationLogs();
     setOperationLogs([]);
   }
 
   async function clearEvents() {
-    if (!window.confirm("确认清空所有 Operation Events？此操作不可撤销。")) return;
+    if (!window.confirm(t("clearEventsConfirm"))) return;
     await window.skillStudio.clearOperationEvents();
     setOperationEvents([]);
   }
@@ -4532,6 +4867,12 @@ function App() {
     }
   }
 
+  async function changeLanguage(nextLanguage) {
+    const next = { ...(settings || {}), language: nextLanguage === "en" ? "en" : "zh" };
+    setSettings(next);
+    await saveSettings(next);
+  }
+
   const agentCounts = useMemo(() => {
     const map = new Map();
     (data?.skills || []).forEach((skill) => map.set(skill.client, (map.get(skill.client) || 0) + 1));
@@ -4776,8 +5117,8 @@ function App() {
   const discoverTotalLabel = githubTrends.meta?.tabLabels?.alltime || githubTrends.meta?.totalLabel || githubTrends.items.length || 0;
   const discoverModeTotalLabel = githubTrends.meta?.totalLabel || (discoverSource === "alltime" ? discoverTotalLabel : "");
   const discoverMetaCount = query.trim()
-    ? `${visibleCount} 个匹配项`
-    : `${discoverModeTotalLabel || visibleCount} 个匹配项`;
+    ? `${visibleCount} ${t("matches")}`
+    : `${discoverModeTotalLabel || visibleCount} ${t("matches")}`;
   const discoverTabLabels = githubTrends.meta?.tabLabels || {};
   const installTargets = useMemo(() => {
     const sources = settings?.sources?.length ? settings.sources : data?.sources || [];
@@ -4793,18 +5134,18 @@ function App() {
       <div className="tag-filter-wrap" ref={tagFilterRef}>
         <button className={`tag-cloud-toggle ${tagCloudOpen ? "on" : ""}`} onClick={() => setTagCloudOpen((open) => !open)}>
           <Tags size={15} />
-          标签
+          {t("tagFilter")}
           {activeTags.length ? <em>{activeTags.length}</em> : null}
         </button>
         {tagCloudOpen ? (
           <div className="tag-cloud-panel">
             <div className="tag-cloud-head">
               <div>
-                <span>多选标签</span>
-                {activeTags.length ? <button onClick={() => setActiveTags([])}>清除</button> : null}
+                <span>{t("selectedTags")}</span>
+                {activeTags.length ? <button onClick={() => setActiveTags([])}>{t("clear")}</button> : null}
               </div>
               <div>
-                <span>关系</span>
+                <span>{t("relation")}</span>
                 <div className="tag-match-switch">
                   <button className={tagMatchMode === "and" ? "on" : ""} onClick={() => setTagMatchMode("and")} title="必须同时包含所有已选标签">AND</button>
                   <button className={tagMatchMode === "or" ? "on" : ""} onClick={() => setTagMatchMode("or")} title="包含任意一个已选标签即可">OR</button>
@@ -4824,7 +5165,7 @@ function App() {
                   <strong>{tag}</strong>
                   <em>{count}</em>
                 </TagPill>
-              )) : <span className="tag-cloud-empty">暂无标签</span>}
+              )) : <span className="tag-cloud-empty">{t("noDescription")}</span>}
             </div>
           </div>
         ) : null}
@@ -4845,31 +5186,39 @@ function App() {
   }, [installTargets, selectedInstallTargets]);
 
   return (
+    <I18nContext.Provider value={i18nValue}>
     <main className="shell">
       <header className="topbar">
         <div className="brand">
           <div className="brand-mark"><SkillManagerLogo /></div>
           <div>
             <h1>Skill Manager</h1>
-            <p>本地多客户端 skill 管理器</p>
+            <p>{t("appSubtitle")}</p>
           </div>
         </div>
         <div className="toolbar">
+          <label className="language-select" title={t("language")}>
+            <span>{t("language")}</span>
+            <select value={lang} onChange={(event) => changeLanguage(event.target.value)}>
+              <option value="zh">{t("zh")}</option>
+              <option value="en">{t("en")}</option>
+            </select>
+          </label>
           <label className="search-box">
             <Search size={18} />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={searchPlaceholder(searchOptions)} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={searchPlaceholder(searchOptions, t)} />
           </label>
           <div className="search-config-wrap">
             <button
               className={`icon-button search-config-button ${searchOptions.content ? "active" : ""}`}
               onClick={() => setSearchConfigOpen((open) => !open)}
-              title="搜索配置"
+              title={t("searchConfig")}
             >
               <SlidersHorizontal size={18} />
             </button>
             <SearchConfig open={searchConfigOpen} options={searchOptions} onChange={setSearchOptions} />
           </div>
-          <button className="icon-button" onClick={refresh} disabled={loading} title="重新扫描">
+          <button className="icon-button" onClick={refresh} disabled={loading} title={t("rescan")}>
             <RefreshCcw size={18} />
           </button>
         </div>
@@ -4881,25 +5230,25 @@ function App() {
       <section className="dashboard">
         <aside className="left-rail">
           <div className="library-nav">
-            <div className="section-label">Library</div>
-            <NavRow icon={Github} label="Discover" count={discoverTotalLabel} active={listMode === "discover"} onClick={() => setListMode("discover")} />
-            <NavRow icon={FileCode2} label="Installed" count={installedCount} active={listMode === "installed"} onClick={() => { setListMode("installed"); setSourceFilter("all"); }} />
-            <NavRow icon={RotateCcw} label="Uninstalled" count={uninstalledCount} active={listMode === "uninstalled"} onClick={() => { setListMode("uninstalled"); setSourceFilter("all"); }} />
-            <NavRow icon={Star} label="Starred" count={starredItems.length} active={listMode === "starred"} onClick={() => setListMode("starred")} />
-            <NavRow icon={Tags} label="Tags" count={allTagCounts.length} active={listMode === "tags"} onClick={() => setListMode("tags")} />
+            <div className="section-label">{t("library")}</div>
+            <NavRow icon={Github} label={t("discover")} count={discoverTotalLabel} active={listMode === "discover"} onClick={() => setListMode("discover")} />
+            <NavRow icon={FileCode2} label={t("installed")} count={installedCount} active={listMode === "installed"} onClick={() => { setListMode("installed"); setSourceFilter("all"); }} />
+            <NavRow icon={RotateCcw} label={t("uninstalled")} count={uninstalledCount} active={listMode === "uninstalled"} onClick={() => { setListMode("uninstalled"); setSourceFilter("all"); }} />
+            <NavRow icon={Star} label={t("starred")} count={starredItems.length} active={listMode === "starred"} onClick={() => setListMode("starred")} />
+            <NavRow icon={Tags} label={t("tags")} count={allTagCounts.length} active={listMode === "tags"} onClick={() => setListMode("tags")} />
           </div>
 
           <div className="agent-nav">
-            <div className="section-label">Agents</div>
-            <CountRow label="All Agents" count={installedCount} active={listMode === "installed" && sourceFilter === "all"} onClick={() => { setListMode("installed"); setSourceFilter("all"); }} />
+            <div className="section-label">{t("agents")}</div>
+            <CountRow label={t("allAgents")} count={installedCount} active={listMode === "installed" && sourceFilter === "all"} onClick={() => { setListMode("installed"); setSourceFilter("all"); }} />
             {agentCounts.map((agent) => (
               <CountRow key={agent.name} label={agent.name} count={agent.count} active={listMode === "installed" && sourceFilter === agent.name} onClick={() => { setListMode("installed"); setSourceFilter(agent.name); }} />
             ))}
           </div>
           <div className="settings-nav">
-            <NavRow icon={Activity} label="Events" count={operationEvents.length} active={listMode === "events"} onClick={() => setListMode("events")} />
-            <NavRow icon={Activity} label="Logs" count={operationLogs.length} active={listMode === "logs"} onClick={() => setListMode("logs")} />
-            <NavRow icon={Settings2} label="Settings" count="" active={listMode === "settings"} onClick={() => setListMode("settings")} />
+            <NavRow icon={Activity} label={t("events")} count={operationEvents.length} active={listMode === "events"} onClick={() => setListMode("events")} />
+            <NavRow icon={Activity} label={t("logs")} count={operationLogs.length} active={listMode === "logs"} onClick={() => setListMode("logs")} />
+            <NavRow icon={Settings2} label={t("settings")} count="" active={listMode === "settings"} onClick={() => setListMode("settings")} />
           </div>
         </aside>
 
@@ -4914,7 +5263,7 @@ function App() {
         <section className="results">
           <div className="result-head">
             <div>
-              <h2>{listMode === "discover" ? "Discover" : listMode === "tags" ? "Tags" : listMode === "starred" ? "Starred" : listMode === "uninstalled" ? "Uninstalled" : "Installed"}</h2>
+              <h2>{listMode === "discover" ? t("discover") : listMode === "tags" ? t("tags") : listMode === "starred" ? t("starred") : listMode === "uninstalled" ? t("uninstalled") : t("installed")}</h2>
               <p className="result-meta">
                 {listMode === "discover" ? (
                   <span className="result-meta-main">
@@ -4923,13 +5272,13 @@ function App() {
                   </span>
                 ) : (
                   <span className="result-meta-main">
-                    <span>{visibleCount} 个匹配项</span>
-                    <span>{data?.scannedAt ? formatDate(data.scannedAt) : "准备中"}</span>
+                    <span>{visibleCount} {t("matches")}</span>
+                    <span>{data?.scannedAt ? formatDate(data.scannedAt) : t("preparing")}</span>
                   </span>
                 )}
                 {((listMode === "discover" && githubTrends.loading) || (listMode !== "discover" && loading)) ? (
                   <span className="result-scan-state">
-                    <em>{listMode === "discover" ? "加载中" : "扫描中"}</em>
+                    <em>{listMode === "discover" ? t("loading") : t("scanning")}</em>
                     <i aria-hidden="true"><b /><b /><b /></i>
                   </span>
                 ) : null}
@@ -4939,8 +5288,8 @@ function App() {
               {listMode === "installed" ? (
                 <>
                   <select value={localSort} onChange={(event) => setLocalSort(event.target.value)}>
-                    <option value="updated">更新时间</option>
-                    <option value="alpha">字母顺序</option>
+                    <option value="updated">{t("sortUpdated")}</option>
+                    <option value="alpha">{t("sortAlpha")}</option>
                   </select>
                   {renderTagFilter()}
                 </>
@@ -4957,8 +5306,8 @@ function App() {
                   <div className="star-source-wrap" ref={starSourceRef}>
                     <button className={`star-source-toggle ${starSourceOpen ? "on" : ""}`} onClick={() => setStarSourceOpen((open) => !open)}>
                       <Star size={14} />
-                      来源
-                      <em>{starSourceFilters.includes("all") ? "全部" : starSourceFilters.length ? starSourceFilters.length : "无"}</em>
+                      {t("sourceFilter")}
+                      <em>{starSourceFilters.includes("all") ? t("all") : starSourceFilters.length ? starSourceFilters.length : t("noSource")}</em>
                     </button>
                     {starSourceOpen ? (
                       <div className="star-source-panel">
@@ -4968,16 +5317,16 @@ function App() {
                             checked={starSourceFilters.includes("all")}
                             onChange={() => toggleStarSourceFilter("all")}
                           />
-                          <span>所有来源</span>
+                          <span>{t("allSources")}</span>
                         </label>
-                        {starSourceOptions.map(([value, label]) => (
+                        {starSourceOptions.map(([value]) => (
                           <label key={value}>
                             <input
                               type="checkbox"
                               checked={starSourceFilters.includes("all") || starSourceFilters.includes(value)}
                               onChange={() => toggleStarSourceFilter(value)}
                             />
-                            <span>{label}</span>
+                            <span>{sourceFilterLabel(value, t)}</span>
                           </label>
                         ))}
                       </div>
@@ -4993,7 +5342,7 @@ function App() {
                         className={selectedUninstalledIds.length ? "compact-danger-button" : "compact-ghost-button"}
                         onClick={() => clearUninstalledRecords(selectedUninstalledIds.length ? selectedUninstalledItems() : uninstalledFiltered)}
                       >
-                        {selectedUninstalledIds.length ? `清空 ${selectedUninstalledIds.length} 条记录` : "清空记录"}
+                        {selectedUninstalledIds.length ? `${t("clear")} ${selectedUninstalledIds.length}` : t("clearRecords")}
                       </button>
                     ) : null}
                     {selectedUninstalledIds.length ? (
@@ -5004,7 +5353,7 @@ function App() {
                           setLastUninstalledSelectId("");
                         }}
                       >
-                        取消勾选
+                        {t("cancelSelection")}
                       </button>
                     ) : renderTagFilter()}
                   </div>
@@ -5015,9 +5364,9 @@ function App() {
           {["installed", "uninstalled", "starred"].includes(listMode) && activeTags.length ? (
             <div className="active-filter-row">
               {activeTags.map((tag) => (
-                <TagPill key={tag} tag={tag} as="button" onClick={() => toggleActiveTag(tag)}>标签：{tag}</TagPill>
+                <TagPill key={tag} tag={tag} as="button" onClick={() => toggleActiveTag(tag)}>{t("tags")}：{tag}</TagPill>
               ))}
-              <button onClick={() => setActiveTags([])}>清除</button>
+              <button onClick={() => setActiveTags([])}>{t("clear")}</button>
             </div>
           ) : null}
           <div
@@ -5076,7 +5425,7 @@ function App() {
                 ))}
                 {githubTrends.loadingMore ? (
                   <div className="discover-load-more">
-                    <LoadingMoment title="继续加载 Skills" seed={`discover-more-${discoverSource}`} compact />
+                    <LoadingMoment title={`${t("loading")} skills`} seed={`discover-more-${discoverSource}`} compact />
                   </div>
                 ) : null}
               </>
@@ -5102,7 +5451,7 @@ function App() {
                 tone="starred"
                 selected={selectedStarred?.key === entry.key}
                 onSelect={() => setSelectedStarred(entry)}
-                actionLabel={entry.type === "installed" ? "Uninstall" : ""}
+                actionLabel={entry.type === "installed" ? t("uninstall") : ""}
                 onAction={entry.type === "installed" ? (skill) => beginUninstallMany(skill, skill.installations || [skill]) : null}
                 busy={busyAction === `${entry.type === "uninstalled" ? "restore" : "uninstall"}:${entry.item.id}`}
                 starred
@@ -5132,7 +5481,7 @@ function App() {
                 tone="installed"
                 selected={selected?.id === skill.id}
                 onSelect={setSelected}
-                actionLabel="Uninstall"
+                actionLabel={t("uninstall")}
                 onAction={(skill) => beginUninstallMany(skill, skill.installations || [skill])}
                 busy={busyAction === `uninstall:${skill.id}`}
                 starred={isStarred("installed", skill)}
@@ -5181,7 +5530,7 @@ function App() {
               starred={Boolean(selectedStarred)}
               onStar={() => unstarEntry(selectedStarred)}
               onInstall={selectedStarred?.type === "uninstalled" ? beginRestoreSkill : null}
-              topInstallLabel={selectedStarred?.type === "uninstalled" ? "Recover" : "Install"}
+              topInstallLabel={selectedStarred?.type === "uninstalled" ? t("recover") : t("install")}
               hideTopInstall={selectedStarred?.type !== "uninstalled"}
               onUninstall={selectedStarred?.type === "uninstalled" ? null : beginUninstallMany}
               onDeleteRecords={selectedStarred?.type === "uninstalled" ? beginDeleteUninstalledRecords : null}
@@ -5191,7 +5540,7 @@ function App() {
               hideHistory={selectedStarred?.type === "uninstalled"}
               hideVersionActions={selectedStarred?.type === "uninstalled"}
               hideTopEdit={selectedStarred?.type === "uninstalled"}
-              cardActionLabel={selectedStarred?.type === "uninstalled" ? "Recover" : ""}
+              cardActionLabel={selectedStarred?.type === "uninstalled" ? t("recover") : ""}
               onCardAction={selectedStarred?.type === "uninstalled" ? beginRecoverOriginalAgent : null}
             />
           )
@@ -5202,7 +5551,7 @@ function App() {
             starred={selected ? isStarred(listMode === "uninstalled" ? "uninstalled" : "installed", selected) : false}
             onStar={(item) => toggleStar(listMode === "uninstalled" ? "uninstalled" : "installed", item)}
             onInstall={listMode === "uninstalled" ? beginRestoreSkill : null}
-            topInstallLabel={listMode === "uninstalled" ? "Recover" : "Install"}
+            topInstallLabel={listMode === "uninstalled" ? t("recover") : t("install")}
             hideTopInstall={listMode !== "uninstalled"}
             onUninstall={listMode === "uninstalled" ? null : beginUninstallMany}
             onDeleteRecords={listMode === "uninstalled" ? beginDeleteUninstalledRecords : null}
@@ -5212,7 +5561,7 @@ function App() {
             hideHistory={listMode === "uninstalled"}
             hideVersionActions={listMode === "uninstalled"}
             hideTopEdit={listMode === "uninstalled"}
-            cardActionLabel={listMode === "uninstalled" ? "Recover" : ""}
+            cardActionLabel={listMode === "uninstalled" ? t("recover") : ""}
             onCardAction={listMode === "uninstalled" ? beginRecoverOriginalAgent : null}
           />
         )}
@@ -5246,6 +5595,7 @@ function App() {
         busy={Boolean(busyAction)}
       />
     </main>
+    </I18nContext.Provider>
   );
 }
 
