@@ -2,87 +2,146 @@
 
 English | [中文](README.md)
 
-Skill Manager is a local desktop app for managing AI agent skills across multiple clients. It scans installed `SKILL.md` packages, displays skill directory trees, supports reading, editing, history, rollback, and starring, and can discover popular skills from skills.sh and install them into one or more agent directories.
+Skill Manager is a local desktop **AI Agent Skill manager**. It scans, browses, installs, uninstalls, recovers, stars, edits, and versions `SKILL.md` packages spread across multiple agent clients. It can also discover popular skills from [skills.sh](https://www.skills.sh/) and install them into selected agent directories.
 
-The app is built with Electron, React, and Vite.
+If you use Codex, Claude, Qoder, Agents, or other agent clients at the same time, Skill Manager is meant to keep local skills from becoming a pile of hard-to-find, hard-to-sync, hard-to-rollback folders.
+
+## What It Solves
+
+- **Skills are scattered locally**: each agent has its own directory, and finding the right `SKILL.md` by hand gets tedious.
+- **Install and uninstall are opaque**: it is hard to know which agent a skill was installed into, or whether it can be recovered.
+- **Edits are hard to roll back**: a skill may be changed by you or by an agent, but there is no directory-level history.
+- **Discovery is fragmented**: you often need to search GitHub or skills.sh manually, then install by hand.
+- **Multi-agent sync is awkward**: the same skill may need to exist in multiple clients, each with its own version.
 
 ## Screenshots
 
-### Discover Skills
+### Discover
 
-Browse the skills.sh leaderboard, switch between All Time, Trending, and Hot rankings, search skills, inspect repository information, and install a skill into selected agents.
+Discover is aligned with skills.sh: All / Trend / Hot rankings, search, install counts, local installed state, source repository, and one-click install.
 
 ![Discover skills](docs/screenshots/discover.png)
 
 ### Local Skill Detail
 
-Review installed or starred skills, read `SKILL.md`, browse the full directory tree, and see which agent copies exist locally.
+The local detail view shows metadata, tags, installed agents, the directory tree, `SKILL.md` reading/editing, and per-agent skill versions.
 
 ![Installed skills](docs/screenshots/installed-skills.jpg)
 
 ### Multi-Agent Install
 
-Install, uninstall, restore, and update actions can target multiple agent directories. The app can remember the previous selection or use a configured default.
+Install, uninstall, recover, sync, and publish-version actions can target multiple agents. The target dialog shows whether each agent already has the skill and which version is installed.
 
 ![Choose install agents](docs/screenshots/install-agents_v2.png)
 
-## Features
+## Core Features
 
-- Discover skills from skills.sh with All Time, Trending, and Hot rankings.
-- Search local and discover skills with configurable search scopes.
-- Manage installed skills across multiple agent directories.
-- Browse tags in a tag cloud and filter related skills.
-- Run install, uninstall, restore, and update operations as background events with progress and status.
-- Move uninstalled skills into the app data directory instead of deleting them.
-- Read `SKILL.md` in a skill-friendly view with the full directory tree.
-- Edit local skill files with history, diff, and rollback support.
-- Star skills from Discover, Installed, and Uninstalled views.
-- Configure agents, ignore rules, log/event retention, and default install targets.
-- Switch Settings between visual editing and JSON editing.
+### Discover skills.sh
 
-## Default Agent Sources
+- Uses skills.sh as the default discovery source.
+- Supports All, Trend, and Hot rankings.
+- Uses the same skills.sh search API as the website, so search results match the official UI.
+- Cards show source repository, local installed agents, total installs, and recent 8-week installs.
+- Already-installed skills show their local targets and can be uninstalled or updated.
+
+### Local Multi-Agent Management
+
+- Scans skills directories for multiple agents.
+- Treats only first-level directories containing `SKILL.md` as skills.
+- The All Agents view can merge skills with the same name and show every agent copy in detail.
+- Supports Installed, Uninstalled, Starred, and Tags views.
+- Tags prefer `tags` / `keywords` / `categories` from `SKILL.md` frontmatter, then fall back to inferred tags.
+
+### Skill-Friendly Reading and Editing
+
+- Shows `SKILL.md` by default.
+- Displays the real directory tree on the left.
+- Supports creating files/folders, renaming, deleting, copying relative paths, and copying absolute paths.
+- Reading and editing modes can be toggled. Once editing is enabled, switching files keeps edit mode active.
+- Code files are displayed in a more readable way.
+
+### Install, Uninstall, Recover, and Sync
+
+- Install / Uninstall / Recover / Sync all support multi-agent selection.
+- Operations run as background events instead of blocking the UI.
+- Events show status transitions and progress.
+- Logs record operation results.
+- Uninstall does not delete directly; it moves the skill into the app data directory for recovery.
+- Uninstalled records are shown by skill, and a record is removed after recovery.
+
+### Versions and History
+
+- Each agent copy has independent skill version management.
+- If `SKILL.md` has `version`, that real version is preferred.
+- If no version exists, Skill Manager displays a temporary version based on the latest modified file in the directory.
+- Publishing a version writes `version` into `SKILL.md` and creates a directory-level version snapshot.
+- History shows changed files by directory, supports diff viewing, selecting versions, and deleting old versions.
+- Skill history is retained for 30 days by default and can be changed in Settings.
+
+### Settings
+
+- Switch between visual settings and raw JSON settings.
+- Configure agent names, directories, and enabled state.
+- Configure default install target and install dialog default behavior.
+- Configure ignore rules similar to gitignore, such as the default `*.pyc`.
+- Configure retention for Logs, Events, and Skill Versions.
+
+## Default Agent Directories
 
 By default, Skill Manager scans:
 
-- Codex: `~/.codex/skills`
-- Agents: `~/.agents/skills`
-- Claude: `~/.claude/skills`
-- Qoder: `~/.qoder/skills`
-- QoderWork: `~/.qoderwork/skills`
-- OpenClaw: `~/.openclaw/skills`
+| Agent | Directory |
+| --- | --- |
+| Codex | `~/.codex/skills` |
+| Agents | `~/.agents/skills` |
+| Claude | `~/.claude/skills` |
+| Qoder | `~/.qoder/skills` |
+| QoderWork | `~/.qoderwork/skills` |
+| OpenClaw | `~/.openclaw/skills` |
 
-These directories can be changed in Settings.
+All of these can be changed, disabled, removed, or extended in Settings.
 
-## App Data Directory
+## Installation
 
-Runtime data is stored in Electron's app data directory:
+### Download an Installer
 
-```text
-~/Library/Application Support/skill-manager
-```
+Download the package for your platform from GitHub Releases:
 
-Important files and folders:
+- macOS: `Skill Manager-<version>-arm64.dmg` or the Intel build
+- Windows: `Skill Manager Setup <version>.exe`
 
-- `settings.json`: settings, logs, events, agents, ignore rules, and related state.
-- `history/`: edited file history and rollback versions.
-- `managed-skills/uninstalled/`: skills moved by uninstall.
-- `managed-skills/skills/`: app-managed copied skills.
+For macOS, a signed and notarized DMG is recommended. Unsigned builds may be reported as damaged or blocked by macOS.
 
-## Development Requirements
+### Runtime Requirements for Discover Install
 
-For development:
-
-- Node.js
-- npm
-- Git
-
-For Discover install actions on user machines:
+To install remote skills from Discover, the user machine needs:
 
 - Node.js / `npx`
 - Git
 - Network access to skills.sh and GitHub
 
-## Install Dependencies
+If Git is unavailable or `git clone` fails, the app attempts a GitHub zip download fallback.
+
+## How to Use
+
+1. Open the app and wait for Library and Agents to finish scanning.
+2. Use **Discover** to search or browse the skills.sh leaderboard.
+3. Select a skill to inspect its source, install counts, Summary, and `SKILL.md`.
+4. Click **Install** and choose which agents should receive the skill.
+5. Use **Installed** to browse local skills by tags, agent, or search.
+6. Open a skill detail view to browse the tree, edit files, publish versions, or inspect history.
+7. Uninstalled skills move into **Uninstalled**, where they can be recovered.
+8. Star frequently used skills and review them in **Starred**.
+
+## Local Development
+
+### Requirements
+
+- Node.js
+- npm
+- Git
+
+### Install Dependencies
 
 ```bash
 npm install
@@ -95,7 +154,7 @@ rm package-lock.json
 npm install --registry=https://registry.npmjs.org/
 ```
 
-## Run Locally
+### Run Locally
 
 ```bash
 npm run start
@@ -103,7 +162,7 @@ npm run start
 
 This starts Vite and Electron together.
 
-## Build Frontend
+### Build Frontend
 
 ```bash
 npm run build
@@ -111,33 +170,17 @@ npm run build
 
 The built web assets are written to `dist/`.
 
-## Package for macOS
+## Packaging
 
-Build a regular macOS DMG:
+### macOS
+
+Regular DMG:
 
 ```bash
 npm run dist:mac
 ```
 
-Example output:
-
-```text
-release/Skill Manager-<version>-arm64.dmg
-```
-
-The app icon is configured at:
-
-```text
-build/icon.icns
-```
-
-macOS builds are configured for Developer ID signing and Apple notarization. Current signing identity:
-
-```text
-JUNDE WU (A8DZ968K75)
-```
-
-On a Mac with the certificate installed, build a signed and notarized DMG:
+Apple Developer ID signing and notarization:
 
 ```bash
 npm run dist:mac:signed
@@ -149,7 +192,7 @@ Local notarization uses this Keychain profile by default:
 skill-manager-notary
 ```
 
-For the full Apple signing and notarization setup, see:
+For Apple signing and notarization setup, see:
 
 [docs/apple-notarization.md](docs/apple-notarization.md)
 
@@ -166,13 +209,9 @@ codesign --verify --deep --strict --verbose=2 "release/mac-arm64/Skill Manager.a
 spctl --assess --type execute --verbose "release/mac-arm64/Skill Manager.app"
 ```
 
-## Package for Windows
+### Windows
 
-Windows packaging uses NSIS and is configured in `package.json`. The app icon is:
-
-```text
-build/icon.ico
-```
+Windows packaging uses NSIS. The icon is `build/icon.ico`.
 
 Build on Windows:
 
@@ -181,24 +220,28 @@ npm install
 npm run dist:win
 ```
 
-The output is written to `release/`.
+Unsigned Windows installers may trigger SmartScreen warnings. For public distribution, configure a Windows code signing certificate.
 
-Recommended Windows checks:
+## App Data Directory
 
-- Agent directory detection and path handling.
-- Install, uninstall, restore, and update flows.
-- Opening files and revealing folders.
-- `npx skills add` execution.
-- Git availability.
-- Settings, logs, and events persistence.
+Runtime data is stored in Electron's app data directory:
 
-Unsigned Windows installers may trigger SmartScreen warnings. For public distribution, use a Windows code signing certificate.
+```text
+~/Library/Application Support/skill-manager
+```
+
+Important files and folders:
+
+- `settings.json`: settings, logs, events, agent configuration, ignore rules, and related state.
+- `managed-skills/uninstalled/`: skill snapshots moved during uninstall.
+- `managed-skills/versions/`: directory-level version snapshots created by publishing versions.
+- `managed-skills/skills/`: app-managed copied skill data.
 
 ## Project Structure
 
 ```text
 electron/
-  main.cjs       Electron main process, filesystem operations, install/uninstall, events.
+  main.cjs       Electron main process, filesystem operations, install/uninstall, versions, events.
   preload.cjs    Safe IPC bridge exposed to React.
   scanner.cjs    Local skill scanner, default sources, ignore rules.
 
@@ -212,15 +255,16 @@ build/
   icon.icns      macOS app icon.
   icon.ico       Windows app icon.
 
+docs/
+  screenshots/   README screenshots.
+
 dist/            Built frontend assets.
 release/         Local packaged installers.
-docs/            Documentation and screenshots.
 ```
 
 ## Notes
 
-- Uninstall does not delete skills directly; files are moved into the app-managed uninstalled directory.
-- Settings support both visual editing and JSON editing.
-- Logs and Events have configurable retention. By default, they are kept forever.
-- Tags are computed from local skill metadata and can be used to browse related skills.
+- Skill Manager does not assume `~/.agents/skills` is automatically loaded by every agent. Each agent directory is controlled by Settings.
+- Uninstalled records are recovery snapshots, not a long-term version store. Clearing Uninstalled records deletes the corresponding snapshots.
+- If a remote skill has no version, Skill Manager does not guess whether it is newer or older. Conflict flows ask the user to skip, replace, or inspect diffs.
 - The current experience focuses on macOS, while Windows packaging is also configured.
