@@ -1,0 +1,4 @@
+interface:
+  display_name: "Skill Manager 中文版"
+  short_description: "通过 Skill Manager CLI 管理本地 Agent Skills"
+  default_prompt: "使用 $skill-manager-zh 通过 CLI 管理本地 Agent Skill。"
