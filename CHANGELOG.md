@@ -2,6 +2,25 @@
 
 本文件记录 Skill Manager 的主要提交变更与版本变更。
 
+## v0.2.4 - 2026-07-12
+
+### Added
+
+- 增加应用菜单中的 Settings 与 Language 入口，保留侧边栏 Settings 入口。
+- 增加中英文菜单栏切换，支持从菜单直接切换语言并打开设置页。
+
+### Changed
+
+- Discover 加载策略调整为 All / Trending / Hot 首屏并发加载，每个 tab 独立预加载后两页，滚动后继续预热后续页面。
+- skills.sh 请求增加 gzip / br / deflate 压缩解码，并在读取到 `initialSkills` 后提前解析，提升 Discover 加载速度。
+- 优化英文长文案、版本下拉与 Uninstalled 操作按钮在双语环境下的布局稳定性。
+- 顶部品牌区下移，避开 macOS 窗口控制按钮。
+
+### Fixed
+
+- 修复语言切换后部分页面文案混用的问题。
+- 修复 Discover 分页缓存 key 不包含搜索词导致的潜在混用问题。
+
 ## v0.2.3 - 2026-07-11
 
 ### Added

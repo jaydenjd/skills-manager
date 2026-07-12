@@ -610,6 +610,11 @@ button {
   overflow: visible;
 }
 
+.result-controls button,
+.result-controls select {
+  min-width: 0;
+}
+
 .uninstalled-tools {
   min-width: 0;
   height: 40px;
@@ -634,7 +639,7 @@ button {
 .compact-ghost-button,
 .compact-danger-button {
   min-height: 28px;
-  padding: 0 9px;
+  padding: 0 7px;
   border: 1px solid #d8d1c2;
   border-radius: 999px;
   background: #fffdf7;
@@ -642,6 +647,8 @@ button {
   font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   box-shadow: 0 2px 0 rgba(31, 33, 29, 0.05);
 }
 
@@ -903,6 +910,7 @@ button {
   color: #1f211d;
   font-size: 12px;
   white-space: nowrap;
+  overflow: hidden;
 }
 
 .tag-cloud-toggle.on {
@@ -911,6 +919,7 @@ button {
 }
 
 .tag-cloud-toggle em {
+  flex: 0 0 auto;
   min-width: 18px;
   height: 18px;
   display: inline-grid;
@@ -1999,8 +2008,8 @@ button.tag-pill {
 .copy-version-picker .version-dropdown-trigger {
   height: 22px;
   width: auto;
-  min-width: 34px;
-  max-width: 112px;
+  min-width: 48px;
+  max-width: 92px;
   padding: 0 6px;
   border-color: #b8dc39;
   border-radius: 999px;
@@ -2014,6 +2023,11 @@ button.tag-pill {
 }
 
 .copy-version-picker .version-dropdown-trigger strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: #3f5a11;
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   font-size: 9px;
@@ -2082,11 +2096,12 @@ button.tag-pill {
 }
 
 .copy-version-picker .version-dropdown-menu {
-  left: 0;
+  left: 50%;
   right: auto;
-  transform: none;
-  width: 156px;
+  width: 136px;
+  max-width: 136px;
   padding: 4px;
+  transform: translateX(-50%);
 }
 
 .copy-version-picker .version-dropdown-list {
@@ -2123,9 +2138,14 @@ button.tag-pill {
   min-height: 20px;
   padding: 0 5px;
   font-size: 9px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .copy-version-picker .version-dropdown-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 3px;
   margin-top: 4px;
   padding-top: 4px;
@@ -2229,7 +2249,7 @@ button.tag-pill {
   z-index: 50;
   top: calc(100% + 6px);
   left: 0;
-  width: 252px;
+  width: min(230px, calc(100vw - 32px));
   padding: 6px;
   border: 1px solid #1f211d;
   border-radius: 8px;
@@ -2296,6 +2316,9 @@ button.tag-pill {
   color: #1f211d;
   font-size: 10px;
   font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .version-dropdown-row button:disabled,
@@ -3593,6 +3616,11 @@ button.tag-pill {
 .detail-actions button {
   height: 36px;
   padding: 0 11px;
+  max-width: 168px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .detail-actions button.action-install,
@@ -5302,15 +5330,15 @@ button.tag-pill {
 .uninstalled-action-row .compact-ghost-button,
 .uninstalled-action-row .compact-danger-button {
   width: 92px;
-  padding-inline: 8px;
+  padding-inline: 6px;
   text-align: center;
 }
 
 .uninstalled-action-row .tag-cloud-toggle,
 .uninstalled-cancel-toggle {
-  width: 76px;
+  width: 72px;
   justify-content: center;
-  padding-inline: 8px;
+  padding-inline: 6px;
 }
 
 .discover-row .row-source-sub {
@@ -5446,11 +5474,11 @@ textarea:focus-visible {
 }
 
 .shell {
-  padding: 18px 18px 16px;
+  padding: 28px 18px 16px;
 }
 
 .topbar {
-  height: 60px;
+  height: 58px;
   padding: 0 2px 8px;
   border-bottom: 1px solid rgba(201, 195, 180, 0.34);
 }

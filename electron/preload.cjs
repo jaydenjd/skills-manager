@@ -33,6 +33,17 @@ contextBridge.exposeInMainWorld("skillStudio", {
   getAppInfo: () => ipcRenderer.invoke("app:info"),
   getSettings: () => ipcRenderer.invoke("settings:get"),
   saveSettings: (settings) => ipcRenderer.invoke("settings:save", settings),
+  setLanguage: (language) => ipcRenderer.invoke("settings:set-language", language),
+  onLanguageChanged: (callback) => {
+    const listener = (_event, language) => callback(language);
+    ipcRenderer.on("settings:language-changed", listener);
+    return () => ipcRenderer.removeListener("settings:language-changed", listener);
+  },
+  onOpenSettings: (callback) => {
+    const listener = () => callback();
+    ipcRenderer.on("app:open-settings", listener);
+    return () => ipcRenderer.removeListener("app:open-settings", listener);
+  },
   operationLogs: () => ipcRenderer.invoke("operations:list"),
   clearOperationLogs: () => ipcRenderer.invoke("operations:clear"),
   submitEvent: (payload) => ipcRenderer.invoke("events:submit", payload),

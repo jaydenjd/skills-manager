@@ -2,8 +2,8 @@
 
 ## 当前版本
 
-- App version: `0.2.3`
-- Git tag: `v0.2.3`
+- App version: `0.2.4`
+- Git tag: `v0.2.4`
 - Branch: `master`
 - Release type: patch
 
@@ -36,15 +36,16 @@ git diff --check
 6. 创建并推送版本 tag，例如：
 
 ```bash
-git tag v0.2.3
+git tag v0.2.4
 git push origin master
-git push origin v0.2.3
+git push origin v0.2.4
 ```
 
 ## 版本记录
 
 | Version | Date | Notes |
 | --- | --- | --- |
+| `0.2.4` | 2026-07-12 | 增加菜单语言/设置入口，优化 Discover 加载速度与双语布局。 |
 | `0.2.3` | 2026-07-11 | 优化本地扫描、目录操作、启动加载与标签来源。 |
 | `0.2.2` | 2026-07-11 | 增加 skill 版本展示，修复 Discover 详情与加载问题。 |
 | `0.2.1` | 2026-07-11 | 优化 Discover 首屏加载策略。 |

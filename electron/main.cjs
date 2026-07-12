@@ -1,10 +1,11 @@
-const { app, BrowserWindow, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, Menu, ipcMain, shell } = require("electron");
 const crypto = require("node:crypto");
 const { execFile } = require("node:child_process");
 const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const https = require("node:https");
 const path = require("node:path");
+const zlib = require("node:zlib");
 const AdmZip = require("adm-zip");
 const matter = require("gray-matter");
 const { scanSkills, scanSkillDirectory, defaultSources, defaultIgnorePatterns, expandHome } = require("./scanner.cjs");
@@ -118,6 +119,207 @@ function saveSettings(settings) {
   setStoreValue("eventRetentionDays", next.eventRetentionDays);
   pruneOperationStores(next);
   return getSettings();
+}
+
+function notifyLanguageChanged(language) {
+  BrowserWindow.getAllWindows().forEach((window) => {
+    window.webContents.send("settings:language-changed", language);
+  });
+}
+
+function notifyOpenSettings() {
+  const windows = BrowserWindow.getAllWindows();
+  const targets = windows.length ? windows : [createWindow()];
+  targets.forEach((window) => {
+    if (window.isMinimized()) window.restore();
+    window.show();
+    window.focus();
+    const send = () => window.webContents.send("app:open-settings");
+    if (window.webContents.isLoading()) {
+      window.webContents.once("did-finish-load", send);
+    } else {
+      send();
+    }
+  });
+}
+
+function setLanguage(language) {
+  const current = getSettings();
+  const saved = saveSettings({ ...current, language: language === "en" ? "en" : "zh" });
+  buildAppMenu();
+  notifyLanguageChanged(saved.language);
+  return saved;
+}
+
+function buildAppMenu() {
+  const language = getSettings().language;
+  const zh = language !== "en";
+  const menu = zh ? {
+    file: "文件",
+    edit: "编辑",
+    view: "视图",
+    window: "窗口",
+    help: "帮助",
+    language: "语言",
+    settings: "设置...",
+    close: "关闭窗口",
+    quit: "退出 Skill Manager",
+    undo: "撤销",
+    redo: "重做",
+    cut: "剪切",
+    copy: "复制",
+    paste: "粘贴",
+    selectAll: "全选",
+    reload: "重新加载",
+    forceReload: "强制重新加载",
+    toggleDevTools: "切换开发者工具",
+    resetZoom: "实际大小",
+    zoomIn: "放大",
+    zoomOut: "缩小",
+    togglefullscreen: "切换全屏",
+    minimize: "最小化",
+    zoom: "缩放",
+    front: "全部置于顶层",
+    about: "关于 Skill Manager",
+    services: "服务",
+    hide: "隐藏 Skill Manager",
+    hideOthers: "隐藏其他",
+    unhide: "全部显示"
+  } : {
+    file: "File",
+    edit: "Edit",
+    view: "View",
+    window: "Window",
+    help: "Help",
+    language: "Language",
+    settings: "Settings...",
+    close: "Close Window",
+    quit: "Quit Skill Manager",
+    undo: "Undo",
+    redo: "Redo",
+    cut: "Cut",
+    copy: "Copy",
+    paste: "Paste",
+    selectAll: "Select All",
+    reload: "Reload",
+    forceReload: "Force Reload",
+    toggleDevTools: "Toggle Developer Tools",
+    resetZoom: "Actual Size",
+    zoomIn: "Zoom In",
+    zoomOut: "Zoom Out",
+    togglefullscreen: "Toggle Full Screen",
+    minimize: "Minimize",
+    zoom: "Zoom",
+    front: "Bring All to Front",
+    about: "About Skill Manager",
+    services: "Services",
+    hide: "Hide Skill Manager",
+    hideOthers: "Hide Others",
+    unhide: "Show All"
+  };
+  const languageSubmenu = {
+    label: menu.language,
+    submenu: [
+      {
+        label: "中文",
+        type: "radio",
+        checked: language !== "en",
+        click: () => setLanguage("zh")
+      },
+      {
+        label: "English",
+        type: "radio",
+        checked: language === "en",
+        click: () => setLanguage("en")
+      }
+    ]
+  };
+  const settingsMenuItem = {
+    label: menu.settings,
+    accelerator: "CmdOrCtrl+,",
+    click: notifyOpenSettings
+  };
+  const template = [
+    ...(process.platform === "darwin" ? [{
+      label: app.name,
+      submenu: [
+        { role: "about", label: menu.about },
+        { type: "separator" },
+        settingsMenuItem,
+        languageSubmenu,
+        { type: "separator" },
+        { role: "services", label: menu.services },
+        { type: "separator" },
+        { role: "hide", label: menu.hide },
+        { role: "hideOthers", label: menu.hideOthers },
+        { role: "unhide", label: menu.unhide },
+        { type: "separator" },
+        { role: "quit", label: menu.quit }
+      ]
+    }] : []),
+    {
+      label: menu.file,
+      submenu: [
+        ...(process.platform === "darwin" ? [
+          { role: "close", label: menu.close }
+        ] : [
+          settingsMenuItem,
+          languageSubmenu,
+          { type: "separator" },
+          { role: "quit", label: menu.quit }
+        ])
+      ]
+    },
+    {
+      label: menu.edit,
+      submenu: [
+        { role: "undo", label: menu.undo },
+        { role: "redo", label: menu.redo },
+        { type: "separator" },
+        { role: "cut", label: menu.cut },
+        { role: "copy", label: menu.copy },
+        { role: "paste", label: menu.paste },
+        { role: "selectAll", label: menu.selectAll }
+      ]
+    },
+    {
+      label: menu.view,
+      submenu: [
+        { role: "reload", label: menu.reload },
+        { role: "forceReload", label: menu.forceReload },
+        { role: "toggleDevTools", label: menu.toggleDevTools },
+        { type: "separator" },
+        { role: "resetZoom", label: menu.resetZoom },
+        { role: "zoomIn", label: menu.zoomIn },
+        { role: "zoomOut", label: menu.zoomOut },
+        { type: "separator" },
+        { role: "togglefullscreen", label: menu.togglefullscreen }
+      ]
+    },
+    {
+      label: menu.window,
+      submenu: [
+        { role: "minimize", label: menu.minimize },
+        { role: "zoom", label: menu.zoom },
+        ...(process.platform === "darwin" ? [
+          { type: "separator" },
+          { role: "front", label: menu.front }
+        ] : [
+          { role: "close", label: menu.close }
+        ])
+      ]
+    },
+    {
+      label: menu.help,
+      submenu: [
+        {
+          label: "GitHub",
+          click: () => shell.openExternal("https://github.com/jaydenjd/skills-manager")
+        }
+      ]
+    }
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
 function sourceLabelById(settings, id) {
@@ -1354,21 +1556,46 @@ function fetchJson(url) {
   });
 }
 
+function compressedRequestHeaders(headers = {}) {
+  return {
+    "User-Agent": "Skill-Manager",
+    "Accept-Encoding": "gzip, br, deflate",
+    ...headers
+  };
+}
+
+function decodedResponseStream(response) {
+  const encoding = String(response.headers["content-encoding"] || "").toLowerCase();
+  if (encoding.includes("br")) {
+    const stream = zlib.createBrotliDecompress();
+    response.pipe(stream);
+    return stream;
+  }
+  if (encoding.includes("gzip")) {
+    const stream = zlib.createGunzip();
+    response.pipe(stream);
+    return stream;
+  }
+  if (encoding.includes("deflate")) {
+    const stream = zlib.createInflate();
+    response.pipe(stream);
+    return stream;
+  }
+  return response;
+}
+
 function fetchJsonApi(url, headers = {}) {
   return new Promise((resolve, reject) => {
     const request = https.get(url, {
-      headers: {
-        "User-Agent": "Skill-Manager",
-        "Accept": "application/json",
-        ...headers
-      }
+      headers: compressedRequestHeaders({ "Accept": "application/json", ...headers })
     }, (response) => {
       let body = "";
-      response.setEncoding("utf8");
-      response.on("data", (chunk) => {
+      const stream = decodedResponseStream(response);
+      stream.setEncoding("utf8");
+      stream.on("data", (chunk) => {
         body += chunk;
       });
-      response.on("end", () => {
+      stream.on("end", () => {
         if (response.statusCode < 200 || response.statusCode >= 300) {
           const error = new Error(`HTTP ${response.statusCode}: ${body.slice(0, 180)}`);
           error.statusCode = response.statusCode;
@@ -1381,6 +1608,7 @@ function fetchJsonApi(url, headers = {}) {
           reject(error);
         }
       });
+      stream.on("error", reject);
     });
     request.setTimeout(12000, () => {
       request.destroy(new Error("Request timed out"));
@@ -1391,24 +1619,104 @@ function fetchJsonApi(url, headers = {}) {
 
 function fetchText(url) {
   return new Promise((resolve, reject) => {
-    const request = https.get(url, { headers: { "User-Agent": "Skill-Manager" } }, (response) => {
+    const request = https.get(url, { headers: compressedRequestHeaders() }, (response) => {
       let body = "";
-      response.setEncoding("utf8");
-      response.on("data", (chunk) => {
+      const stream = decodedResponseStream(response);
+      stream.setEncoding("utf8");
+      stream.on("data", (chunk) => {
         body += chunk;
       });
-      response.on("end", () => {
+      stream.on("end", () => {
         if (response.statusCode < 200 || response.statusCode >= 300) {
           reject(new Error(`HTTP ${response.statusCode}: ${body.slice(0, 180)}`));
           return;
         }
         resolve(body);
       });
+      stream.on("error", reject);
     });
     request.setTimeout(12000, () => {
       request.destroy(new Error("Request timed out"));
     });
     request.on("error", reject);
+  });
+}
+
+const initialSkillsMarker = "\\\"initialSkills\\\":";
+
+function initialSkillsEndIndex(html) {
+  const markerIndex = html.indexOf(initialSkillsMarker);
+  if (markerIndex < 0) return -1;
+  const start = html.indexOf("[", markerIndex + initialSkillsMarker.length);
+  if (start < 0) return -1;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let index = start; index < html.length; index += 1) {
+    const char = html[index];
+    if (inString) {
+      if (escape) {
+        escape = false;
+      } else if (char === "\\") {
+        escape = true;
+      } else if (char === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+    if (char === "\"") {
+      inString = true;
+      continue;
+    }
+    if (char === "[") depth += 1;
+    if (char === "]") {
+      depth -= 1;
+      if (depth === 0) return index + 1;
+    }
+  }
+  return -1;
+}
+
+function fetchSkillsShLeaderboardText(url) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let body = "";
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    const fail = (error) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    };
+    const request = https.get(url, { headers: compressedRequestHeaders() }, (response) => {
+      const stream = decodedResponseStream(response);
+      stream.setEncoding("utf8");
+      stream.on("data", (chunk) => {
+        body += chunk;
+        const end = initialSkillsEndIndex(body);
+        if (end > 0) {
+          finish(body.slice(0, end));
+          request.destroy();
+        }
+      });
+      stream.on("end", () => {
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          fail(new Error(`HTTP ${response.statusCode}: ${body.slice(0, 180)}`));
+          return;
+        }
+        finish(body);
+      });
+      stream.on("error", fail);
+    });
+    request.setTimeout(8000, () => {
+      request.destroy(new Error("Request timed out"));
+    });
+    request.on("error", (error) => {
+      if (!settled) reject(error);
+    });
   });
 }
 
@@ -1420,6 +1728,19 @@ async function fetchTextWithRetry(url, attempts = 2) {
     } catch (error) {
       lastError = error;
       if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, 350 * attempt));
+    }
+  }
+  throw lastError;
+}
+
+async function fetchSkillsShLeaderboardTextWithRetry(url, attempts = 1) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await fetchSkillsShLeaderboardText(url);
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, 250 * attempt));
     }
   }
   throw lastError;
@@ -1846,7 +2167,7 @@ async function loadSkillsShLeaderboard(url, mode, page = 0, query = "") {
       } catch {
         parsed = null;
       }
-      parsed = parsed || parseSkillsShLeaderboard(await fetchTextWithRetry(url, 2), mode, pageNumber);
+      parsed = parsed || parseSkillsShLeaderboard(await fetchSkillsShLeaderboardTextWithRetry(url, 1), mode, pageNumber);
     }
     if (!parsed.items.length) throw new Error("skills.sh 返回内容为空，暂时无法解析 Discover 列表。");
     const cached = {
@@ -1919,6 +2240,7 @@ function createWindow() {
   } else {
     win.loadFile(path.join(__dirname, "../dist/index.html"));
   }
+  return win;
 }
 
 ipcMain.handle("skills:scan", async () => {
@@ -2486,9 +2808,14 @@ ipcMain.handle("sources:save", async (_event, sources) => {
 ipcMain.handle("settings:get", async () => getSettings());
 
 ipcMain.handle("settings:save", async (_event, settings) => {
+  const before = getSettings();
   const saved = saveSettings(settings);
+  buildAppMenu();
+  if (before.language !== saved.language) notifyLanguageChanged(saved.language);
   return saved;
 });
+
+ipcMain.handle("settings:set-language", async (_event, language) => setLanguage(language));
 
 ipcMain.handle("app:info", async () => ({
   name: app.getName(),
@@ -2606,6 +2933,7 @@ app.whenReady().then(async () => {
   historyDir = path.join(app.getPath("userData"), "history");
   readStore();
   saveSettings(getSettings());
+  buildAppMenu();
   await migrateLegacyManagedDirectories();
   createWindow();
 });

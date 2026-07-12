@@ -152,7 +152,7 @@ const messages = {
     searchScope: "搜索范围",
     searchName: "名称",
     searchDescription: "描述",
-    searchTags: "标签/来源",
+    searchTags: "标签",
     searchPath: "路径",
     searchContent: "内容",
     customSearch: "可自定义",
@@ -179,8 +179,8 @@ const messages = {
     installConflict: "安装冲突确认",
     updateConflict: "更新冲突确认",
     recoverConflict: "恢复冲突确认",
-    star: "Star",
-    unstar: "取消 Star",
+    star: "收藏",
+    unstar: "取消收藏",
     repository: "仓库",
     openOn: "打开",
     localScanning: "本地 skills 扫描中",
@@ -201,7 +201,176 @@ const messages = {
     size: "大小",
     lines: "行数",
     currentCopy: "当前副本",
-    uninstallSource: "卸载来源"
+    uninstallSource: "卸载来源",
+    installStatus: "安装状态",
+    version: "版本",
+    weeklyActivity: "近 8 周活跃",
+    rank: "排名",
+    basicInfo: "基本信息",
+    installMethod: "安装方式",
+    summary: "摘要",
+    loadingSummary: "正在从 skills.sh 加载摘要...",
+    noSummary: "这个 skill 暂时没有提供摘要。",
+    skillContent: "SKILL 内容",
+    noSkillContent: "正在加载或暂无 SKILL.md 内容。",
+    discoverDescriptionFallback: "来自 {source} 的 {name}。安装后会出现在已安装中，可以继续查看 SKILL.md、目录结构和历史版本。",
+    updatedPrefix: "更新",
+    skillDirectory: "Skill 目录",
+    directoryName: "目录名",
+    fileNameMd: "文件名.md",
+    added: "新增",
+    removed: "删除",
+    changedLines: "行变化",
+    noContentDiff: "无内容差异",
+    noDirectoryDiff: "这个版本与当前目录没有内容差异。",
+    changedFiles: "变更文件",
+    binaryDiffOnly: "二进制或大文件，仅记录文件状态变化。",
+    current: "当前",
+    activeIn: "使用中",
+    switchVersion: "切换",
+    deleteSelected: "删除选中",
+    latest: "最新",
+    latestVersionTitle: "点击切换到最新版本 {version}",
+    notLatestVersionLabel: "不是最新版本，最新为 {version}",
+    selectSkillHint: "选择一个 skill 查看完整内容、目录结构、来源和标签。",
+    revealDirectoryTitle: "点击定位目录",
+    addFile: "+ 文件",
+    addDirectory: "+ 目录",
+    addFileTitle: "在当前目录新增文件",
+    addDirectoryTitle: "在当前目录新增目录",
+    editMode: "编辑模式",
+    readMode: "阅读模式",
+    copyRelativePath: "复制相对路径",
+    copyAbsolutePath: "复制绝对路径",
+    createFileHere: "在此新增文件",
+    createDirectoryHere: "在此新增目录",
+    rename: "重命名",
+    unsavedChangesPrompt: "当前文件有未保存修改，切换前请选择处理方式。",
+    saveAndSwitch: "保存并切换",
+    discardAndSwitch: "放弃修改",
+    continueEditing: "继续编辑",
+    noSyncTargets: "没有可同步的其它 Agent。",
+    submittedSync: "已提交同步到 {count} 个 Agent。",
+    unknown: "未知",
+    directoryLabel: "目录",
+    fileLabel: "文件",
+    addEntryNameRequired: "请输入要新增的{name}名称。",
+    renameRequired: "请输入新的名称。",
+    deleteItemsConfirm: "确认删除 {count} 个项目？",
+    deleteItemsConfirmNote: "删除后可在发布版本前的历史版本中找回，但当前工作目录会移除它。",
+    copiedPath: "已复制{type}路径：{path}",
+    absolutePath: "绝对",
+    relativePath: "相对",
+    copyFailed: "复制失败：{message}",
+    chooseVersionConfirm: "将 {client} 的 {skill} 选择为 {version}？\n当前目录会先自动保存为一个可回滚版本。",
+    deleteHistoryConfirm: "确认删除 {client} 选中的 {count} 个历史版本？\n当前正在使用的版本不会被删除。",
+    deleteHistoryGlobalConfirm: "确认删除 {count} 个历史版本？\n删除后不可恢复，当前正在使用的版本不会被删除。",
+    activeVersions: "个正在使用",
+    missingVersions: "个已不存在",
+    deletedVersionsSummary: "已删除 {deleted} 个版本，跳过 {skipped}的版本。",
+    saveBeforePublish: "请先保存或取消当前修改，再发布版本。",
+    noContentChangeForClient: "{client} 无内容改动，不能发布版本。",
+    noContentChange: "无内容改动",
+    noAgentChanges: "所有 Agent 都没有内容改动，不能发布版本。",
+    unsavedBeforeExitEdit: "当前文件有未保存修改，退出编辑前请选择处理方式。",
+    unsavedBeforeSwitch: "当前文件有未保存修改，切换前请选择处理方式。",
+    historyTitle: "{name} · 历史版本",
+    historyVersionCount: "{client} · {count} 个历史目录版本",
+    clearAll: "清除全部",
+    close: "关闭",
+    noHistory: "还没有历史版本。保存 skill 后会自动创建目录版本。",
+    currentVersion: "当前版本",
+    compareCurrentWith: "对比当前目录与 {version}",
+    historyVersion: "历史版本",
+    chooseThisVersion: "选择此版本",
+    selectHistoryHint: "选择一个历史版本查看更改。",
+    confirmPublishTitle: "{name} · 确认发布版本",
+    perAgentPublish: "每个 Agent 独立发布自己的版本",
+    publishForAgents: "为 {count} 个 Agent 发布版本",
+    publishingDots: "发布中...",
+    publishDiffNotice: "{client}发布前后差异。确认后会写入 SKILL.md version，并创建新的 skill 版本。",
+    generatingPublishDiff: "正在生成发布差异。",
+    notFound: "未发现",
+    githubTrending: "GitHub 趋势",
+    updatingNow: "更新中",
+    trendsUnavailable: "趋势暂不可用",
+    loadingAppVersion: "读取中",
+    jsonObjectRequired: "配置必须是 JSON object。",
+    syncFrom: "从 {source} 同步",
+    currentWriting: "当前",
+    incomingWriting: "待写入",
+    tagLabel: "标签：{tag}",
+    tagAndTitle: "必须同时包含所有已选标签",
+    tagOrTitle: "包含任意一个已选标签即可",
+    uninstallConfirm: "卸载 {name}？\n不会真正删除，会移动到 Uninstalled，之后可以恢复安装。",
+    submittedUninstall: "{name} 已提交后台卸载。",
+    submitFailed: "提交失败：{message}",
+    agentRecords: "{count} 个 Agent 记录",
+    clearUninstalledConfirm: "确认清空 {count} 条 Uninstalled 记录？\n删除后不可恢复，也不会影响当前已安装的 skill。",
+    clearUninstalledDone: "已清空 {count} 条 Uninstalled 记录。",
+    clearFailed: "清空失败：{message}",
+    versionUnknownNoCompare: "任一方版本未知，不会自动判断新旧。",
+    possibleDowngrade: "待写入版本低于当前版本，可能降级。",
+    directoryDiffAlertTitle: "目录差异：{client}",
+    modified: "修改",
+    noTextDiff: "没有发现文本文件差异。",
+    diffFailed: "差异查看失败：{message}",
+    submittedBackground: "{name} 已提交后台执行。",
+    deleteUninstalledConfirm: "确认删除 {count} 个 Uninstalled 记录？\n删除后不可恢复，也不会影响当前已安装的 skill。",
+    deletedUninstalledDone: "已删除 {count} 个 Uninstalled 记录。",
+    deleteFailed: "删除失败：{message}",
+    recoverMissing: "{name} 的 Uninstalled 目录已不存在，列表已刷新。",
+    recoverDone: "{name} 已恢复安装。",
+    recoverFailed: "恢复失败：{message}",
+    alreadyInstalled: "{name} 已经安装在目标 Agent。",
+    installDone: "{name} 已安装到本地。",
+    installFailed: "安装失败：{message}",
+    installOrUpdateDone: "{name} 已{action}到 {count} 个 Agent。",
+    installedToAgents: "{name} 已安装到 {count} 个 Agent。",
+    recoveredToAgents: "{name} 已安装到 {count} 个 Agent。",
+    uninstallSelectedConfirm: "卸载选中的 {count} 个安装副本？\n不会真正删除，会移动到 Uninstalled。",
+    uninstalledCopiesDone: "已卸载 {count} 个安装副本。",
+    uninstallFailed: "卸载失败：{message}",
+    settingsSaved: "设置已保存。",
+    settingsSaveFailed: "设置保存失败：{message}",
+    discoverCacheFallback: "skills.sh 暂时不可用，正在显示缓存{suffix}",
+    discoverLoadFailed: "Discover 加载失败：{message}",
+    statusQueued: "排队中",
+    statusRunning: "执行中",
+    statusSuccess: "成功",
+    statusFailed: "失败",
+    statusDone: "完成",
+    statusSkipped: "已跳过",
+    statusMissing: "已丢失",
+    typeInstall: "安装",
+    typeUninstall: "卸载",
+    typeRestore: "恢复",
+    typeRecover: "恢复",
+    typeUpdate: "更新",
+    typeSync: "同步",
+    typeSettings: "设置",
+    typePublish: "发布版本",
+    typeUnknown: "操作",
+    skillVersions: "Skill 版本",
+    eventCurrentStarting: "开始执行",
+    eventCurrentDone: "完成",
+    eventCurrentFailed: "失败",
+    logMovedUninstalled: "已移动到 Uninstalled。",
+    logRestoredInstall: "已恢复安装。",
+    logCopiedInstall: "已复制安装到指定 Agent。",
+    logInstalledTarget: "已安装到指定 Agent。",
+    logGitZipInstalled: "git 失败后，已通过 GitHub zip 安装到指定 Agent。",
+    logOriginalMissingSkipUninstall: "原目录不存在，已跳过卸载。",
+    logUninstalledMissingSkipRestore: "Uninstalled 目录不存在，已跳过恢复。",
+    logTargetExistsSkipped: "目标 Agent 已存在同名 skill，已按选择跳过。",
+    logTargetExists: "目标 Agent 已存在同名 skill。",
+    logTargetIsCurrent: "目标 Agent 已经是当前目录。",
+    logLocalMissingSkipInstall: "本地 skill 目录不存在，已跳过安装。",
+    logSwitchedVersion: "已切换到 {version}。",
+    logDeletedHistory: "已删除 {count} 个历史版本。",
+    logSkippedCurrentMissingVersions: "跳过 {count} 个当前使用或不存在的版本。",
+    logPublishedVersion: "已发布版本 {version}。",
+    logSyncedTo: "已同步到 {target}。"
   },
   en: {
     appSubtitle: "Local multi-client skill manager",
@@ -253,7 +422,7 @@ const messages = {
     cancelEdit: "Cancel edit",
     history: "History",
     clearRecords: "Clear records",
-    cancelSelection: "Cancel selection",
+    cancelSelection: "Deselect",
     refresh: "Refresh",
     clearLogs: "Clear logs",
     clearEvents: "Clear events",
@@ -308,7 +477,7 @@ const messages = {
     searchScope: "Search scope",
     searchName: "Name",
     searchDescription: "Description",
-    searchTags: "Tags/source",
+    searchTags: "Tags",
     searchPath: "Path",
     searchContent: "Content",
     customSearch: "customizable",
@@ -357,7 +526,176 @@ const messages = {
     size: "Size",
     lines: "Lines",
     currentCopy: "Current copy",
-    uninstallSource: "Uninstalled from"
+    uninstallSource: "Uninstalled from",
+    installStatus: "Install status",
+    version: "Version",
+    weeklyActivity: "8W Activity",
+    rank: "Rank",
+    basicInfo: "Basic info",
+    installMethod: "Install method",
+    summary: "Summary",
+    loadingSummary: "Loading Summary from skills.sh...",
+    noSummary: "This skill has not provided a Summary yet.",
+    skillContent: "SKILL content",
+    noSkillContent: "Loading or no SKILL.md content yet.",
+    discoverDescriptionFallback: "{name} from {source}. After installation, it appears in Installed, where you can inspect SKILL.md, the directory tree, and version history.",
+    updatedPrefix: "Updated",
+    skillDirectory: "Skill directory",
+    directoryName: "Directory name",
+    fileNameMd: "File name.md",
+    added: "added",
+    removed: "removed",
+    changedLines: "changed lines",
+    noContentDiff: "No content diff",
+    noDirectoryDiff: "This version has no content differences from the current directory.",
+    changedFiles: "Changed files",
+    binaryDiffOnly: "Binary or large file. Only file status changes are recorded.",
+    current: "Current",
+    activeIn: "Active in",
+    switchVersion: "Switch",
+    deleteSelected: "Delete selected",
+    latest: "Latest",
+    latestVersionTitle: "Switch to latest version {version}",
+    notLatestVersionLabel: "Not latest. Latest is {version}",
+    selectSkillHint: "Select a skill to inspect content, directory tree, source, and tags.",
+    revealDirectoryTitle: "Reveal directory",
+    addFile: "+ File",
+    addDirectory: "+ Directory",
+    addFileTitle: "Add file in current directory",
+    addDirectoryTitle: "Add directory in current directory",
+    editMode: "Edit mode",
+    readMode: "Read mode",
+    copyRelativePath: "Copy relative path",
+    copyAbsolutePath: "Copy absolute path",
+    createFileHere: "New file here",
+    createDirectoryHere: "New directory here",
+    rename: "Rename",
+    unsavedChangesPrompt: "This file has unsaved changes. Choose what to do before switching.",
+    saveAndSwitch: "Save and switch",
+    discardAndSwitch: "Discard changes",
+    continueEditing: "Keep editing",
+    noSyncTargets: "No other agents available to sync.",
+    submittedSync: "Submitted sync to {count} agents.",
+    unknown: "Unknown",
+    directoryLabel: "directory",
+    fileLabel: "file",
+    addEntryNameRequired: "Enter a {name} name.",
+    renameRequired: "Enter a new name.",
+    deleteItemsConfirm: "Delete {count} items?",
+    deleteItemsConfirmNote: "You can recover them from history before publishing, but they will be removed from the working directory.",
+    copiedPath: "Copied {type} path: {path}",
+    absolutePath: "absolute",
+    relativePath: "relative",
+    copyFailed: "Copy failed: {message}",
+    chooseVersionConfirm: "Switch {client}'s {skill} to {version}?\nThe current directory will be saved as a rollback version first.",
+    deleteHistoryConfirm: "Delete {count} selected history versions for {client}?\nThe currently active version will not be deleted.",
+    deleteHistoryGlobalConfirm: "Delete {count} history versions?\nThis cannot be undone. The currently active version will not be deleted.",
+    activeVersions: "active",
+    missingVersions: "missing",
+    deletedVersionsSummary: "Deleted {deleted} versions and skipped {skipped} versions.",
+    saveBeforePublish: "Save or cancel the current edit before publishing a version.",
+    noContentChangeForClient: "{client} has no content changes and cannot publish a version.",
+    noContentChange: "No content changes",
+    noAgentChanges: "No Agent has content changes, so a version cannot be published.",
+    unsavedBeforeExitEdit: "This file has unsaved changes. Choose what to do before leaving edit mode.",
+    unsavedBeforeSwitch: "This file has unsaved changes. Choose what to do before switching.",
+    historyTitle: "{name} · History",
+    historyVersionCount: "{client} · {count} directory versions",
+    clearAll: "Clear all",
+    close: "Close",
+    noHistory: "No history yet. Saving a skill will create directory versions automatically.",
+    currentVersion: "Current version",
+    compareCurrentWith: "Compare current directory with {version}",
+    historyVersion: "history version",
+    chooseThisVersion: "Choose this version",
+    selectHistoryHint: "Select a history version to view changes.",
+    confirmPublishTitle: "{name} · Confirm publish",
+    perAgentPublish: "each Agent publishes its own version",
+    publishForAgents: "Publish version for {count} Agents",
+    publishingDots: "Publishing...",
+    publishDiffNotice: "{client} diff before publish. Confirming writes SKILL.md version and creates a new skill version.",
+    generatingPublishDiff: "Generating publish diff.",
+    notFound: "Not found",
+    githubTrending: "GitHub trending",
+    updatingNow: "Updating",
+    trendsUnavailable: "Trends unavailable",
+    loadingAppVersion: "Loading",
+    jsonObjectRequired: "Settings must be a JSON object.",
+    syncFrom: "Sync from {source}",
+    currentWriting: "Current",
+    incomingWriting: "Incoming",
+    tagLabel: "Tag: {tag}",
+    tagAndTitle: "Must include all selected tags",
+    tagOrTitle: "Can include any selected tag",
+    uninstallConfirm: "Uninstall {name}?\nIt will be moved to Uninstalled instead of permanently deleted, so you can recover it later.",
+    submittedUninstall: "{name} has been submitted for background uninstall.",
+    submitFailed: "Submit failed: {message}",
+    agentRecords: "{count} Agent records",
+    clearUninstalledConfirm: "Clear {count} Uninstalled records?\nThis cannot be undone and will not affect currently installed skills.",
+    clearUninstalledDone: "Cleared {count} Uninstalled records.",
+    clearFailed: "Clear failed: {message}",
+    versionUnknownNoCompare: "At least one version is unknown, so recency will not be inferred automatically.",
+    possibleDowngrade: "The incoming version is lower than the current version and may be a downgrade.",
+    directoryDiffAlertTitle: "Directory diff: {client}",
+    modified: "modified",
+    noTextDiff: "No text file differences found.",
+    diffFailed: "Diff failed: {message}",
+    submittedBackground: "{name} has been submitted for background processing.",
+    deleteUninstalledConfirm: "Delete {count} Uninstalled records?\nThis cannot be undone and will not affect currently installed skills.",
+    deletedUninstalledDone: "Deleted {count} Uninstalled records.",
+    deleteFailed: "Delete failed: {message}",
+    recoverMissing: "{name}'s Uninstalled directory no longer exists. The list has been refreshed.",
+    recoverDone: "{name} has been recovered.",
+    recoverFailed: "Recover failed: {message}",
+    alreadyInstalled: "{name} is already installed in the target Agent.",
+    installDone: "{name} has been installed locally.",
+    installFailed: "Install failed: {message}",
+    installOrUpdateDone: "{name} has been {action} to {count} Agents.",
+    installedToAgents: "{name} has been installed to {count} Agents.",
+    recoveredToAgents: "{name} has been installed to {count} Agents.",
+    uninstallSelectedConfirm: "Uninstall {count} selected installed copies?\nThey will be moved to Uninstalled instead of permanently deleted.",
+    uninstalledCopiesDone: "Uninstalled {count} installed copies.",
+    uninstallFailed: "Uninstall failed: {message}",
+    settingsSaved: "Settings saved.",
+    settingsSaveFailed: "Settings save failed: {message}",
+    discoverCacheFallback: "skills.sh is temporarily unavailable. Showing cache{suffix}",
+    discoverLoadFailed: "Discover failed to load: {message}",
+    statusQueued: "Queued",
+    statusRunning: "Running",
+    statusSuccess: "Success",
+    statusFailed: "Failed",
+    statusDone: "Done",
+    statusSkipped: "Skipped",
+    statusMissing: "Missing",
+    typeInstall: "Install",
+    typeUninstall: "Uninstall",
+    typeRestore: "Restore",
+    typeRecover: "Recover",
+    typeUpdate: "Update",
+    typeSync: "Sync",
+    typeSettings: "Settings",
+    typePublish: "Publish version",
+    typeUnknown: "Operation",
+    skillVersions: "Skill versions",
+    eventCurrentStarting: "Starting",
+    eventCurrentDone: "Done",
+    eventCurrentFailed: "Failed",
+    logMovedUninstalled: "Moved to Uninstalled.",
+    logRestoredInstall: "Recovered installation.",
+    logCopiedInstall: "Copied and installed to the selected Agent.",
+    logInstalledTarget: "Installed to the selected Agent.",
+    logGitZipInstalled: "git failed, then GitHub zip fallback installed to the selected Agent.",
+    logOriginalMissingSkipUninstall: "Original directory was missing, so uninstall was skipped.",
+    logUninstalledMissingSkipRestore: "Uninstalled directory was missing, so recovery was skipped.",
+    logTargetExistsSkipped: "The target Agent already has a skill with the same name, so it was skipped.",
+    logTargetExists: "The target Agent already has a skill with the same name.",
+    logTargetIsCurrent: "The target Agent is already the current directory.",
+    logLocalMissingSkipInstall: "Local skill directory was missing, so install was skipped.",
+    logSwitchedVersion: "Switched to {version}.",
+    logDeletedHistory: "Deleted {count} history versions.",
+    logSkippedCurrentMissingVersions: "Skipped {count} active or missing versions.",
+    logPublishedVersion: "Published version {version}.",
+    logSyncedTo: "Synced to {target}."
   }
 };
 
@@ -958,6 +1296,8 @@ function useGithubTrends(source, searchQuery = "") {
   const cacheRef = useRef(new Map());
   const pageCacheRef = useRef(new Map());
   const prefetchRef = useRef(new Map());
+  const prefetchTimersRef = useRef(new Map());
+  const requestSeqRef = useRef(0);
   const discoverModes = ["alltime", "trending", "hot"];
 
   function queryKey(query = searchQuery) {
@@ -1019,46 +1359,75 @@ function useGithubTrends(source, searchQuery = "") {
     }));
   }
 
-  function prefetchDiscoverModes(activeSource = source, query = searchQuery) {
-    const sources = [activeSource, ...discoverModes.filter((mode) => mode !== activeSource)];
-    sources.forEach((targetSource) => {
-      Promise.all([0, 1, 2].map((page) => {
-        const key = pageCacheKey(targetSource, page, query);
-        if (pageCacheRef.current.has(key) || prefetchRef.current.has(key)) return Promise.resolve(null);
-        return fetchDiscoverPage(page, { prefetch: true, targetSource, query }).catch(() => null);
-      })).catch(() => {});
+  function scheduleModePrefetch(fromPage, hasMore = true, targetSource = source, query = searchQuery) {
+    if (!hasMore) return;
+    const timerKey = `${targetSource}:${queryKey(query)}`;
+    const existing = prefetchTimersRef.current.get(timerKey);
+    if (existing) window.clearTimeout(existing);
+    const timer = window.setTimeout(() => {
+      prefetchTimersRef.current.delete(timerKey);
+      prefetchNextPages(fromPage, hasMore, targetSource, query)?.catch(() => {});
+    }, 260);
+    prefetchTimersRef.current.set(timerKey, timer);
+  }
+
+  function applyActiveDiscoverResult(result, cacheKey) {
+    if (Array.isArray(result)) {
+      setItems(result);
+      setMeta({});
+      cacheRef.current.set(cacheKey, { items: result, meta: {} });
+      return {};
+    }
+    const cached = cacheRef.current.get(cacheKey);
+    const nextItems = cached?.items?.length ? cached.items : result.items;
+    const resultMeta = metaWithoutItems(result);
+    const nextMeta = Number(cached?.meta?.page || 0) > Number(resultMeta.page || 0)
+      ? { ...resultMeta, ...cached.meta }
+      : resultMeta;
+    setItems((current) => nextItems?.length ? nextItems : current);
+    setMeta(nextMeta);
+    if (result.stale && result.error) setError(result.error);
+    return nextMeta;
+  }
+
+  function warmDiscoverFirstPages(activeSource = source, query = searchQuery, requestId = requestSeqRef.current) {
+    const activeCacheKey = `${activeSource}:${queryKey(query)}`;
+    let activeRequest = Promise.resolve(null);
+    discoverModes.forEach((targetSource) => {
+      const request = fetchDiscoverPage(0, { prefetch: targetSource !== activeSource, targetSource, query })
+        .then((result) => {
+          if (!Array.isArray(result)) {
+            const resultMeta = metaWithoutItems(result);
+            scheduleModePrefetch(resultMeta.page || result.page || 0, resultMeta.hasMore ?? result.hasMore, targetSource, query);
+          }
+          if (targetSource === activeSource && requestId === requestSeqRef.current) {
+            return applyActiveDiscoverResult(result, activeCacheKey);
+          }
+          return null;
+        });
+      if (targetSource === activeSource) {
+        activeRequest = request;
+      } else {
+        request.catch(() => null);
+      }
     });
+    return activeRequest;
   }
 
   async function refresh() {
+    const requestId = requestSeqRef.current + 1;
+    requestSeqRef.current = requestId;
     setLoading(true);
     setError("");
     const cacheKey = `${source}:${queryKey()}`;
     setItems(cacheRef.current.get(cacheKey)?.items || []);
     setMeta(cacheRef.current.get(cacheKey)?.meta || {});
     try {
-      const result = await fetchDiscoverPage(0, { targetSource: source, query: searchQuery });
-      if (Array.isArray(result)) {
-        setItems(result);
-        setMeta({});
-        cacheRef.current.set(cacheKey, { items: result, meta: {} });
-      } else {
-        const cached = cacheRef.current.get(cacheKey);
-        const nextItems = cached?.items?.length ? cached.items : result.items;
-        const resultMeta = metaWithoutItems(result);
-        const nextMeta = Number(cached?.meta?.page || 0) > Number(resultMeta.page || 0)
-          ? { ...resultMeta, ...cached.meta }
-          : resultMeta;
-        setItems((current) => nextItems?.length ? nextItems : current);
-        setMeta(nextMeta);
-        if (result.stale && result.error) setError(result.error);
-        prefetchNextPages(nextMeta.page || result.page || 0, nextMeta.hasMore ?? result.hasMore, source, searchQuery);
-        prefetchDiscoverModes(source, searchQuery);
-      }
+      await warmDiscoverFirstPages(source, searchQuery, requestId);
     } catch (err) {
-      setError(err.message || String(err));
+      if (requestId === requestSeqRef.current) setError(err.message || String(err));
     } finally {
-      setLoading(false);
+      if (requestId === requestSeqRef.current) setLoading(false);
     }
   }
 
@@ -1078,14 +1447,13 @@ function useGithubTrends(source, searchQuery = "") {
         setItems((current) => {
           const merged = mergeDiscoverItems(current, result.items || []);
           const nextMeta = metaWithoutItems(result);
-          cacheRef.current.set(source, { items: merged, meta: nextMeta });
+          cacheRef.current.set(`${source}:${queryKey()}`, { items: merged, meta: nextMeta });
           return merged;
         });
         const nextMeta = metaWithoutItems(result);
         setMeta((current) => ({ ...current, ...nextMeta }));
         if (result.stale && result.error) setError(result.error);
-        prefetchNextPages(result.page || nextPage, result.hasMore, source, searchQuery);
-        prefetchDiscoverModes(source, searchQuery);
+        scheduleModePrefetch(result.page || nextPage, result.hasMore, source, searchQuery);
       }
     } catch (err) {
       setMeta((current) => ({ ...current, hasMore: false }));
@@ -1100,7 +1468,10 @@ function useGithubTrends(source, searchQuery = "") {
   }, [source, searchQuery]);
 
   useEffect(() => {
-    prefetchDiscoverModes(source, searchQuery);
+    return () => {
+      prefetchTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+      prefetchTimersRef.current.clear();
+    };
   }, []);
 
   return { items, meta, error, loading, loadingMore, refresh, loadMore };
@@ -1117,6 +1488,7 @@ function Metric({ icon: Icon, label, value }) {
 }
 
 function SourcePill({ source, diagnostic }) {
+  const { t } = useI18n();
   const active = diagnostic?.status === "ok";
   return (
     <div className={`source-pill ${active ? "active" : "muted"}`}>
@@ -1124,7 +1496,7 @@ function SourcePill({ source, diagnostic }) {
         <strong>{source.client}</strong>
         <span>{source.label}</span>
       </div>
-      <em>{active ? diagnostic.count : "未发现"}</em>
+      <em>{active ? diagnostic.count : t("notFound")}</em>
     </div>
   );
 }
@@ -1185,7 +1557,8 @@ function SkillManagerLogo() {
 }
 
 function SkillRow({ skill, index = 0, tone = "installed", selected, onSelect, actionLabel, onAction, busy, starred, onStar, sourceLabel, selectable = false, checked = false, onToggleSelect }) {
-  const actionClass = actionLabel === "Uninstall" || actionLabel === "卸载" ? "action-uninstall" : "action-install";
+  const { t } = useI18n();
+  const actionClass = actionLabel === t("uninstall") ? "action-uninstall" : "action-install";
   const copies = skill.installations || [skill];
   const copyAgents = [...new Set(copies.map((copy) => (
     skill.sourceId === "uninstalled"
@@ -1228,14 +1601,14 @@ function SkillRow({ skill, index = 0, tone = "installed", selected, onSelect, ac
             {sourceLabel ? <span className="source-badge">{sourceLabel}</span> : null}
           </div>
           <div className="row-source">{skill.merged ? compactAgentSummary(copyAgents) : copyAgents[0]}</div>
-          <p>{skill.description || "暂无描述"}</p>
+          <p>{skill.description || t("noDescription")}</p>
         </div>
       </div>
       <div className="row-meta">
-        <span>更新 {formatDate(skill.updatedAt)}</span>
+        <span>{t("updatedPrefix")} {formatDate(skill.updatedAt)}</span>
         {actionLabel && onAction ? (
           <button className={actionClass} disabled={busy} onClick={(event) => { event.stopPropagation(); onAction(skill); }}>
-            {busy ? "处理中" : actionLabel}
+            {busy ? t("processing") : actionLabel}
           </button>
         ) : null}
       </div>
@@ -1279,28 +1652,44 @@ function DiscoverRow({ item, index, selected, onSelect, onInstall, onUninstall, 
   );
 }
 
-const loadingSayings = [
-  "好 skill 值得多等半拍。",
-  "正在翻目录，顺手把灰尘也吹掉。",
-  "把散落在各个 Agent 里的 skill 排好队。",
-  "本地知识正在集合，马上到齐。",
-  "扫描中：只认一级目录里的 SKILL.md。",
-  "给每个 skill 找到它真正住的地方。",
-  "慢一点点，是为了少一点点误判。",
-  "正在从 skills.sh 捞出新鲜线索。",
-  "让目录树先跑一会儿。",
-  "把版本、标签和来源捋顺中。"
-];
+const loadingSayings = {
+  zh: [
+    "好 skill 值得多等半拍。",
+    "正在翻目录，顺手把灰尘也吹掉。",
+    "把散落在各个 Agent 里的 skill 排好队。",
+    "本地知识正在集合，马上到齐。",
+    "扫描中：只认一级目录里的 SKILL.md。",
+    "给每个 skill 找到它真正住的地方。",
+    "慢一点点，是为了少一点点误判。",
+    "正在从 skills.sh 捞出新鲜线索。",
+    "让目录树先跑一会儿。",
+    "把版本、标签和来源捋顺中。"
+  ],
+  en: [
+    "A good skill is worth a tiny pause.",
+    "Reading directories and keeping the dust out.",
+    "Lining up skills across every Agent.",
+    "Local knowledge is gathering itself.",
+    "Scanning only first-level folders with SKILL.md.",
+    "Finding where each skill actually lives.",
+    "A little patience buys fewer false positives.",
+    "Pulling fresh signals from skills.sh.",
+    "Letting the directory tree warm up.",
+    "Sorting versions, tags, and sources."
+  ]
+};
 
-function randomLoadingSaying(seed = "") {
+function randomLoadingSaying(seed = "", lang = "zh") {
+  const sayings = loadingSayings[lang] || loadingSayings.zh;
   let hash = 0;
   for (const char of seed) hash = ((hash << 5) - hash + char.charCodeAt(0)) | 0;
-  const randomPart = Math.floor(Math.random() * loadingSayings.length);
-  return loadingSayings[Math.abs(hash + randomPart) % loadingSayings.length];
+  const randomPart = Math.floor(Math.random() * sayings.length);
+  return sayings[Math.abs(hash + randomPart) % sayings.length];
 }
 
 function LoadingMoment({ title, seed = "", compact = false }) {
-  const saying = useMemo(() => randomLoadingSaying(seed), [seed]);
+  const { lang } = useI18n();
+  const saying = useMemo(() => randomLoadingSaying(seed, lang), [seed, lang]);
   return (
     <div className={`loading-moment ${compact ? "compact" : ""}`}>
       <div className="loading-orbit" aria-hidden="true">
@@ -1418,12 +1807,12 @@ function DiscoverDetail({ item, onInstall, onUninstall, busy, starred, onStar, i
       <MetaStrip
         className="discover-meta"
         items={[
-          { label: "安装状态", value: installedAgents.length ? installedAgents.join(", ") : "未安装" },
-          { label: "版本", value: version ? `v${version}` : "" },
-          { label: "来源", value: sourceName },
-          { label: item.installsLabel ? "Installs" : "Stars", value: item.installsLabel || formatNumber(item.stars) },
-          { label: "8W Activity", value: item.weeklyLabel || "-" },
-          { label: "Rank", value: item.rank ? `#${item.rank}` : "-" }
+          { label: t("installStatus"), value: installedAgents.length ? installedAgents.join(", ") : t("notInstalled") },
+          { label: t("version"), value: version ? `v${version}` : "" },
+          { label: t("source"), value: sourceName },
+          { label: item.installsLabel ? t("totalInstalls") : t("starred"), value: item.installsLabel || formatNumber(item.stars) },
+          { label: t("weeklyActivity"), value: item.weeklyLabel || "-" },
+          { label: t("rank"), value: item.rank ? `#${item.rank}` : "-" }
         ]}
       />
       <div className="detail-tags">
@@ -1433,22 +1822,22 @@ function DiscoverDetail({ item, onInstall, onUninstall, busy, starred, onStar, i
       </div>
       <section className="discover-info-panel">
         <div>
-          <h3>基本信息</h3>
-          <p>{item.description || `来自 ${item.sourceLabel || "GitHub"} 的 ${item.name}。安装后会出现在 Installed 中，可以继续查看 SKILL.md、目录结构和历史版本。`}</p>
+          <h3>{t("basicInfo")}</h3>
+          <p>{item.description || t("discoverDescriptionFallback").replace("{source}", item.sourceLabel || "GitHub").replace("{name}", item.name)}</p>
         </div>
         <div>
-          <h3>安装方式</h3>
+          <h3>{t("installMethod")}</h3>
           <div className="code-block">
             <pre>{installCommand}</pre>
           </div>
         </div>
         <div>
-          <h3>Summary</h3>
+          <h3>{t("summary")}</h3>
           {detailLoading ? (
-            <p>正在从 skills.sh 加载 Summary...</p>
+            <p>{t("loadingSummary")}</p>
           ) : (
             <div className="summary-box">
-              {summaryLead ? <p><strong>{summaryLead}</strong></p> : <p>这个 skill 暂时没有提供 Summary。</p>}
+              {summaryLead ? <p><strong>{summaryLead}</strong></p> : <p>{t("noSummary")}</p>}
               {summaryItems.length ? (
                 <ul>
                   {summaryItems.map((summaryItem, index) => <li key={index}>{summaryItem}</li>)}
@@ -1458,9 +1847,9 @@ function DiscoverDetail({ item, onInstall, onUninstall, busy, starred, onStar, i
           )}
         </div>
         <div>
-          <h3>SKILL 内容</h3>
+          <h3>{t("skillContent")}</h3>
           <div className="skill-md-preview">
-            <pre>{detail?.skillMdText || detail?.skillMdLead || "正在加载或暂无 SKILL.md 内容。"}</pre>
+            <pre>{detail?.skillMdText || detail?.skillMdLead || t("noSkillContent")}</pre>
           </div>
         </div>
       </section>
@@ -1469,14 +1858,15 @@ function DiscoverDetail({ item, onInstall, onUninstall, busy, starred, onStar, i
 }
 
 function GithubTrendPanel({ trends }) {
+  const { t } = useI18n();
   return (
     <div className="github-trends">
       <div className="section-label">
         <Github size={15} />
-        GitHub 趋势
-        {trends.loading ? <em>更新中</em> : null}
+        {t("githubTrending")}
+        {trends.loading ? <em>{t("updatingNow")}</em> : null}
       </div>
-      {trends.error ? <p className="trend-error">趋势暂不可用</p> : null}
+      {trends.error ? <p className="trend-error">{t("trendsUnavailable")}</p> : null}
       <div className="github-list">
         {trends.items.slice(0, 7).map((repo, index) => (
           <button key={repo.id} className="github-item" onClick={() => window.skillStudio.open(repo.url)}>
@@ -1553,6 +1943,7 @@ function buildDiffTree(files = []) {
 }
 
 function TreeDraftInput({ draft, onChange, onSubmit, onCancel }) {
+  const { t } = useI18n();
   return (
     <form
       className="tree-draft-input"
@@ -1565,7 +1956,7 @@ function TreeDraftInput({ draft, onChange, onSubmit, onCancel }) {
       <input
         autoFocus
         value={draft.name}
-        placeholder={draft.type === "directory" ? "目录名" : "文件名.md"}
+        placeholder={draft.type === "directory" ? t("directoryName") : t("fileNameMd")}
         onChange={(event) => onChange?.(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Escape") onCancel?.();
@@ -1634,6 +2025,7 @@ function TreeNode({ node, activePath, selectedDirPath, selectedPaths, onNodeClic
 }
 
 function DirectoryTree({ skill, activePath, selectedDirPath, selectedPaths, onNodeClick, onOpenFile, onSelectDirectory, onContextMenu, draft, onDraftChange, onDraftSubmit, onDraftCancel }) {
+  const { t } = useI18n();
   const items = skill.directoryTree || [];
   const total = skill.directoryCount ?? countTree(items);
   const rootCreateDraft = draft?.mode === "create" && draft.baseDir === skill.dir;
@@ -1649,7 +2041,7 @@ function DirectoryTree({ skill, activePath, selectedDirPath, selectedPaths, onNo
       <div className="reader-label">
         <span>
           <ListTree size={15} />
-          Skill 目录
+          {t("skillDirectory")}
         </span>
         <em>{total}</em>
       </div>
@@ -1771,6 +2163,7 @@ function SkillReader({ file }) {
 }
 
 function DiffViewer({ detail }) {
+  const { t } = useI18n();
   const rows = useMemo(() => buildLineDiff(detail.content, detail.current), [detail]);
   const added = rows.filter((row) => row.type === "added").length;
   const removed = rows.filter((row) => row.type === "removed").length;
@@ -1779,9 +2172,9 @@ function DiffViewer({ detail }) {
   return (
     <>
       <div className="diff-summary">
-        <span className="added">+{added} 新增</span>
-        <span className="removed">-{removed} 删除</span>
-        <span>{changed ? `${changed} 行变化` : "无内容差异"}</span>
+        <span className="added">+{added} {t("added")}</span>
+        <span className="removed">-{removed} {t("removed")}</span>
+        <span>{changed ? `${changed} ${t("changedLines")}` : t("noContentDiff")}</span>
       </div>
       <div className="diff-list">
         {rows.map((row, index) => (
@@ -1796,6 +2189,7 @@ function DiffViewer({ detail }) {
 }
 
 function DirectoryDiffViewer({ detail }) {
+  const { t } = useI18n();
   const files = detail?.files || [];
   const [selectedPath, setSelectedPath] = useState("");
   const [treeWidth, setTreeWidth] = useState(210);
@@ -1804,12 +2198,12 @@ function DirectoryDiffViewer({ detail }) {
   }, [detail?.version?.id, files[0]?.path]);
   const tree = useMemo(() => buildDiffTree(files), [files]);
   const selectedFile = files.find((file) => file.path === selectedPath) || files[0];
-  if (!files.length) return <div className="diff-empty">这个版本与当前目录没有内容差异。</div>;
+  if (!files.length) return <div className="diff-empty">{t("noDirectoryDiff")}</div>;
   return (
     <div className="directory-diff-view" style={{ "--diff-tree-width": `${treeWidth}px` }}>
       <aside className="diff-file-tree">
         <div className="diff-file-tree-head">
-          <span>变更文件</span>
+          <span>{t("changedFiles")}</span>
           <em>{files.length}</em>
         </div>
         <div className="diff-file-tree-list">
@@ -1841,7 +2235,7 @@ function DirectoryDiffViewer({ detail }) {
           <span>{selectedFile.type}</span>
         </div>
         {selectedFile.binary ? (
-          <div className="diff-empty">二进制或大文件，仅记录文件状态变化。</div>
+          <div className="diff-empty">{t("binaryDiffOnly")}</div>
         ) : (
           <DiffViewer detail={{ content: selectedFile.content, current: selectedFile.current }} />
         )}
@@ -1851,6 +2245,7 @@ function DirectoryDiffViewer({ detail }) {
 }
 
 function SkillVersionPicker({ copy, onActivate, onDelete, busy, showAllVersions = true }) {
+  const { t } = useI18n();
   const allVersions = copy?.versionInfo?.versions || [];
   const currentVersion = skillVersion(copy);
   const currentLabel = copy?.versionInfo?.currentLabel || (currentVersion ? `v${currentVersion}` : skillVersionLabel(copy) || copy?.versionInfo?.activeLabel || "");
@@ -1875,7 +2270,7 @@ function SkillVersionPicker({ copy, onActivate, onDelete, busy, showAllVersions 
   const selectedVersionEntry = versions.find((version) => (
     version.id === selectedId || (version.duplicateIds || []).includes(selectedId)
   ));
-  const selectedVersionLabel = selectedVersionEntry?.label || currentLabel || "当前版本";
+  const selectedVersionLabel = selectedVersionEntry?.label || currentLabel || t("currentVersion");
   const compactSelectedVersionLabel = compactVersionLabel(selectedVersionLabel);
   useEffect(() => {
     setSelectedVersionIds((current) => current.filter((id) => deletableVersions.some((version) => version.id === id)));
@@ -1918,7 +2313,7 @@ function SkillVersionPicker({ copy, onActivate, onDelete, busy, showAllVersions 
     const fullLabel = displayVersionLabel(currentLabel);
     return (
       <div ref={pickerRef} className="version-picker readonly unmanaged-version-picker">
-        <button className="version-dropdown-trigger compact-version-trigger" type="button" aria-label={`版本 ${fullLabel}`}>
+        <button className="version-dropdown-trigger compact-version-trigger" type="button" aria-label={`${t("version")} ${fullLabel}`}>
           <strong>{compactVersionLabel(currentLabel)}</strong>
         </button>
         <div className="unmanaged-version-popover" role="tooltip">
@@ -1932,7 +2327,7 @@ function SkillVersionPicker({ copy, onActivate, onDelete, busy, showAllVersions 
     const fullLabel = displayVersionLabel(currentLabel);
     return (
       <div ref={pickerRef} className="version-picker readonly">
-        <button className="version-dropdown-trigger compact-version-trigger" type="button" aria-label={`版本 ${fullLabel}`}>
+        <button className="version-dropdown-trigger compact-version-trigger" type="button" aria-label={`${t("version")} ${fullLabel}`}>
           <strong>{compactVersionLabel(currentLabel)}</strong>
         </button>
       </div>
@@ -1940,7 +2335,7 @@ function SkillVersionPicker({ copy, onActivate, onDelete, busy, showAllVersions 
   }
   return (
     <div ref={pickerRef} className={`version-picker ${stale ? "stale" : ""}`}>
-      <button className="version-dropdown-trigger compact-version-trigger" onClick={() => setVersionMenuOpen((open) => !open)} disabled={busy} aria-label={stale ? `不是最新版本，最新为 ${latestVersion?.label || latestVersion?.id}` : selectedVersionLabel}>
+      <button className="version-dropdown-trigger compact-version-trigger" onClick={() => setVersionMenuOpen((open) => !open)} disabled={busy} aria-label={stale ? t("notLatestVersionLabel").replace("{version}", latestVersion?.label || latestVersion?.id) : selectedVersionLabel}>
         <strong>{compactSelectedVersionLabel}</strong>
       </button>
       {versionMenuOpen ? (
@@ -1960,7 +2355,7 @@ function SkillVersionPicker({ copy, onActivate, onDelete, busy, showAllVersions 
                       onChange={() => toggleVersionDelete(version.id)}
                     />
                     <strong title={version.label || version.id}>{displayVersionLabel(version.label || version.id)}</strong>
-                    <small>{active ? "当前" : version.active ? `使用中: ${(version.activeClients || []).join(", ")}` : formatDate(version.createdAt)}</small>
+                    <small>{active ? t("current") : version.active ? `${t("activeIn")}: ${(version.activeClients || []).join(", ")}` : formatDate(version.createdAt)}</small>
                   </label>
                   <button
                     disabled={busy || active}
@@ -1969,17 +2364,17 @@ function SkillVersionPicker({ copy, onActivate, onDelete, busy, showAllVersions 
                       onActivate(version);
                     }}
                   >
-                    {active ? "当前" : "切换"}
+                    {active ? t("current") : t("switchVersion")}
                   </button>
                 </div>
               );
             })}
           </div>
           <div className="version-dropdown-actions">
-            <button onClick={() => setSelectedVersionIds(deletableVersions.map((version) => version.id))} disabled={busy || !deletableVersions.length}>全选</button>
-            <button onClick={() => setSelectedVersionIds([])} disabled={busy || !selectedVersionIds.length}>清空</button>
+            <button onClick={() => setSelectedVersionIds(deletableVersions.map((version) => version.id))} disabled={busy || !deletableVersions.length}>{t("selectAll")}</button>
+            <button onClick={() => setSelectedVersionIds([])} disabled={busy || !selectedVersionIds.length}>{t("clear")}</button>
             <button className="danger" onClick={deleteSelectedVersions} disabled={busy || !selectedVersionIds.length}>
-              删除选中 {selectedVersionIds.length ? `(${selectedVersionIds.length})` : ""}
+              {t("deleteSelected")} {selectedVersionIds.length ? `(${selectedVersionIds.length})` : ""}
             </button>
           </div>
         </div>
@@ -1989,9 +2384,9 @@ function SkillVersionPicker({ copy, onActivate, onDelete, busy, showAllVersions 
           className="version-stale-badge"
           onClick={() => onActivate(latestVersion)}
           disabled={busy}
-          title={`点击切换到最新版本 ${latestVersion.label || latestVersion.id}`}
+          title={t("latestVersionTitle").replace("{version}", latestVersion.label || latestVersion.id)}
         >
-          最新
+          {t("latest")}
         </button>
       ) : null}
     </div>
@@ -2631,11 +3026,11 @@ function Detail({
 
   async function createDirectoryEntry(type, baseDir, name) {
     if (!activeCopy?.dir) return;
-    const label = type === "directory" ? "目录" : "文件";
+    const label = type === "directory" ? t("directoryLabel") : t("fileLabel");
     const targetBaseDir = baseDir || selectedDirPath || (activeFile?.path ? parentPath(activeFile.path) : activeCopy.dir);
     const entryName = String(name || "").trim();
     if (!entryName) {
-      setFileError(`请输入要新增的${label}名称。`);
+      setFileError(t("addEntryNameRequired").replace("{name}", label));
       return;
     }
     setSaving(true);
@@ -2695,7 +3090,7 @@ function Detail({
     if (!activeCopy?.dir) return;
     const entryName = String(name || "").trim();
     if (!entryName) {
-      setFileError("请输入新的名称。");
+      setFileError(t("renameRequired"));
       return;
     }
     setSaving(true);
@@ -2747,7 +3142,7 @@ function Detail({
     ));
     if (!targets.length) return;
     const preview = targets.slice(0, 8).map((item) => `- ${shortPath(item.path)}`).join("\n");
-    const confirmed = window.confirm(`确认删除 ${targets.length} 个项目？\n${preview}${targets.length > 8 ? "\n..." : ""}\n\n删除后可在发布版本前的历史版本中找回，但当前工作目录会移除它。`);
+    const confirmed = window.confirm(`${t("deleteItemsConfirm").replace("{count}", targets.length)}\n${preview}${targets.length > 8 ? "\n..." : ""}\n\n${t("deleteItemsConfirmNote")}`);
     if (!confirmed) return;
     setTreeMenu(null);
     setSaving(true);
@@ -2810,11 +3205,11 @@ function Detail({
     const value = absolute ? node.path : (node.relPath || copyRelativePath(activeCopy, node.path));
     try {
       await window.skillStudio.copyText?.(value);
-      setFileNotice(`已复制${absolute ? "绝对" : "相对"}路径：${value}`);
+      setFileNotice(t("copiedPath").replace("{type}", absolute ? t("absolutePath") : t("relativePath")).replace("{path}", value));
       window.setTimeout(() => setFileNotice(""), 1400);
       setTreeMenu(null);
     } catch (err) {
-      setFileError(`复制失败：${err.message || String(err)}`);
+      setFileError(t("copyFailed").replace("{message}", err.message || String(err)));
     }
   }
 
@@ -2875,7 +3270,10 @@ function Detail({
 
   async function activateSkillPackageVersion(version, copy = activeCopy) {
     if (!copy || !version) return;
-    const confirmed = window.confirm(`将 ${copy.client} 的 ${skill.name} 选择为 ${version.label || version.id}？\n当前目录会先自动保存为一个可回滚版本。`);
+    const confirmed = window.confirm(t("chooseVersionConfirm")
+      .replace("{client}", copy.client)
+      .replace("{skill}", skill.name)
+      .replace("{version}", version.label || version.id));
     if (!confirmed) return;
     setVersionSwitching(true);
     setFileError("");
@@ -2910,7 +3308,9 @@ function Detail({
 
   async function deleteSkillPackageVersions(versionIds, afterDelete, copy = activeCopy, skipConfirm = false) {
     if (!copy || !versionIds?.length) return;
-    const confirmed = skipConfirm || window.confirm(`确认删除 ${copy.client} 选中的 ${versionIds.length} 个历史版本？\n当前正在使用的版本不会被删除。`);
+    const confirmed = skipConfirm || window.confirm(t("deleteHistoryConfirm")
+      .replace("{client}", copy.client)
+      .replace("{count}", versionIds.length));
     if (!confirmed) return;
     setVersionSwitching(true);
     setFileError("");
@@ -2945,9 +3345,9 @@ function Detail({
         const activeCount = result.skipped.filter((item) => item.reason === "active").length;
         const missingCount = result.skipped.filter((item) => item.reason === "missing").length;
         const parts = [];
-        if (activeCount) parts.push(`${activeCount} 个正在使用`);
-        if (missingCount) parts.push(`${missingCount} 个已不存在`);
-        setFileError(`已删除 ${result.deleted?.length || 0} 个版本，跳过 ${parts.join("、")}的版本。`);
+        if (activeCount) parts.push(`${activeCount} ${t("activeVersions")}`);
+        if (missingCount) parts.push(`${missingCount} ${t("missingVersions")}`);
+        setFileError(t("deletedVersionsSummary").replace("{deleted}", result.deleted?.length || 0).replace("{skipped}", parts.join(", ")));
       }
     } catch (err) {
       setFileError(err.message || String(err));
@@ -2959,7 +3359,7 @@ function Detail({
   async function deleteSelectedHistoryVersions(ids = selectedHistoryVersionIds) {
     const targetIds = ids.filter((id) => history.some((entry) => entry.id === id));
     if (!targetIds.length) return;
-    const confirmed = window.confirm(`确认删除 ${targetIds.length} 个历史版本？\n删除后不可恢复，当前正在使用的版本不会被删除。`);
+    const confirmed = window.confirm(t("deleteHistoryGlobalConfirm").replace("{count}", targetIds.length));
     if (!confirmed) return;
     await deleteSkillPackageVersions(targetIds, null, activeCopy, true);
   }
@@ -2967,7 +3367,7 @@ function Detail({
   async function prepareUpgradePreview(copy = activeCopy, copies = [copy]) {
     if (!copy) return;
     if (hasUnsavedChanges()) {
-      setFileError("请先保存或取消当前修改，再发布版本。");
+      setFileError(t("saveBeforePublish"));
       return;
     }
     setUpgradeBusy(true);
@@ -2989,7 +3389,7 @@ function Detail({
       }));
       const changedPreviews = previews.filter(({ detail }) => detail.hasContentChanges);
       if (!changedPreviews.length) {
-        setFileError(`${copy.client} 无内容改动，不能发布版本。`);
+        setFileError(t("noContentChangeForClient").replace("{client}", copy.client));
         return;
       }
       const detailMap = Object.fromEntries(changedPreviews.map(({ copy: targetCopy, detail }) => [targetCopy.id, detail]));
@@ -3039,7 +3439,7 @@ function Detail({
           version: skillVersion(copy),
           versionLabel: skillVersionLabel(copy),
           disabled: !hasContentChanges,
-          disabledReason: hasContentChanges ? "" : "无内容改动"
+          disabledReason: hasContentChanges ? "" : t("noContentChange")
         }));
       } finally {
         setUpgradeBusy(false);
@@ -3047,7 +3447,7 @@ function Detail({
       const remembered = readStoredJson(versionTargetsStorageKey, null, []);
       const enabledTargetIds = targets.filter((target) => !target.disabled).map((target) => target.id);
       if (!enabledTargetIds.length) {
-        setFileError("所有 Agent 都没有内容改动，不能发布版本。");
+        setFileError(t("noAgentChanges"));
         return;
       }
       const validRemembered = remembered.filter((id) => enabledTargetIds.includes(id));
@@ -3121,7 +3521,7 @@ function Detail({
     return (
       <section className="detail empty">
         <Command size={34} />
-        <p>选择一个 skill 查看完整内容、目录结构、来源和标签。</p>
+        <p>{t("selectSkillHint")}</p>
       </section>
     );
   }
@@ -3130,7 +3530,7 @@ function Detail({
   const allAgentsScope = agentScope === "all" && installations.length > 1;
   const installationAgents = [...new Set(installations.map((copy) => copy.client))];
   const isUninstalledSkill = skill.sourceId === "uninstalled";
-  const uninstallSource = skill.uninstallMeta?.sourceClient || skill.uninstallMeta?.sourceLabel || "未知";
+  const uninstallSource = skill.uninstallMeta?.sourceClient || skill.uninstallMeta?.sourceLabel || t("unknown");
   const copyClientLabel = (copy) => isUninstalledSkill
     ? (copy.uninstallMeta?.sourceClient || copy.uninstallMeta?.sourceLabel || copy.client)
     : copy.client;
@@ -3186,7 +3586,7 @@ function Detail({
         };
       });
     if (!targets.length) {
-      setFileError("没有可同步的其它 Agent。");
+      setFileError(t("noSyncTargets"));
       return;
     }
     const notInstalledTargetIds = targets.filter((target) => !target.installed).map((target) => target.id);
@@ -3216,7 +3616,7 @@ function Detail({
       });
       setSyncPending(null);
       setSyncTargetIds([]);
-      setFileNotice(`已提交同步到 ${targets.length} 个 Agent。`);
+      setFileNotice(t("submittedSync").replace("{count}", targets.length));
       window.setTimeout(() => setFileNotice(""), 1600);
     } catch (err) {
       setFileError(err.message || String(err));
@@ -3231,7 +3631,7 @@ function Detail({
         <div className="detail-icon">{skill.name.slice(0, 1).toUpperCase()}</div>
         <div>
           <h2>{skill.name}</h2>
-          <p>{skill.description || "暂无描述"}</p>
+          <p>{skill.description || t("noDescription")}</p>
         </div>
         {!hideHistory ? <button className="history-top-button" onClick={openHistoryPanel}>
           <History size={16} />
@@ -3292,7 +3692,7 @@ function Detail({
                   />
                 </div> : null}
                 {readonlyVersionLabel ? (
-                  <span className="copy-version-readonly" aria-label={`版本 ${readonlyVersionFullLabel}`} onClick={(event) => event.stopPropagation()}>
+                  <span className="copy-version-readonly" aria-label={`${t("version")} ${readonlyVersionFullLabel}`} onClick={(event) => event.stopPropagation()}>
                     <em className="copy-version">{compactVersionLabel(readonlyVersionLabel)}</em>
                     <span className="copy-version-popover" role="tooltip">
                       <strong>{readonlyVersionFullLabel}</strong>
@@ -3316,7 +3716,7 @@ function Detail({
               {readOnly && !isUninstalledSkill ? (
                 <div className="copy-path-row">{shortPath(copy.dir)}</div>
               ) : (
-                <button className="copy-path-row" onClick={(event) => { event.stopPropagation(); window.skillStudio.reveal(copy.dir); }} title="点击定位目录">
+                <button className="copy-path-row" onClick={(event) => { event.stopPropagation(); window.skillStudio.reveal(copy.dir); }} title={t("revealDirectoryTitle")}>
                   {shortPath(copy.dir)}
                 </button>
               )}
@@ -3340,7 +3740,7 @@ function Detail({
       ) : null}
       {pendingNavigation ? (
         <div className="pending-edit-panel">
-          <span>当前文件有未保存修改，{pendingNavigation.type === "mode" ? "退出编辑前" : "切换前"}请选择处理方式。</span>
+          <span>{pendingNavigation.type === "mode" ? t("unsavedBeforeExitEdit") : t("unsavedBeforeSwitch")}</span>
           <button
             onClick={async () => {
               const saved = await saveDraft();
@@ -3348,13 +3748,13 @@ function Detail({
             }}
             disabled={saving}
           >
-            保存并切换
+            {t("saveAndSwitch")}
           </button>
           <button className="soft-button" onClick={() => runPendingNavigation()} disabled={saving}>
-            放弃修改
+            {t("discardAndSwitch")}
           </button>
           <button className="soft-button" onClick={() => setPendingNavigation(null)} disabled={saving}>
-            继续编辑
+            {t("continueEditing")}
           </button>
         </div>
       ) : null}
@@ -3397,10 +3797,10 @@ function Detail({
               <strong>{activeFile?.name || "SKILL.md"}</strong>
               <small>{shortPath(activeFile?.path)}</small>
             </span>
-            {!readOnly ? <button title="在当前目录新增文件" onClick={() => beginCreateEntry("file")}>+ 文件</button> : null}
-            {!readOnly ? <button title="在当前目录新增目录" onClick={() => beginCreateEntry("directory")}>+ 目录</button> : null}
+            {!readOnly ? <button title={t("addFileTitle")} onClick={() => beginCreateEntry("file")}>{t("addFile")}</button> : null}
+            {!readOnly ? <button title={t("addDirectoryTitle")} onClick={() => beginCreateEntry("directory")}>{t("addDirectory")}</button> : null}
             {!readOnly ? <button className="reader-mode-toggle" onClick={() => setMode(mode === "edit" ? "view" : "edit")}>
-              {mode === "edit" ? "编辑模式" : "阅读模式"}
+              {mode === "edit" ? t("editMode") : t("readMode")}
             </button> : null}
           </div>
           {mode === "edit" ? (
@@ -3416,21 +3816,21 @@ function Detail({
       </div>
       {treeMenu ? (
         <div className="tree-context-menu" style={{ left: treeMenu.x, top: treeMenu.y }} onClick={(event) => event.stopPropagation()}>
-          <button onClick={() => copyTreePath(treeMenu.node, false)}>复制相对路径</button>
-          <button onClick={() => copyTreePath(treeMenu.node, true)}>复制绝对路径</button>
+          <button onClick={() => copyTreePath(treeMenu.node, false)}>{t("copyRelativePath")}</button>
+          <button onClick={() => copyTreePath(treeMenu.node, true)}>{t("copyAbsolutePath")}</button>
           {treeMenu.node.type === "directory" ? (
             <>
               <hr />
-              <button onClick={() => beginCreateEntry("file", treeMenu.node.path)}>在此新增文件</button>
-              <button onClick={() => beginCreateEntry("directory", treeMenu.node.path)}>在此新增目录</button>
+              <button onClick={() => beginCreateEntry("file", treeMenu.node.path)}>{t("createFileHere")}</button>
+              <button onClick={() => beginCreateEntry("directory", treeMenu.node.path)}>{t("createDirectoryHere")}</button>
             </>
           ) : null}
           {treeMenu.node.path !== activeCopy?.dir ? (
             <>
               <hr />
-              <button onClick={() => beginRenameEntry(treeMenu.node)}>重命名</button>
+              <button onClick={() => beginRenameEntry(treeMenu.node)}>{t("rename")}</button>
               {treeMenu.node.path !== activeCopy?.filePath ? (
-                <button onClick={() => deleteDirectoryEntry(treeMenu.node)}>删除</button>
+                <button onClick={() => deleteDirectoryEntry(treeMenu.node)}>{t("delete")}</button>
               ) : null}
             </>
           ) : null}
@@ -3441,17 +3841,17 @@ function Detail({
           <div className="history-panel">
             <div className="history-head">
               <div>
-                <h3>{skill.name} · 历史版本</h3>
-                <p>{activeCopy?.client} · {history.length} 个历史目录版本</p>
+                <h3>{t("historyTitle").replace("{name}", skill.name)}</h3>
+                <p>{t("historyVersionCount").replace("{client}", activeCopy?.client || "").replace("{count}", history.length)}</p>
               </div>
               <div className="modal-actions">
                 <button className="soft-button" onClick={() => deleteSelectedHistoryVersions()} disabled={!selectedHistoryVersionIds.length || versionSwitching}>
-                  删除选中{selectedHistoryVersionIds.length ? ` (${selectedHistoryVersionIds.length})` : ""}
+                  {t("deleteSelected")}{selectedHistoryVersionIds.length ? ` (${selectedHistoryVersionIds.length})` : ""}
                 </button>
                 <button className="soft-button" onClick={() => deleteSelectedHistoryVersions(history.map((entry) => entry.id))} disabled={!history.length || versionSwitching}>
-                  清除全部
+                  {t("clearAll")}
                 </button>
-                <button onClick={() => setHistoryOpen(false)}>关闭</button>
+                <button onClick={() => setHistoryOpen(false)}>{t("close")}</button>
               </div>
             </div>
             <div className="history-body" style={{ "--history-list-width": `${historyListWidth}px` }}>
@@ -3470,10 +3870,10 @@ function Detail({
                     />
                     <button onClick={() => selectVersion(entry)}>
                       <strong>{entry.label || entry.id}</strong>
-                      <span>{isActiveHistoryVersion(entry) ? "当前版本" : entry.reason} · {formatDate(entry.createdAt)}</span>
+                      <span>{isActiveHistoryVersion(entry) ? t("currentVersion") : entry.reason} · {formatDate(entry.createdAt)}</span>
                     </button>
                   </div>
-                )) : <p>还没有历史版本。保存 skill 后会自动创建目录版本。</p>}
+                )) : <p>{t("noHistory")}</p>}
               </div>
               <div
                 className="history-resizer"
@@ -3496,19 +3896,19 @@ function Detail({
                 {versionDetail ? (
                   <>
                     <div className="diff-toolbar">
-                      <span>对比当前目录与 {versionDetail.version?.label || selectedVersion?.label || "历史版本"}</span>
+                      <span>{t("compareCurrentWith").replace("{version}", versionDetail.version?.label || selectedVersion?.label || t("historyVersion"))}</span>
                       <button
                         onClick={() => activateSkillPackageVersion(selectedVersion, activeCopy)}
                         disabled={saving || versionSwitching || !selectedVersion || isActiveHistoryVersion(selectedVersion)}
                       >
                         <RotateCcw size={13} />
-                        选择此版本
+                        {t("chooseThisVersion")}
                       </button>
                     </div>
                     <DirectoryDiffViewer detail={versionDetail} />
                   </>
                 ) : (
-                  <div className="diff-empty">选择一个历史版本查看更改。</div>
+                  <div className="diff-empty">{t("selectHistoryHint")}</div>
                 )}
               </div>
             </div>
@@ -3535,18 +3935,18 @@ function Detail({
           <div className={`history-panel upgrade-panel ${upgradeBusy ? "is-upgrading" : ""}`}>
             <div className="history-head">
               <div>
-                <h3>{skill.name} · 确认发布版本</h3>
+                <h3>{t("confirmPublishTitle").replace("{name}", skill.name)}</h3>
                 <p>
                   {(upgradeCopies.length ? upgradeCopies : [upgradeCopy || activeCopy]).map((copy) => copy?.client).filter(Boolean).join(", ")}
                   {upgradeCopies.length > 1
-                    ? " · 每个 Agent 独立发布自己的版本"
+                    ? ` · ${t("perAgentPublish")}`
                     : ` · ${upgradeDetail?.fromVersion || "-"} -> ${upgradeDetail?.toVersion || "-"}`}
                 </p>
               </div>
               <div className="modal-actions">
-                <button className="soft-button" onClick={() => { setUpgradeOpen(false); setUpgradeDetail(null); setUpgradeDetails({}); setUpgradeCopy(null); setUpgradeCopies([]); }} disabled={upgradeBusy}>取消</button>
+                <button className="soft-button" onClick={() => { setUpgradeOpen(false); setUpgradeDetail(null); setUpgradeDetails({}); setUpgradeCopy(null); setUpgradeCopies([]); }} disabled={upgradeBusy}>{t("cancel")}</button>
                 <button className={upgradeBusy ? "upgrade-confirm-busy" : ""} onClick={confirmSkillUpgrade} disabled={upgradeBusy || !upgradeDetail?.files?.length}>
-                  {upgradeBusy ? "发布中..." : `为 ${upgradeCopies.length || 1} 个 Agent 发布版本`}
+                  {upgradeBusy ? t("publishingDots") : t("publishForAgents").replace("{count}", upgradeCopies.length || 1)}
                 </button>
               </div>
             </div>
@@ -3576,12 +3976,12 @@ function Detail({
                     </div>
                   ) : null}
                   <div className="diff-toolbar">
-                    <span>{upgradeCopy?.client ? `${upgradeCopy.client} · ` : ""}发布前后差异。确认后会写入 SKILL.md version，并创建新的 skill 版本。</span>
+                    <span>{t("publishDiffNotice").replace("{client}", upgradeCopy?.client ? `${upgradeCopy.client} · ` : "")}</span>
                   </div>
                   <DirectoryDiffViewer detail={upgradeDetail} />
                 </>
               ) : (
-                <div className="diff-empty">正在生成发布差异。</div>
+                <div className="diff-empty">{t("generatingPublishDiff")}</div>
               )}
             </div>
           </div>
@@ -3686,7 +4086,7 @@ function SettingsPage({ settings, onSave, saving }) {
     if (settingsMode === "json") {
       try {
         const parsed = JSON.parse(jsonText);
-        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("配置必须是 JSON object。");
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(t("jsonObjectRequired"));
         setJsonError("");
         await onSave(parsed);
       } catch (error) {
@@ -3737,7 +4137,7 @@ function SettingsPage({ settings, onSave, saving }) {
       <section className="settings-version-card">
         <div>
           <span>{t("appVersion")}</span>
-          <strong>{appInfo?.version ? `v${appInfo.version}` : "读取中"}</strong>
+          <strong>{appInfo?.version ? `v${appInfo.version}` : t("loadingAppVersion")}</strong>
         </div>
         <p>{appInfo?.name || "Skill Manager"} · {appInfo?.isPackaged ? t("packagedApp") : t("devMode")}</p>
       </section>
@@ -3800,7 +4200,7 @@ function SettingsPage({ settings, onSave, saving }) {
             <p>{t("retentionDesc")}</p>
           </div>
           <label className="settings-field retention-field">
-            <span>Skill Versions</span>
+            <span>{t("skillVersions")}</span>
             <em>{t("retentionDays")}</em>
             <input
               type="number"
@@ -3810,7 +4210,7 @@ function SettingsPage({ settings, onSave, saving }) {
             />
           </label>
           <label className="settings-field retention-field">
-            <span>Operation Events</span>
+            <span>{t("operationEvents")}</span>
             <select value={draft.eventRetentionDays ? "custom" : "forever"} onChange={(event) => setRetention("eventRetentionDays", event.target.value)}>
               <option value="forever">{t("forever")}</option>
               <option value="custom">{t("customDays")}</option>
@@ -3824,7 +4224,7 @@ function SettingsPage({ settings, onSave, saving }) {
             />
           </label>
           <label className="settings-field retention-field">
-            <span>Operation Logs</span>
+            <span>{t("operationLogs")}</span>
             <select value={draft.logRetentionDays ? "custom" : "forever"} onChange={(event) => setRetention("logRetentionDays", event.target.value)}>
               <option value="forever">{t("forever")}</option>
               <option value="custom">{t("customDays")}</option>
@@ -3922,7 +4322,7 @@ function InstallTargetDialog({ pending, targets, selectedTargets, onChangeTarget
       <div className="install-dialog">
         <div>
           <h3>{isUninstall ? t("chooseUninstallAgent") : isUpgrade ? t("chooseUpgradeAgent") : isSync ? t("chooseSyncAgent") : isRestore ? t("chooseRecoverAgent") : isDeleteUninstalled ? t("chooseDeleteUninstalled") : isUpdate ? t("chooseUpdateAgent") : t("chooseInstallAgent")}</h3>
-          <p>{isSync ? `从 ${pending.sourceCopy?.client || name} 同步` : name}</p>
+          <p>{isSync ? t("syncFrom").replace("{source}", pending.sourceCopy?.client || name) : name}</p>
         </div>
         <div className="target-select-tools">
           <span>{t("selectedCount")} {selectedTargets.length} / {selectableTargets.length}</span>
@@ -3976,7 +4376,7 @@ function InstallConflictDialog({ pending, conflicts, actions, onChangeAction, on
               <div>
                 <strong>{conflict.client}</strong>
                 <span>{conflict.sourceLabel}</span>
-                <em>当前 {conflict.currentVersion || t("unknownVersion")} · 待写入 {conflict.incomingVersion || t("unknownVersion")}</em>
+                <em>{t("currentWriting")} {conflict.currentVersion || t("unknownVersion")} · {t("incomingWriting")} {conflict.incomingVersion || t("unknownVersion")}</em>
                 {conflict.warning ? <small>{conflict.warning}</small> : null}
               </div>
               <select value={actions[conflict.id] || conflict.defaultAction} onChange={(event) => onChangeAction(conflict.id, event.target.value)}>
@@ -4020,11 +4420,14 @@ function OperationLogPage({ logs, onRefresh, onClear }) {
         {logs.length ? logs.map((log) => (
           <article className={`log-entry ${log.status}`} key={log.id}>
             <div className="log-entry-head">
-              <span>{log.type}</span>
+              <span>{operationTypeLabel(log.type, t)}</span>
               <strong>{log.title || "-"}</strong>
               <em>{formatDate(log.createdAt)}</em>
             </div>
-            <p>{log.message}</p>
+            <div className="event-status-row compact">
+              <strong>{operationStatusLabel(log.status, t)}</strong>
+            </div>
+            <p>{operationMessageLabel(log.message, t)}</p>
             {log.detail ? <code>{shortPath(log.detail)}</code> : null}
           </article>
         )) : (
@@ -4064,29 +4467,30 @@ function OperationEventPage({ events, onRefresh, onClear }) {
       <div className="log-list">
         {events.length ? events.map((event) => {
           const percent = Math.round((event.progress / Math.max(1, event.total)) * 100);
+          const eventDetail = operationDetailLabel(event.current || event.detail, t);
           return (
             <article className={`event-entry ${event.status}`} key={event.id}>
               <div className="log-entry-head">
-                <span>{event.type}</span>
+                <span>{operationTypeLabel(event.type, t)}</span>
                 <strong>{event.title}</strong>
                 <em>{formatDate(event.updatedAt)}</em>
               </div>
               <div className="event-status-row">
-                <strong>{event.status}</strong>
+                <strong>{operationStatusLabel(event.status, t)}</strong>
                 <b>{percent}%</b>
               </div>
               <div className="event-stage-flow">
                 {stages.map((stage) => (
                   <div key={stage} className={stageState(event, stage)}>
                     <span />
-                    <em>{stage === "success" && event.status === "failed" ? "failed" : stage}</em>
+                    <em>{operationStatusLabel(stage === "success" && event.status === "failed" ? "failed" : stage, t)}</em>
                   </div>
                 ))}
               </div>
               <div className="event-progress">
                 <div style={{ width: `${percent}%` }} />
               </div>
-              <p>{event.status} · {event.progress}/{event.total} · {event.current || event.detail}</p>
+              <p>{operationStatusLabel(event.status, t)} · {event.progress}/{event.total}{eventDetail ? ` · ${eventDetail}` : ""}</p>
               {event.error ? <code>{event.error}</code> : event.detail ? <code>{event.detail}</code> : null}
             </article>
           );
@@ -4111,7 +4515,7 @@ function TagSkillPanel({ tag, skills, onOpenSkill }) {
   return (
     <section className="tag-skill-panel">
       <div className="tag-skill-head">
-        <TagPill tag={tag}>标签：{tag}</TagPill>
+        <TagPill tag={tag}>{t("tagLabel").replace("{tag}", tag)}</TagPill>
         <p>{skills.length} {t("tagContains")}</p>
       </div>
       <div className="tag-skill-list">
@@ -4172,6 +4576,68 @@ function searchPlaceholder(options, t) {
   return isEnglish ? `Search ${scope}, ${t("customSearch")}` : `搜索${scope}，${t("customSearch")}`;
 }
 
+function operationStatusLabel(status, t) {
+  const normalized = String(status || "").toLowerCase();
+  if (normalized === "queued") return t("statusQueued");
+  if (normalized === "running") return t("statusRunning");
+  if (normalized === "success") return t("statusSuccess");
+  if (normalized === "failed") return t("statusFailed");
+  if (normalized === "done") return t("statusDone");
+  if (normalized === "skipped") return t("statusSkipped");
+  if (normalized === "missing") return t("statusMissing");
+  return status || t("typeUnknown");
+}
+
+function operationTypeLabel(type, t) {
+  const normalized = String(type || "").toLowerCase();
+  if (normalized.includes("uninstall")) return t("typeUninstall");
+  if (normalized.includes("restore")) return t("typeRestore");
+  if (normalized.includes("recover")) return t("typeRecover");
+  if (normalized.includes("update")) return t("typeUpdate");
+  if (normalized.includes("sync")) return t("typeSync");
+  if (normalized.includes("settings")) return t("typeSettings");
+  if (normalized.includes("publish") || normalized.includes("version")) return t("typePublish");
+  if (normalized.includes("install")) return t("typeInstall");
+  return type || t("typeUnknown");
+}
+
+function operationDetailLabel(text, t) {
+  if (!text) return "";
+  if (text === "开始执行") return t("eventCurrentStarting");
+  if (text === "完成") return t("eventCurrentDone");
+  if (text === "失败") return t("eventCurrentFailed");
+  return text;
+}
+
+function operationMessageLabel(message, t) {
+  if (!message) return "";
+  const exact = {
+    "已移动到 Uninstalled。": "logMovedUninstalled",
+    "已恢复安装。": "logRestoredInstall",
+    "已复制安装到指定 Agent。": "logCopiedInstall",
+    "已安装到指定 Agent。": "logInstalledTarget",
+    "git 失败后，已通过 GitHub zip 安装到指定 Agent。": "logGitZipInstalled",
+    "原目录不存在，已跳过卸载。": "logOriginalMissingSkipUninstall",
+    "Uninstalled 目录不存在，已跳过恢复。": "logUninstalledMissingSkipRestore",
+    "目标 Agent 已存在同名 skill，已按选择跳过。": "logTargetExistsSkipped",
+    "目标 Agent 已存在同名 skill。": "logTargetExists",
+    "目标 Agent 已经是当前目录。": "logTargetIsCurrent",
+    "本地 skill 目录不存在，已跳过安装。": "logLocalMissingSkipInstall"
+  };
+  if (exact[message]) return t(exact[message]);
+  let match = message.match(/^已切换到 (.+)。$/);
+  if (match) return t("logSwitchedVersion").replace("{version}", match[1]);
+  match = message.match(/^已删除 (\d+) 个历史版本。$/);
+  if (match) return t("logDeletedHistory").replace("{count}", match[1]);
+  match = message.match(/^跳过 (\d+) 个当前使用或不存在的版本。$/);
+  if (match) return t("logSkippedCurrentMissingVersions").replace("{count}", match[1]);
+  match = message.match(/^已发布版本 (.+)。$/);
+  if (match) return t("logPublishedVersion").replace("{version}", match[1]);
+  match = message.match(/^已同步到 (.+)。$/);
+  if (match) return t("logSyncedTo").replace("{target}", match[1]);
+  return message;
+}
+
 function App() {
   const { data, loading, error, refresh } = useSkillData();
   const [discoverSort, setDiscoverSort] = useState("alltime");
@@ -4180,6 +4646,7 @@ function App() {
   const [settings, setSettings] = useState(null);
   const [query, setQuery] = useState("");
   const [searchConfigOpen, setSearchConfigOpen] = useState(false);
+  const searchConfigRef = useRef(null);
   const [searchOptions, setSearchOptions] = useState({
     name: true,
     description: true,
@@ -4273,6 +4740,23 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!window.skillStudio.onLanguageChanged) return undefined;
+    return window.skillStudio.onLanguageChanged((nextLanguage) => {
+      setSettings((current) => ({
+        ...(current || {}),
+        language: nextLanguage === "en" ? "en" : "zh"
+      }));
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!window.skillStudio.onOpenSettings) return undefined;
+    return window.skillStudio.onOpenSettings(() => {
+      setListMode("settings");
+    });
+  }, []);
+
+  useEffect(() => {
     if (!notice) return undefined;
     const timer = window.setTimeout(() => setNotice(""), 1800);
     return () => window.clearTimeout(timer);
@@ -4295,6 +4779,15 @@ function App() {
     window.addEventListener("pointerdown", close);
     return () => window.removeEventListener("pointerdown", close);
   }, [tagCloudOpen]);
+
+  useEffect(() => {
+    if (!searchConfigOpen) return undefined;
+    const close = (event) => {
+      if (!searchConfigRef.current?.contains(event.target)) setSearchConfigOpen(false);
+    };
+    window.addEventListener("pointerdown", close);
+    return () => window.removeEventListener("pointerdown", close);
+  }, [searchConfigOpen]);
 
   useEffect(() => {
     const timer = window.setInterval(async () => {
@@ -4392,7 +4885,7 @@ function App() {
 
   async function uninstallSkill(skill, skipConfirm = false) {
     const copies = skill.installations || [skill];
-    const confirmed = skipConfirm || window.confirm(`卸载 ${skill.name}？\n不会真正删除，会移动到 Uninstalled，之后可以恢复安装。`);
+    const confirmed = skipConfirm || window.confirm(t("uninstallConfirm").replace("{name}", skill.name));
     if (!confirmed) return false;
     try {
       await window.skillStudio.submitEvent({
@@ -4406,10 +4899,10 @@ function App() {
         }))
       });
       await refreshEvents();
-      setNotice(`${skill.name} 已提交后台卸载。`);
+      setNotice(t("submittedUninstall").replace("{name}", skill.name));
       return true;
     } catch (err) {
-      setNotice(`提交失败：${err.message || String(err)}`);
+      setNotice(t("submitFailed").replace("{message}", err.message || String(err)));
       return false;
     }
   }
@@ -4513,7 +5006,7 @@ function App() {
         return {
           id: entry.id || skillGroupKey(entry),
           client: entry.name,
-          root: `${records.length} 个 Agent 记录`,
+          root: t("agentRecords").replace("{count}", records.length),
           dirs: records.map((record) => record.dir).filter(Boolean),
           skill: entry,
           recordScope: "skill",
@@ -4564,7 +5057,7 @@ function App() {
       .flatMap((entry) => entry?.installations || (entry ? [entry] : []));
     const dirs = records.map((record) => record.dir).filter(Boolean);
     if (!dirs.length) return;
-    const confirmed = window.confirm(`确认清空 ${skillItems.length} 条 Uninstalled 记录？\n删除后不可恢复，也不会影响当前已安装的 skill。`);
+    const confirmed = window.confirm(t("clearUninstalledConfirm").replace("{count}", skillItems.length));
     if (!confirmed) return;
     setBusyAction("delete-uninstalled:direct");
     try {
@@ -4573,9 +5066,9 @@ function App() {
       setSelected(null);
       setSelectedUninstalledIds([]);
       setLastUninstalledSelectId("");
-      setNotice(`已清空 ${skillItems.length} 条 Uninstalled 记录。`);
+      setNotice(t("clearUninstalledDone").replace("{count}", skillItems.length));
     } catch (err) {
-      setNotice(`清空失败：${err.message || String(err)}`);
+      setNotice(t("clearFailed").replace("{message}", err.message || String(err)));
     } finally {
       setBusyAction("");
     }
@@ -4605,9 +5098,9 @@ function App() {
         const existingDir = target.skill?.dir || "";
         const incomingDir = pending.type === "discover" ? "" : (restoreRecord?.dir || pending.item?.dir || "");
         const warning = !targetIncomingVersion || !currentVersion
-          ? "任一方版本未知，不会自动判断新旧。"
+          ? t("versionUnknownNoCompare")
           : versionCompare < 0
-            ? "待写入版本低于当前版本，可能降级。"
+            ? t("possibleDowngrade")
             : "";
         return {
           ...target,
@@ -4636,9 +5129,9 @@ function App() {
         return acc;
       }, {});
       const preview = files.slice(0, 12).map((file) => `- ${file.type}: ${file.path}`).join("\n");
-      window.alert(`目录差异：${conflict.client}\n新增 ${summary.added || 0} · 删除 ${summary.deleted || 0} · 修改 ${summary.modified || 0}\n\n${preview || "没有发现文本文件差异。"}`);
+      window.alert(`${t("directoryDiffAlertTitle").replace("{client}", conflict.client)}\n${t("added")} ${summary.added || 0} · ${t("removed")} ${summary.deleted || 0} · ${t("modified")} ${summary.modified || 0}\n\n${preview || t("noTextDiff")}`);
     } catch (err) {
-      setNotice(`差异查看失败：${err.message || String(err)}`);
+      setNotice(t("diffFailed").replace("{message}", err.message || String(err)));
     }
   }
 
@@ -4695,9 +5188,9 @@ function App() {
       setPendingConflict(null);
       setConflictActions({});
       await refreshEvents();
-      setNotice(`${pending.item.name} 已提交后台执行。`);
+      setNotice(t("submittedBackground").replace("{name}", pending.item.name));
     } catch (err) {
-      setNotice(`提交失败：${err.message || String(err)}`);
+      setNotice(t("submitFailed").replace("{message}", err.message || String(err)));
     }
   }
 
@@ -4707,7 +5200,7 @@ function App() {
     if (!targetIds.length) return;
     if (pendingInstall.type === "delete-uninstalled") {
       const targets = pendingInstall.targets?.filter((target) => targetIds.includes(target.id)) || [];
-      const confirmed = window.confirm(`确认删除 ${targets.length} 个 Uninstalled 记录？\n删除后不可恢复，也不会影响当前已安装的 skill。`);
+      const confirmed = window.confirm(t("deleteUninstalledConfirm").replace("{count}", targets.length));
       if (!confirmed) return;
       setBusyAction(`delete-uninstalled:${pendingInstall.item?.id || "batch"}`);
       try {
@@ -4718,9 +5211,9 @@ function App() {
         setSelected(null);
         setSelectedUninstalledIds([]);
         setLastUninstalledSelectId("");
-        setNotice(`已删除 ${dirs.length} 个 Uninstalled 记录。`);
+        setNotice(t("deletedUninstalledDone").replace("{count}", dirs.length));
       } catch (err) {
-        setNotice(`删除失败：${err.message || String(err)}`);
+        setNotice(t("deleteFailed").replace("{message}", err.message || String(err)));
       } finally {
         setBusyAction("");
       }
@@ -4744,9 +5237,9 @@ function App() {
       await refreshAll();
       setListMode("installed");
       setSelected(null);
-      setNotice(result?.missing ? `${skill.name} 的 Uninstalled 目录已不存在，列表已刷新。` : `${skill.name} 已恢复安装。`);
+      setNotice(result?.missing ? t("recoverMissing").replace("{name}", skill.name) : t("recoverDone").replace("{name}", skill.name));
     } catch (err) {
-      setNotice(`恢复失败：${err.message || String(err)}`);
+      setNotice(t("recoverFailed").replace("{message}", err.message || String(err)));
     } finally {
       setBusyAction("");
     }
@@ -4758,9 +5251,9 @@ function App() {
     try {
       const result = await window.skillStudio.installDiscover(item, targetSourceId);
       await refreshAll();
-      setNotice(result?.alreadyInstalled ? `${item.name} 已经安装在目标 Agent。` : `${item.name} 已安装到本地。`);
+      setNotice(result?.alreadyInstalled ? t("alreadyInstalled").replace("{name}", item.name) : t("installDone").replace("{name}", item.name));
     } catch (err) {
-      setNotice(`安装失败：${err.message || String(err)}`);
+      setNotice(t("installFailed").replace("{message}", err.message || String(err)));
     } finally {
       setBusyAction("");
     }
@@ -4772,9 +5265,9 @@ function App() {
     try {
       const result = await window.skillStudio.installLocalSkill(skill.dir, targetSourceId);
       await refreshAll();
-      setNotice(result?.alreadyInstalled ? `${skill.name} 已经安装在目标 Agent。` : `${skill.name} 已安装到本地。`);
+      setNotice(result?.alreadyInstalled ? t("alreadyInstalled").replace("{name}", skill.name) : t("installDone").replace("{name}", skill.name));
     } catch (err) {
-      setNotice(`安装失败：${err.message || String(err)}`);
+      setNotice(t("installFailed").replace("{message}", err.message || String(err)));
     } finally {
       setBusyAction("");
     }
@@ -4790,10 +5283,10 @@ function App() {
         ok += 1;
       }
       await refreshAll();
-      setNotice(`${item.name} 已${forceUpdate ? "更新" : "安装"}到 ${ok} 个 Agent。`);
+      setNotice(t("installOrUpdateDone").replace("{name}", item.name).replace("{action}", forceUpdate ? t("update") : t("install")).replace("{count}", ok));
     } catch (err) {
       await refreshAll();
-      setNotice(`安装失败：${err.message || String(err)}`);
+      setNotice(t("installFailed").replace("{message}", err.message || String(err)));
     } finally {
       setBusyAction("");
     }
@@ -4809,10 +5302,10 @@ function App() {
         ok += 1;
       }
       await refreshAll();
-      setNotice(`${skill.name} 已安装到 ${ok} 个 Agent。`);
+      setNotice(t("installedToAgents").replace("{name}", skill.name).replace("{count}", ok));
     } catch (err) {
       await refreshAll();
-      setNotice(`安装失败：${err.message || String(err)}`);
+      setNotice(t("installFailed").replace("{message}", err.message || String(err)));
     } finally {
       setBusyAction("");
     }
@@ -4834,10 +5327,10 @@ function App() {
       await refreshAll();
       setListMode("installed");
       setSelected(null);
-      setNotice(`${skill.name} 已安装到 ${ok} 个 Agent。`);
+      setNotice(t("recoveredToAgents").replace("{name}", skill.name).replace("{count}", ok));
     } catch (err) {
       await refreshAll();
-      setNotice(`恢复失败：${err.message || String(err)}`);
+      setNotice(t("recoverFailed").replace("{message}", err.message || String(err)));
     } finally {
       setBusyAction("");
     }
@@ -4845,7 +5338,7 @@ function App() {
 
   async function uninstallMany(skills) {
     if (!skills.length) return;
-    const confirmed = window.confirm(`卸载选中的 ${skills.length} 个安装副本？\n不会真正删除，会移动到 Uninstalled。`);
+    const confirmed = window.confirm(t("uninstallSelectedConfirm").replace("{count}", skills.length));
     if (!confirmed) return;
     setBusyAction(`uninstall-many:${skills.map((skill) => skill.id).join(",")}`);
     setNotice("");
@@ -4861,10 +5354,10 @@ function App() {
       }
       await refreshAll();
       setSelected(null);
-      setNotice(`已卸载 ${ok} 个安装副本。`);
+      setNotice(t("uninstalledCopiesDone").replace("{count}", ok));
     } catch (err) {
       await refreshAll();
-      setNotice(`卸载失败：${err.message || String(err)}`);
+      setNotice(t("uninstallFailed").replace("{message}", err.message || String(err)));
     } finally {
       setBusyAction("");
     }
@@ -4882,18 +5375,12 @@ function App() {
         setDialogTargetIds(defaults);
       }
       await refreshAll();
-      setNotice("设置已保存。");
+      setNotice(t("settingsSaved"));
     } catch (err) {
-      setNotice(`设置保存失败：${err.message || String(err)}`);
+      setNotice(t("settingsSaveFailed").replace("{message}", err.message || String(err)));
     } finally {
       setSettingsSaving(false);
     }
-  }
-
-  async function changeLanguage(nextLanguage) {
-    const next = { ...(settings || {}), language: nextLanguage === "en" ? "en" : "zh" };
-    setSettings(next);
-    await saveSettings(next);
   }
 
   const agentCounts = useMemo(() => {
@@ -5170,8 +5657,8 @@ function App() {
               <div>
                 <span>{t("relation")}</span>
                 <div className="tag-match-switch">
-                  <button className={tagMatchMode === "and" ? "on" : ""} onClick={() => setTagMatchMode("and")} title="必须同时包含所有已选标签">AND</button>
-                  <button className={tagMatchMode === "or" ? "on" : ""} onClick={() => setTagMatchMode("or")} title="包含任意一个已选标签即可">OR</button>
+                  <button className={tagMatchMode === "and" ? "on" : ""} onClick={() => setTagMatchMode("and")} title={t("tagAndTitle")}>AND</button>
+                  <button className={tagMatchMode === "or" ? "on" : ""} onClick={() => setTagMatchMode("or")} title={t("tagOrTitle")}>OR</button>
                 </div>
               </div>
             </div>
@@ -5220,18 +5707,11 @@ function App() {
           </div>
         </div>
         <div className="toolbar">
-          <label className="language-select" title={t("language")}>
-            <span>{t("language")}</span>
-            <select value={lang} onChange={(event) => changeLanguage(event.target.value)}>
-              <option value="zh">{t("zh")}</option>
-              <option value="en">{t("en")}</option>
-            </select>
-          </label>
           <label className="search-box">
             <Search size={18} />
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={searchPlaceholder(searchOptions, t)} />
           </label>
-          <div className="search-config-wrap">
+          <div className="search-config-wrap" ref={searchConfigRef}>
             <button
               className={`icon-button search-config-button ${searchOptions.content ? "active" : ""}`}
               onClick={() => setSearchConfigOpen((open) => !open)}
@@ -5405,8 +5885,8 @@ function App() {
             {listMode === "discover" && !githubTrends.loading && (githubTrends.error || githubTrends.meta?.stale) ? (
               <div className={`discover-status ${githubTrends.error ? "warn" : ""}`}>
                 {githubTrends.meta?.stale
-                  ? `skills.sh 暂时不可用，正在显示缓存${githubTrends.meta?.cachedAt ? ` · ${formatDate(githubTrends.meta.cachedAt)}` : ""}`
-                  : `Discover 加载失败：${githubTrends.error}`}
+                  ? t("discoverCacheFallback").replace("{suffix}", githubTrends.meta?.cachedAt ? ` · ${formatDate(githubTrends.meta.cachedAt)}` : "")
+                  : t("discoverLoadFailed").replace("{message}", githubTrends.error)}
               </div>
             ) : null}
             {visibleCount === 0 ? <EmptyList mode={listMode} scanning={listMode === "discover" ? githubTrends.loading : loading} /> : null}
