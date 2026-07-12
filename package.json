@@ -3,8 +3,10 @@
   "version": "0.2.4",
   "description": "Local multi-client skill manager for macOS",
   "private": true,
+  "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
+    "test": "node --test",
     "dev": "vite",
     "electron": "wait-on tcp:5173 && electron .",
     "start": "concurrently -k \"npm run dev\" \"npm run electron\"",
@@ -47,6 +49,16 @@
       "build/icon.ico",
       "node_modules/adm-zip/**/*",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "bin",
+        "to": "bin"
+      },
+      {
+        "from": "skills",
+        "to": "skills"
+      }
     ],
     "mac": {
       "category": "public.app-category.developer-tools",

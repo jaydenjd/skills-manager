@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+set -eu
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+CLI_SCRIPT="$SCRIPT_DIR/skill-manager-cli.cjs"
+
+if command -v node >/dev/null 2>&1; then
+  exec node "$CLI_SCRIPT" "$@"
+fi
+
+APP_EXECUTABLE="$SCRIPT_DIR/../../MacOS/Skill Manager"
+if [ -x "$APP_EXECUTABLE" ]; then
+  ELECTRON_RUN_AS_NODE=1 exec "$APP_EXECUTABLE" "$CLI_SCRIPT" "$@"
+fi
+
+echo "Skill Manager CLI requires Node.js or the packaged Skill Manager app runtime." >&2
+exit 1

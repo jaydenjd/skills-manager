@@ -133,6 +133,69 @@ If Git is unavailable or `git clone` fails, the app attempts a GitHub zip downlo
 7. Uninstalled skills move into **Uninstalled**, where they can be recovered.
 8. Star frequently used skills and review them in **Starred**.
 
+## CLI and Local API
+
+Skill Manager starts a local HTTP API that only listens on `127.0.0.1`. By default it starts probing from port `19010`; if that port is occupied, it automatically tries later ports. You can disable the API, set the configured start port, and see the current runtime port in **Settings → Local API**.
+
+The app package includes a CLI. It does not need to write to `/usr/local/bin` or modify PATH. Agents can call it by its packaged path.
+
+macOS:
+
+```text
+/Applications/Skill Manager.app/Contents/Resources/bin/skill-manager
+```
+
+Windows:
+
+```text
+%LOCALAPPDATA%\Programs\Skill Manager\resources\bin\skill-manager.cmd
+%ProgramFiles%\Skill Manager\resources\bin\skill-manager.cmd
+```
+
+If the CLI is already on PATH, users, agents, and scripts can also call:
+
+```bash
+skill-manager status
+skill-manager scan --scope installed
+skill-manager publish --agent Codex --skill tdd --message "Add mock testing notes"
+skill-manager uninstall --agent Codex --skill tdd
+skill-manager install-local --dir /path/to/skill --agent Agents
+skill-manager recover --dir /path/to/uninstalled-snapshot --agent Codex
+```
+
+The CLI auto-detects `19010-19109`, or you can set:
+
+```bash
+export SKILL_MANAGER_API_URL=http://127.0.0.1:19010
+```
+
+Windows PowerShell:
+
+```powershell
+$env:SKILL_MANAGER_API_URL = "http://127.0.0.1:19010"
+```
+
+Common API endpoints:
+
+```http
+GET  /api/status
+GET  /api/skills?scope=installed
+POST /api/skills/publish
+POST /api/skills/uninstall
+POST /api/skills/install-local
+POST /api/skills/recover
+```
+
+This lets an agent edit skill files directly, then call Skill Manager to publish versions, install, uninstall, recover, and inspect operation state.
+
+The project also includes an agent-facing skill:
+
+```text
+skills/skill-manager/SKILL.md
+```
+
+It instructs agents to edit skill files directly while delegating publishing, install, uninstall, recovery, and conflict handling to the Skill Manager CLI/API.
+
 ## Local Development
 
 ### Requirements

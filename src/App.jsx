@@ -2,6 +2,8 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState 
 import { createRoot } from "react-dom/client";
 import {
   Activity,
+  ChevronDown,
+  ChevronUp,
   Command,
   Edit3,
   ExternalLink,
@@ -12,6 +14,7 @@ import {
   Github,
   History,
   ListTree,
+  GripVertical,
   RefreshCcw,
   RotateCcw,
   Save,
@@ -21,9 +24,11 @@ import {
   Sparkles,
   Star,
   Tags,
-  Trash2
+  Trash2,
+  X
 } from "lucide-react";
 import "./styles.css";
+import { moveItem, orderedAgentCounts } from "./settings-utils.js";
 
 const fmt = new Intl.DateTimeFormat("zh-CN", {
   month: "2-digit",
@@ -38,6 +43,7 @@ const uninstallTargetsStorageKey = "skill-manager-last-uninstall-targets";
 const versionTargetsStorageKey = "skill-manager-last-version-targets";
 const legacyInstallTargetsStorageKey = "skill-studio-last-install-targets";
 const scanCacheStorageKey = "skill-manager-last-scan";
+const settingsModeStorageKey = "skill-manager-settings-mode";
 const starSourceOptions = [
   ["discover", "Discover"],
   ["installed", "Installed"],
@@ -105,10 +111,23 @@ const messages = {
     operationEvents: "操作事件",
     operationLogsDesc: "查看安装、卸载、恢复和设置的最近操作结果。",
     operationEventsDesc: "后台安装、卸载、更新、恢复的状态流转和进度。",
+    logFilter: "分类",
+    allTypes: "全部分类",
+    selectNoTypes: "全不选",
+    searchLogs: "搜索标题、内容、详情",
     noLogs: "还没有操作日志。",
     noEvents: "还没有操作事件。",
     settingsDesc: "管理安装目标、agent 命名和 skill 目录展示规则。",
     saveSettings: "保存设置",
+    discardSettings: "取消修改",
+    unsavedSettings: "查看修改内容",
+    viewSettingChanges: "修改内容",
+    settingsChanges: "设置修改",
+    settingChangeCount: "{count} 项修改",
+    noSettingChanges: "暂无配置修改。",
+    before: "修改前",
+    after: "修改后",
+    directoryMissing: "目录不存在",
     saving: "保存中",
     visual: "可视化",
     json: "JSON",
@@ -117,6 +136,21 @@ const messages = {
     devMode: "开发模式",
     jsonSettings: "JSON 配置",
     jsonSettingsDesc: "直接编辑完整 settings。保存时会校验 JSON，并继续应用默认值与来源过滤规则。",
+    localApi: "本地 API",
+    localApiDesc: "给 CLI、agent 和自动化脚本使用，只监听 127.0.0.1。",
+    enableLocalApi: "启用本地 API",
+    configuredPort: "配置端口",
+    currentPort: "当前端口",
+    apiBaseUrl: "API 地址",
+    apiStopped: "未启动",
+    apiConnectivity: "连通状态",
+    refreshApi: "刷新 API",
+    testApi: "测试连通",
+    apiTesting: "连通中",
+    apiConnected: "已连通",
+    apiDisconnected: "未连通",
+    apiRefreshing: "刷新中",
+    apiRefreshFailed: "刷新失败：{message}",
     defaultInstallTarget: "默认安装目标",
     defaultInstallTargetDesc: "发现页安装和已卸载恢复默认会放到这里。",
     installToAgent: "安装到 agent",
@@ -132,11 +166,19 @@ const messages = {
     ignoreTitle: "目录 Ignore",
     ignoreDesc: "类似 gitignore。配置后文件不会出现在 skill 目录树里。",
     agentsDesc: "配置左侧 Agents 的命名，以及每个 agent 对应的 skills 目录。",
+    dragToReorder: "拖动排序",
+    moveUp: "上移",
+    moveDown: "下移",
     addAgent: "新增 agent",
+    newAgent: "New Agent",
+    newAgentSkills: "New Agent Skills",
+    duplicateAgentName: "Agent 名称不能重复：{name}",
     enabled: "启用",
+    disabled: "停用",
     name: "名称",
     description: "说明",
     directory: "目录",
+    openDirectory: "打开目录",
     remove: "移除",
     chooseInstallAgent: "选择安装到的 agent",
     chooseUninstallAgent: "选择卸载的 agent",
@@ -290,6 +332,10 @@ const messages = {
     publishingDots: "发布中...",
     publishDiffNotice: "{client}发布前后差异。确认后会写入 SKILL.md version，并创建新的 skill 版本。",
     generatingPublishDiff: "正在生成发布差异。",
+    publishMessage: "发布备注",
+    publishMessagePlaceholder: "可填写本次发布说明；留空时会自动生成。",
+    autoPublishMessage: "发布 {name} {version}，包含 {count} 个文件变更。",
+    historyMessageFallback: "无备注",
     notFound: "未发现",
     githubTrending: "GitHub 趋势",
     updatingNow: "更新中",
@@ -331,7 +377,7 @@ const messages = {
     uninstallSelectedConfirm: "卸载选中的 {count} 个安装副本？\n不会真正删除，会移动到 Uninstalled。",
     uninstalledCopiesDone: "已卸载 {count} 个安装副本。",
     uninstallFailed: "卸载失败：{message}",
-    settingsSaved: "设置已保存。",
+    settingsSaved: "设置成功",
     settingsSaveFailed: "设置保存失败：{message}",
     discoverCacheFallback: "skills.sh 暂时不可用，正在显示缓存{suffix}",
     discoverLoadFailed: "Discover 加载失败：{message}",
@@ -350,8 +396,8 @@ const messages = {
     typeSync: "同步",
     typeSettings: "设置",
     typePublish: "发布版本",
+    typeDelete: "删除",
     typeUnknown: "操作",
-    skillVersions: "Skill 版本",
     eventCurrentStarting: "开始执行",
     eventCurrentDone: "完成",
     eventCurrentFailed: "失败",
@@ -430,10 +476,23 @@ const messages = {
     operationEvents: "Operation Events",
     operationLogsDesc: "Review recent install, uninstall, recover, and settings operation results.",
     operationEventsDesc: "Track background install, uninstall, update, and recover status and progress.",
+    logFilter: "Type",
+    allTypes: "All types",
+    selectNoTypes: "Select none",
+    searchLogs: "Search title, message, detail",
     noLogs: "No operation logs yet.",
     noEvents: "No operation events yet.",
     settingsDesc: "Manage install targets, agent names, and skill directory display rules.",
     saveSettings: "Save settings",
+    discardSettings: "Discard changes",
+    unsavedSettings: "View changes",
+    viewSettingChanges: "Changes",
+    settingsChanges: "Setting changes",
+    settingChangeCount: "{count} changes",
+    noSettingChanges: "No setting changes.",
+    before: "Before",
+    after: "After",
+    directoryMissing: "Directory missing",
     saving: "Saving",
     visual: "Visual",
     json: "JSON",
@@ -442,6 +501,21 @@ const messages = {
     devMode: "Development mode",
     jsonSettings: "JSON settings",
     jsonSettingsDesc: "Edit the full settings object. Saving validates JSON and applies defaults and source filters.",
+    localApi: "Local API",
+    localApiDesc: "For CLI, agents, and automation scripts. It only listens on 127.0.0.1.",
+    enableLocalApi: "Enable Local API",
+    configuredPort: "Configured port",
+    currentPort: "Current port",
+    apiBaseUrl: "API URL",
+    apiStopped: "Stopped",
+    apiConnectivity: "Connectivity",
+    refreshApi: "Refresh API",
+    testApi: "Test",
+    apiTesting: "Connecting",
+    apiConnected: "Connected",
+    apiDisconnected: "Disconnected",
+    apiRefreshing: "Refreshing",
+    apiRefreshFailed: "Refresh failed: {message}",
     defaultInstallTarget: "Default install target",
     defaultInstallTargetDesc: "Discover installs and Uninstalled recovery use this target by default.",
     installToAgent: "Install to agent",
@@ -457,11 +531,19 @@ const messages = {
     ignoreTitle: "Directory Ignore",
     ignoreDesc: "Similar to gitignore. Matched files are hidden from the skill tree.",
     agentsDesc: "Configure left-side Agents names and each agent's skills directory.",
+    dragToReorder: "Drag to reorder",
+    moveUp: "Move up",
+    moveDown: "Move down",
     addAgent: "Add agent",
+    newAgent: "New Agent",
+    newAgentSkills: "New Agent Skills",
+    duplicateAgentName: "Agent name already exists: {name}",
     enabled: "Enabled",
+    disabled: "Disabled",
     name: "Name",
     description: "Description",
     directory: "Directory",
+    openDirectory: "Open directory",
     remove: "Remove",
     chooseInstallAgent: "Choose install agents",
     chooseUninstallAgent: "Choose uninstall agents",
@@ -615,6 +697,10 @@ const messages = {
     publishingDots: "Publishing...",
     publishDiffNotice: "{client} diff before publish. Confirming writes SKILL.md version and creates a new skill version.",
     generatingPublishDiff: "Generating publish diff.",
+    publishMessage: "Release note",
+    publishMessagePlaceholder: "Optional note for this publish. Leave empty to generate one.",
+    autoPublishMessage: "Publish {name} {version} with {count} file changes.",
+    historyMessageFallback: "No note",
     notFound: "Not found",
     githubTrending: "GitHub trending",
     updatingNow: "Updating",
@@ -656,7 +742,7 @@ const messages = {
     uninstallSelectedConfirm: "Uninstall {count} selected installed copies?\nThey will be moved to Uninstalled instead of permanently deleted.",
     uninstalledCopiesDone: "Uninstalled {count} installed copies.",
     uninstallFailed: "Uninstall failed: {message}",
-    settingsSaved: "Settings saved.",
+    settingsSaved: "Saved",
     settingsSaveFailed: "Settings save failed: {message}",
     discoverCacheFallback: "skills.sh is temporarily unavailable. Showing cache{suffix}",
     discoverLoadFailed: "Discover failed to load: {message}",
@@ -675,8 +761,8 @@ const messages = {
     typeSync: "Sync",
     typeSettings: "Settings",
     typePublish: "Publish version",
+    typeDelete: "Delete",
     typeUnknown: "Operation",
-    skillVersions: "Skill versions",
     eventCurrentStarting: "Starting",
     eventCurrentDone: "Done",
     eventCurrentFailed: "Failed",
@@ -728,8 +814,129 @@ function readStoredJson(primaryKey, legacyKey, fallback) {
   }
 }
 
+function readSettingsMode() {
+  return localStorage.getItem(settingsModeStorageKey) === "json" ? "json" : "visual";
+}
+
 function formatDate(value) {
   return value ? fmt.format(new Date(value)) : "-";
+}
+
+function settingFieldLabel(key, t) {
+  const labels = {
+    language: t("language"),
+    installSourceId: t("defaultInstallTarget"),
+    installTargetMode: t("installDialogDefault"),
+    mergeDuplicateSkills: t("mergeAllAgents"),
+    logRetentionDays: `${t("operationLogs")} ${t("retentionDays")}`,
+    eventRetentionDays: `${t("operationEvents")} ${t("retentionDays")}`,
+    apiEnabled: t("enableLocalApi"),
+    apiPort: t("configuredPort"),
+    ignorePatterns: t("ignoreTitle"),
+    client: t("name"),
+    label: t("description"),
+    root: t("directory"),
+    enabled: t("enabled")
+  };
+  return labels[key] || key;
+}
+
+function displaySettingValue(value, t) {
+  if (value === null || value === undefined || value === "") return "-";
+  if (typeof value === "boolean") return value ? t("enabled") : t("disabled");
+  if (Array.isArray(value)) return value.length ? value.join("\n") : "-";
+  return String(value);
+}
+
+function settingsDiffRows(before = {}, after = {}, t = (key) => key) {
+  const rows = [];
+  const push = (group, label, oldValue, newValue) => {
+    if (JSON.stringify(oldValue ?? null) !== JSON.stringify(newValue ?? null)) {
+      rows.push({ group, label, before: displaySettingValue(oldValue, t), after: displaySettingValue(newValue, t) });
+    }
+  };
+  push(t("settings"), settingFieldLabel("language", t), before.language, after.language);
+  push(t("settings"), settingFieldLabel("installSourceId", t), before.installSourceId, after.installSourceId);
+  push(t("settings"), settingFieldLabel("installTargetMode", t), before.installTargetMode, after.installTargetMode);
+  push(t("settings"), settingFieldLabel("mergeDuplicateSkills", t), before.mergeDuplicateSkills, after.mergeDuplicateSkills);
+  push(t("retention"), settingFieldLabel("logRetentionDays", t), before.logRetentionDays, after.logRetentionDays);
+  push(t("retention"), settingFieldLabel("eventRetentionDays", t), before.eventRetentionDays, after.eventRetentionDays);
+  push(t("localApi"), settingFieldLabel("apiEnabled", t), before.apiEnabled, after.apiEnabled);
+  push(t("localApi"), settingFieldLabel("apiPort", t), before.apiPort, after.apiPort);
+  push(t("ignoreTitle"), settingFieldLabel("ignorePatterns", t), before.ignorePatterns || [], after.ignorePatterns || []);
+  const beforeSources = new Map((before.sources || []).map((source) => [source.id, source]));
+  const afterSources = new Map((after.sources || []).map((source) => [source.id, source]));
+  const ids = [...new Set([...beforeSources.keys(), ...afterSources.keys()])];
+  ids.forEach((id) => {
+    const oldSource = beforeSources.get(id);
+    const newSource = afterSources.get(id);
+    const group = `${t("agents")} · ${newSource?.client || oldSource?.client || id}`;
+    if (!oldSource) rows.push({ group, label: t("addAgent"), before: "-", after: [newSource?.client, newSource?.label, newSource?.root, displaySettingValue(Boolean(newSource?.enabled), t)].filter(Boolean).join("\n") });
+    else if (!newSource) rows.push({ group, label: t("remove"), before: [oldSource.client, oldSource.label, oldSource.root, displaySettingValue(Boolean(oldSource.enabled), t)].filter(Boolean).join("\n"), after: "-" });
+    else ["client", "label", "root", "enabled"].forEach((key) => push(group, settingFieldLabel(key, t), oldSource[key], newSource[key]));
+  });
+  return rows;
+}
+
+function formatSettingsJson(value = {}) {
+  return JSON.stringify(value || {}, null, 2);
+}
+
+function SettingsJsonDiff({ before, after }) {
+  const { t } = useI18n();
+  const rows = useMemo(() => buildLineDiff(before, after), [before, after]);
+  const pairs = useMemo(() => {
+    const next = [];
+    for (let index = 0; index < rows.length;) {
+      if (rows[index].type === "same") {
+        next.push({ before: rows[index], after: rows[index] });
+        index += 1;
+        continue;
+      }
+      const removed = [];
+      const added = [];
+      while (rows[index] && rows[index].type !== "same") {
+        if (rows[index].type === "removed") removed.push(rows[index]);
+        if (rows[index].type === "added") added.push(rows[index]);
+        index += 1;
+      }
+      const count = Math.max(removed.length, added.length);
+      for (let pairIndex = 0; pairIndex < count; pairIndex += 1) {
+        next.push({
+          before: removed[pairIndex] || { type: "empty", line: "" },
+          after: added[pairIndex] || { type: "empty", line: "" }
+        });
+      }
+    }
+    return next;
+  }, [rows]);
+  return (
+    <div className="settings-json-diff">
+      <div className="settings-json-diff-head">
+        <span>{t("before")}</span>
+        <span>{t("after")}</span>
+      </div>
+      <div className="settings-json-diff-scroll">
+        {pairs.map((pair, index) => (
+          <div className="settings-json-diff-row" key={index}>
+            <JsonDiffLine row={pair.before} marker="-" side="before" />
+            <JsonDiffLine row={pair.after} marker="+" side="after" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function JsonDiffLine({ row, marker, side }) {
+  const lineNumber = side === "before" ? row.oldLine : row.newLine;
+  return (
+    <code className={`json-diff-line ${row.type}`}>
+      <span>{lineNumber || ""}</span>
+      <b>{row.type === "removed" || row.type === "added" ? marker : " "}</b>
+      <em>{row.line || " "}</em>
+    </code>
+  );
 }
 
 function formatVersionLocalDate(value, { compact = false } = {}) {
@@ -798,6 +1005,10 @@ function isGeneratedLocalVersionLabel(label = "") {
 
 function shortPath(path) {
   return path?.replace(/^\/Users\/[^/]+/, "~") || "";
+}
+
+function settingsPathKey(value = "") {
+  return String(value || "").trim().replace(/^["']|["']$/g, "").replace(/^～(?=$|\/|\\)/, "~");
 }
 
 function parentPath(filePath = "") {
@@ -1155,14 +1366,14 @@ function buildLineDiff(previous = "", current = "") {
   let j = 0;
   while (i < oldLines.length || j < newLines.length) {
     if (i < oldLines.length && j < newLines.length && oldLines[i] === newLines[j]) {
-      rows.push({ type: "same", line: oldLines[i] });
+      rows.push({ type: "same", line: oldLines[i], oldLine: i + 1, newLine: j + 1 });
       i += 1;
       j += 1;
     } else if (j < newLines.length && (i === oldLines.length || dp[i][j + 1] >= dp[i + 1][j])) {
-      rows.push({ type: "added", line: newLines[j] });
+      rows.push({ type: "added", line: newLines[j], newLine: j + 1 });
       j += 1;
     } else {
-      rows.push({ type: "removed", line: oldLines[i] });
+      rows.push({ type: "removed", line: oldLines[i], oldLine: i + 1 });
       i += 1;
     }
   }
@@ -2091,8 +2302,14 @@ function CodeBlock({ code, language = "text", plain = false }) {
 
 function HighlightedEditor({ value, language, onChange }) {
   const highlightRef = useRef(null);
+  const gutterRef = useRef(null);
+  const lineNumbers = useMemo(() => {
+    const count = Math.max(1, String(value || "").split(/\r?\n/).length);
+    return Array.from({ length: count }, (_, index) => index + 1).join("\n");
+  }, [value]);
   return (
     <div className="highlight-editor">
+      <pre className="highlight-gutter" ref={gutterRef} aria-hidden="true">{lineNumbers}</pre>
       <pre ref={highlightRef} aria-hidden="true">{highlightCode(value || " ", language)}</pre>
       <textarea
         className="file-editor highlight-input"
@@ -2102,6 +2319,7 @@ function HighlightedEditor({ value, language, onChange }) {
           if (!highlightRef.current) return;
           highlightRef.current.scrollTop = event.currentTarget.scrollTop;
           highlightRef.current.scrollLeft = event.currentTarget.scrollLeft;
+          if (gutterRef.current) gutterRef.current.scrollTop = event.currentTarget.scrollTop;
         }}
         spellCheck={false}
       />
@@ -2179,6 +2397,7 @@ function DiffViewer({ detail }) {
       <div className="diff-list">
         {rows.map((row, index) => (
           <div key={index} className={`diff-line ${row.type}`}>
+            <span className="diff-line-no">{row.type === "removed" ? row.oldLine : row.newLine}</span>
             <b>{row.type === "added" ? "+" : row.type === "removed" ? "-" : " "}</b>
             <code>{row.line || " "}</code>
           </div>
@@ -2433,6 +2652,7 @@ function Detail({
   const [upgradeTargetCopyIds, setUpgradeTargetCopyIds] = useState([]);
   const [upgradeCopy, setUpgradeCopy] = useState(null);
   const [upgradeCopies, setUpgradeCopies] = useState([]);
+  const [upgradeMessage, setUpgradeMessage] = useState("");
   const [versionSwitching, setVersionSwitching] = useState(false);
   const [selectedDirPath, setSelectedDirPath] = useState("");
   const [treeMenu, setTreeMenu] = useState(null);
@@ -2799,11 +3019,6 @@ function Detail({
       || version.id === info.activeArchiveId
       || (version.duplicateIds || []).includes(info.activeArchiveId)
     ));
-    const latest = versions[0] || null;
-    const active = versions.find((version) => isActiveHistoryVersion(version, copy));
-    if (active && latest && (active.id === latest.id || (latest.duplicateIds || []).includes(active.id))) {
-      return versions.filter((version) => version.id !== active.id && !(active.duplicateIds || []).includes(version.id));
-    }
     return versions;
   }
 
@@ -3364,6 +3579,28 @@ function Detail({
     await deleteSkillPackageVersions(targetIds, null, activeCopy, true);
   }
 
+  function buildDefaultUpgradeMessage(copies = [], details = {}) {
+    const targetCopies = copies.length ? copies : [upgradeCopy || activeCopy].filter(Boolean);
+    const names = targetCopies.map((copy) => copy?.client).filter(Boolean).join(", ");
+    const version = targetCopies.length === 1
+      ? (details[targetCopies[0]?.id]?.toVersion || upgradeDetail?.toVersion || "")
+      : targetCopies.map((copy) => details[copy.id]?.toVersion).filter(Boolean).join(", ");
+    const fileCount = targetCopies.reduce((total, copy) => total + (details[copy.id]?.files?.length || 0), 0) || upgradeDetail?.files?.length || 0;
+    return t("autoPublishMessage")
+      .replace("{name}", names || skill.name)
+      .replace("{version}", version ? `v${version}` : "")
+      .replace("{count}", fileCount);
+  }
+
+  function closeUpgradePanel() {
+    setUpgradeOpen(false);
+    setUpgradeDetail(null);
+    setUpgradeDetails({});
+    setUpgradeCopy(null);
+    setUpgradeCopies([]);
+    setUpgradeMessage("");
+  }
+
   async function prepareUpgradePreview(copy = activeCopy, copies = [copy]) {
     if (!copy) return;
     if (hasUnsavedChanges()) {
@@ -3398,6 +3635,7 @@ function Detail({
       setUpgradeDetail(detailMap[previewCopy.id] || changedPreviews[0].detail);
       setUpgradeCopy(previewCopy);
       setUpgradeCopies(changedPreviews.map(({ copy: targetCopy }) => targetCopy));
+      setUpgradeMessage(buildDefaultUpgradeMessage(changedPreviews.map(({ copy: targetCopy }) => targetCopy), detailMap));
       setUpgradeOpen(true);
     } catch (err) {
       setFileError(err.message || String(err));
@@ -3474,6 +3712,7 @@ function Detail({
         results.push(await window.skillStudio.commitSkillUpgrade({
           skillDir: targetCopy.dir,
           nextVersion: previewVersion,
+          message: upgradeMessage.trim() || buildDefaultUpgradeMessage(targetCopies, upgradeDetails),
           sourceInfo: {
             sourceId: targetCopy.sourceId,
             client: targetCopy.client,
@@ -3484,11 +3723,7 @@ function Detail({
       localStorage.setItem(versionTargetsStorageKey, JSON.stringify(targetCopies.map((copy) => copy.id)));
       const result = results.find((item, index) => targetCopies[index]?.id === activeCopy?.id) || results[0];
       clearCopiesDirty(targetCopies);
-      setUpgradeOpen(false);
-      setUpgradeDetail(null);
-      setUpgradeDetails({});
-      setUpgradeCopy(null);
-      setUpgradeCopies([]);
+      closeUpgradePanel();
       results.forEach((item, index) => {
         const targetCopy = targetCopies[index];
         if (item?.skill && targetCopy) {
@@ -3905,6 +4140,10 @@ function Detail({
                         {t("chooseThisVersion")}
                       </button>
                     </div>
+                    <div className="history-version-note">
+                      <span>{t("publishMessage")}</span>
+                      <p>{selectedVersion?.message || t("historyMessageFallback")}</p>
+                    </div>
                     <DirectoryDiffViewer detail={versionDetail} />
                   </>
                 ) : (
@@ -3944,7 +4183,7 @@ function Detail({
                 </p>
               </div>
               <div className="modal-actions">
-                <button className="soft-button" onClick={() => { setUpgradeOpen(false); setUpgradeDetail(null); setUpgradeDetails({}); setUpgradeCopy(null); setUpgradeCopies([]); }} disabled={upgradeBusy}>{t("cancel")}</button>
+                <button className="soft-button" onClick={closeUpgradePanel} disabled={upgradeBusy}>{t("cancel")}</button>
                 <button className={upgradeBusy ? "upgrade-confirm-busy" : ""} onClick={confirmSkillUpgrade} disabled={upgradeBusy || !upgradeDetail?.files?.length}>
                   {upgradeBusy ? t("publishingDots") : t("publishForAgents").replace("{count}", upgradeCopies.length || 1)}
                 </button>
@@ -3975,6 +4214,15 @@ function Detail({
                       })}
                     </div>
                   ) : null}
+                  <label className="publish-message-box">
+                    <span>{t("publishMessage")}</span>
+                    <textarea
+                      value={upgradeMessage}
+                      onChange={(event) => setUpgradeMessage(event.target.value)}
+                      placeholder={t("publishMessagePlaceholder")}
+                      rows={2}
+                    />
+                  </label>
                   <div className="diff-toolbar">
                     <span>{t("publishDiffNotice").replace("{client}", upgradeCopy?.client ? `${upgradeCopy.client} · ` : "")}</span>
                   </div>
@@ -3991,7 +4239,7 @@ function Detail({
   );
 }
 
-function SettingsPage({ settings, onSave, saving }) {
+function SettingsPage({ settings, onSave }) {
   const { t } = useI18n();
   const fallbackSettings = {
     sources: [],
@@ -4002,7 +4250,9 @@ function SettingsPage({ settings, onSave, saving }) {
     mergeDuplicateSkills: true,
     skillVersionRetentionDays: 30,
     logRetentionDays: null,
-    eventRetentionDays: null
+    eventRetentionDays: null,
+    apiEnabled: true,
+    apiPort: 19010
   };
   const [draft, setDraft] = useState(settings || {
     sources: [],
@@ -4013,31 +4263,170 @@ function SettingsPage({ settings, onSave, saving }) {
     mergeDuplicateSkills: true,
     skillVersionRetentionDays: 30,
     logRetentionDays: null,
-    eventRetentionDays: null
+    eventRetentionDays: null,
+    apiEnabled: true,
+    apiPort: 19010
   });
-  const [settingsMode, setSettingsMode] = useState("visual");
+  const [settingsMode, setSettingsMode] = useState(readSettingsMode);
   const [jsonText, setJsonText] = useState(JSON.stringify(settings || fallbackSettings, null, 2));
   const [jsonError, setJsonError] = useState("");
   const [ignoreText, setIgnoreText] = useState((settings?.ignorePatterns || []).join("\n"));
   const [appInfo, setAppInfo] = useState(null);
+  const [draggedSourceId, setDraggedSourceId] = useState("");
+  const [dragOverSourceId, setDragOverSourceId] = useState("");
+  const [editingSourceId, setEditingSourceId] = useState("");
+  const [agentNameError, setAgentNameError] = useState("");
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [showSettingsDiff, setShowSettingsDiff] = useState(false);
+  const [pathStatus, setPathStatus] = useState({});
+  const [pathNoticeId, setPathNoticeId] = useState("");
+  const [retentionText, setRetentionText] = useState({});
+  const [retentionBaseline, setRetentionBaseline] = useState({});
+  const [settingsSaveNotice, setSettingsSaveNotice] = useState("");
+  const [apiBusy, setApiBusy] = useState(false);
+  const [apiConnection, setApiConnection] = useState({ state: "unknown", message: "" });
+  const agentNameRefs = useRef({});
+  const settingsJsonGutterRef = useRef(null);
 
   useEffect(() => {
     if (!settings) return;
+    if (settingsDiffRows(settings, normalizeVisualSettings(draft)).length) return;
     setDraft(settings);
     setIgnoreText((settings.ignorePatterns || []).join("\n"));
     setJsonText(JSON.stringify(settings, null, 2));
     setJsonError("");
+    setRetentionText({});
+    setRetentionBaseline({});
   }, [settings]);
 
   useEffect(() => {
+    const nextLanguage = settings?.language === "en" ? "en" : "zh";
+    setDraft((current) => {
+      if ((current.language || "zh") === nextLanguage) return current;
+      const next = { ...current, language: nextLanguage };
+      setJsonText(JSON.stringify(normalizeVisualSettings(next), null, 2));
+      return next;
+    });
+  }, [settings?.language]);
+
+  useEffect(() => {
+    if (!settingsSaveNotice) return undefined;
+    const timer = window.setTimeout(() => setSettingsSaveNotice(""), 1000);
+    return () => window.clearTimeout(timer);
+  }, [settingsSaveNotice]);
+
+  useEffect(() => {
     let alive = true;
-    window.skillStudio.getAppInfo?.().then((info) => {
-      if (alive) setAppInfo(info);
-    }).catch(() => {});
+    refreshAppInfo({ aliveRef: () => alive }).catch(() => {});
     return () => {
       alive = false;
     };
   }, []);
+
+  async function testApiConnection(port = appInfo?.apiPort) {
+    if (!window.skillStudio.testApi) return null;
+    setApiConnection({ state: "testing", message: "" });
+    const startedAt = Date.now();
+    const result = await window.skillStudio.testApi(port).catch((error) => ({ ok: false, message: error.message || String(error) }));
+    const elapsed = Date.now() - startedAt;
+    if (elapsed < 450) {
+      await new Promise((resolve) => window.setTimeout(resolve, 450 - elapsed));
+    }
+    setApiConnection({ state: result?.ok ? "connected" : "failed", message: result?.message || "" });
+    return result;
+  }
+
+  async function refreshAppInfo(options = {}) {
+    const info = await window.skillStudio.getAppInfo?.();
+    if (options.aliveRef && !options.aliveRef()) return info;
+    setAppInfo(info);
+    if (info?.apiEnabled && info?.apiPort) await testApiConnection(info.apiPort);
+    else setApiConnection({ state: "failed", message: "" });
+    return info;
+  }
+
+  async function refreshLocalApi() {
+    if (!window.skillStudio.restartApi || apiBusy) return;
+    let nextSettings = normalizeVisualSettings(draft);
+    if (settingsMode === "json") {
+      try {
+        const parsed = JSON.parse(jsonText);
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(t("jsonObjectRequired"));
+        nextSettings = parsed;
+        setJsonError("");
+      } catch (error) {
+        setJsonError(error.message || String(error));
+        return;
+      }
+    }
+    setApiBusy(true);
+    setApiConnection({ state: "testing", message: "" });
+    try {
+      const result = await window.skillStudio.restartApi(nextSettings);
+      if (result?.settings) {
+        setDraft(result.settings);
+        setIgnoreText((result.settings.ignorePatterns || []).join("\n"));
+        setJsonText(JSON.stringify(result.settings, null, 2));
+      }
+      setAppInfo(result?.info || null);
+      setApiConnection({
+        state: result?.connection?.ok ? "connected" : "failed",
+        message: result?.connection?.message || ""
+      });
+      setShowSettingsDiff(false);
+    } catch (error) {
+      setApiConnection({ state: "failed", message: error.message || String(error) });
+    } finally {
+      setApiBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    let alive = true;
+    if (!window.skillStudio.pathExists) return () => {};
+    const roots = [...new Set((draft.sources || []).map((source) => settingsPathKey(source.root)).filter(Boolean))];
+    Promise.all(roots.map(async (root) => {
+      const exists = await window.skillStudio.pathExists(root).catch(() => null);
+      return [root, exists === null ? null : Boolean(exists)];
+    })).then((entries) => {
+      if (!alive) return;
+      setPathStatus(Object.fromEntries(entries.filter(([, exists]) => exists !== null)));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [draft.sources]);
+
+  useEffect(() => {
+    const missingEnabledIds = (draft.sources || [])
+      .filter((source) => source.enabled && pathStatus[settingsPathKey(source.root)] === false)
+      .map((source) => source.id);
+    if (!missingEnabledIds.length) return;
+    setDraft((current) => {
+      const missingSet = new Set(missingEnabledIds);
+      const next = {
+        ...current,
+        sources: current.sources.map((source) => missingSet.has(source.id) ? { ...source, enabled: false } : source)
+      };
+      setJsonText(JSON.stringify(normalizeVisualSettings(next), null, 2));
+      return next;
+    });
+  }, [pathStatus]);
+
+  function normalizeVisualSettings(value, nextIgnoreText = ignoreText) {
+    return {
+      ...value,
+      ignorePatterns: nextIgnoreText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+    };
+  }
+
+  function updateVisualDraft(updater, _delay = 0, nextIgnoreText = ignoreText) {
+    setDraft((current) => {
+      const next = typeof updater === "function" ? updater(current) : updater;
+      setJsonText(JSON.stringify(normalizeVisualSettings(next, nextIgnoreText), null, 2));
+      return next;
+    });
+  }
 
   function switchSettingsMode(mode) {
     if (mode === settingsMode) return;
@@ -4048,31 +4437,91 @@ function SettingsPage({ settings, onSave, saving }) {
       };
       setJsonText(JSON.stringify(synced, null, 2));
       setJsonError("");
+    } else {
+      try {
+        const parsed = JSON.parse(jsonText);
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(t("jsonObjectRequired"));
+        setJsonError("");
+        setDraft(parsed);
+        setIgnoreText((parsed.ignorePatterns || []).join("\n"));
+      } catch (error) {
+        setJsonError(error.message || String(error));
+        return;
+      }
     }
     setSettingsMode(mode);
+    localStorage.setItem(settingsModeStorageKey, mode);
   }
 
-  function updateSource(id, patch) {
-    setDraft((current) => ({
+  function duplicateAgentNameMessage(name) {
+    return t("duplicateAgentName").replace("{name}", String(name || "").trim() || "-");
+  }
+
+  function findDuplicateAgentName(sources = []) {
+    const seen = new Map();
+    for (const source of sources) {
+      const name = String(source.client || "").trim();
+      const normalized = name.toLowerCase();
+      if (!normalized) continue;
+      if (seen.has(normalized)) return name;
+      seen.set(normalized, true);
+    }
+    return "";
+  }
+
+  function nextAgentName(sources = []) {
+    const existing = new Set(sources.map((source) => String(source.client || "").trim().toLowerCase()).filter(Boolean));
+    const base = t("newAgent");
+    let name = base;
+    let index = 2;
+    while (existing.has(name.toLowerCase())) {
+      name = `${base} ${index}`;
+      index += 1;
+    }
+    return name;
+  }
+
+  function updateSource(id, patch, delay = 0) {
+    if (Object.prototype.hasOwnProperty.call(patch, "enabled") && patch.enabled) {
+      const target = draft.sources.find((source) => source.id === id);
+      const rootKey = settingsPathKey(target?.root);
+      if (!rootKey || pathStatus[rootKey] !== true) return;
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, "client")) {
+      const nextName = String(patch.client || "").trim();
+      const duplicate = draft.sources.some((source) => source.id !== id && String(source.client || "").trim().toLowerCase() === nextName.toLowerCase());
+      if (nextName && duplicate) {
+        setAgentNameError(duplicateAgentNameMessage(nextName));
+        return;
+      }
+      setAgentNameError("");
+    }
+    updateVisualDraft((current) => ({
       ...current,
       sources: current.sources.map((source) => source.id === id ? { ...source, ...patch } : source)
-    }));
+    }), delay);
   }
 
   function addSource() {
     const id = `custom-${Date.now()}`;
-    setDraft((current) => ({
+    updateVisualDraft((current) => ({
       ...current,
       sources: [
         ...current.sources,
-        { id, client: "New Agent", label: "New Agent Skills", root: "~/skills", enabled: true }
+        { id, client: nextAgentName(current.sources), label: t("newAgentSkills"), root: "~/skills", enabled: false }
       ],
       installSourceId: current.installSourceId || id
     }));
+    setAgentNameError("");
+    setEditingSourceId(id);
+    window.setTimeout(() => {
+      agentNameRefs.current[id]?.focus?.();
+      agentNameRefs.current[id]?.select?.();
+    }, 0);
   }
 
   function removeSource(id) {
-    setDraft((current) => {
+    updateVisualDraft((current) => {
       const sources = current.sources.filter((source) => source.id !== id);
       return {
         ...current,
@@ -4082,38 +4531,164 @@ function SettingsPage({ settings, onSave, saving }) {
     });
   }
 
-  async function save() {
-    if (settingsMode === "json") {
-      try {
-        const parsed = JSON.parse(jsonText);
-        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(t("jsonObjectRequired"));
-        setJsonError("");
-        await onSave(parsed);
-      } catch (error) {
-        setJsonError(error.message || String(error));
-      }
-      return;
+  function updateJsonText(value) {
+    setJsonText(value);
+    try {
+      const parsed = JSON.parse(value);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(t("jsonObjectRequired"));
+      const duplicateName = findDuplicateAgentName(parsed.sources || []);
+      if (duplicateName) throw new Error(duplicateAgentNameMessage(duplicateName));
+      setJsonError("");
+      setDraft(parsed);
+      setIgnoreText((parsed.ignorePatterns || []).join("\n"));
+    } catch (error) {
+      setJsonError(error.message || String(error));
     }
-    const cleaned = {
-      ...draft,
-      ignorePatterns: ignoreText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
-    };
-    await onSave(cleaned);
   }
 
   const installable = draft.sources.filter((source) => source.enabled);
   const setRetention = (key, value) => {
-    setDraft((current) => ({
+    updateVisualDraft((current) => ({
       ...current,
       [key]: value === "forever" ? null : Math.max(1, Number(current[key]) || 30)
     }));
-  };
-  const setRetentionDays = (key, value) => {
-    setDraft((current) => ({
+    setRetentionText((current) => ({
       ...current,
-      [key]: Math.max(1, Math.floor(Number(value) || 1))
+      [key]: value === "forever" ? "" : String(draft[key] || 30)
+    }));
+    setRetentionBaseline((current) => ({
+      ...current,
+      [key]: value === "forever" ? "" : String(draft[key] || 30)
     }));
   };
+  const beginRetentionEdit = (key) => {
+    setRetentionBaseline((current) => ({
+      ...current,
+      [key]: String(draft[key] || 30)
+    }));
+  };
+  const setRetentionDays = (key, value) => {
+    setRetentionText((current) => ({ ...current, [key]: value }));
+    if (!value.trim()) return;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 1) return;
+    updateVisualDraft((current) => ({
+      ...current,
+      [key]: Math.max(1, Math.floor(parsed))
+    }), 500);
+  };
+  const commitRetentionDays = (key) => {
+    const previousValue = retentionBaseline[key] || String(draft[key] || 30);
+    setRetentionText((current) => {
+      const value = current[key];
+      if (value === undefined) return current;
+      const parsed = Number(value);
+      if (value.trim() && Number.isFinite(parsed) && parsed >= 1) {
+        return { ...current, [key]: String(Math.max(1, Math.floor(parsed))) };
+      }
+      return { ...current, [key]: previousValue };
+    });
+    const currentValue = retentionText[key];
+    const parsed = Number(currentValue);
+    if (!String(currentValue || "").trim() || !Number.isFinite(parsed) || parsed < 1) {
+      updateVisualDraft((current) => ({
+        ...current,
+        [key]: Math.max(1, Math.floor(Number(previousValue) || 30))
+      }));
+    }
+    setRetentionBaseline((current) => {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  };
+
+  function reorderSource(sourceId, targetIndex) {
+    updateVisualDraft((current) => {
+      const fromIndex = current.sources.findIndex((source) => source.id === sourceId);
+      return { ...current, sources: moveItem(current.sources, fromIndex, targetIndex) };
+    });
+  }
+
+  function openAgentDirectory(root) {
+    if (!root) return;
+    const key = settingsPathKey(root);
+    if (pathStatus[key] === false) {
+      setPathStatus((current) => ({ ...current, [key]: false }));
+      setPathNoticeId(key);
+      window.setTimeout(() => setPathNoticeId((current) => current === key ? "" : current), 1600);
+      return;
+    }
+    window.skillStudio.open?.(key).catch?.(() => {
+      setPathStatus((current) => ({ ...current, [key]: false }));
+      setPathNoticeId(key);
+      window.setTimeout(() => setPathNoticeId((current) => current === key ? "" : current), 1600);
+    });
+  }
+
+  const normalizedDraftSettings = normalizeVisualSettings(draft);
+  const settingChanges = settingsDiffRows(settings || fallbackSettings, normalizedDraftSettings, t);
+  const hasSettingChanges = settingChanges.length > 0;
+  const settingsJsonBefore = formatSettingsJson(settings || fallbackSettings);
+  const settingsJsonAfter = formatSettingsJson(normalizedDraftSettings);
+  const settingChangeGroups = useMemo(() => {
+    const groups = new Map();
+    for (const row of settingChanges) {
+      if (!groups.has(row.group)) groups.set(row.group, []);
+      groups.get(row.group).push(row);
+    }
+    return Array.from(groups.entries()).map(([group, rows]) => ({ group, rows }));
+  }, [settingChanges]);
+
+  async function saveDraftSettings() {
+    let nextSettings = normalizeVisualSettings(draft);
+    if (settingsMode === "json") {
+      try {
+        const parsed = JSON.parse(jsonText);
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(t("jsonObjectRequired"));
+        const duplicateName = findDuplicateAgentName(parsed.sources || []);
+        if (duplicateName) throw new Error(duplicateAgentNameMessage(duplicateName));
+        nextSettings = parsed;
+        setJsonError("");
+      } catch (error) {
+        setJsonError(error.message || String(error));
+        return;
+      }
+    } else {
+      const duplicateName = findDuplicateAgentName(nextSettings.sources || []);
+      if (duplicateName) {
+        setAgentNameError(duplicateAgentNameMessage(duplicateName));
+        return;
+      }
+    }
+    setSavingDraft(true);
+    try {
+      const saved = await onSave(nextSettings);
+      if (saved) {
+        setDraft(saved);
+        setIgnoreText((saved.ignorePatterns || []).join("\n"));
+        setJsonText(JSON.stringify(saved, null, 2));
+      }
+      setAgentNameError("");
+      setShowSettingsDiff(false);
+      setSettingsSaveNotice(t("settingsSaved"));
+      refreshAppInfo().catch(() => {});
+    } finally {
+      setSavingDraft(false);
+    }
+  }
+
+  function discardDraftSettings() {
+    const reset = settings || fallbackSettings;
+    setDraft(reset);
+    setIgnoreText((reset.ignorePatterns || []).join("\n"));
+    setJsonText(JSON.stringify(reset, null, 2));
+    setJsonError("");
+    setAgentNameError("");
+    setRetentionText({});
+    setRetentionBaseline({});
+    setShowSettingsDiff(false);
+  }
 
   return (
     <section className="settings-page">
@@ -4123,17 +4698,32 @@ function SettingsPage({ settings, onSave, saving }) {
           <p>{t("settingsDesc")}</p>
         </div>
         <div className="settings-head-actions">
+          <div className="settings-change-actions">
+            {hasSettingChanges ? (
+              <button className="settings-dirty-button" onClick={() => setShowSettingsDiff((value) => !value)}>
+                {t("unsavedSettings")}
+              </button>
+            ) : null}
+            <button className="settings-action-button" onClick={discardDraftSettings} disabled={!hasSettingChanges || savingDraft}>
+              {t("discardSettings")}
+            </button>
+            <button
+              className={`settings-action-button settings-save-button ${savingDraft || settingsSaveNotice ? "is-active" : ""}`}
+              onClick={saveDraftSettings}
+              disabled={(!hasSettingChanges && !settingsSaveNotice) || savingDraft || Boolean(jsonError) || Boolean(agentNameError)}
+            >
+              <Save size={15} />
+              {settingsSaveNotice ? t("settingsSaved") : savingDraft ? t("saving") : t("saveSettings")}
+            </button>
+          </div>
           <div className="settings-mode-switch">
             <button className={settingsMode === "visual" ? "on" : ""} onClick={() => switchSettingsMode("visual")}>{t("visual")}</button>
             <button className={settingsMode === "json" ? "on" : ""} onClick={() => switchSettingsMode("json")}>{t("json")}</button>
           </div>
-          <button onClick={save} disabled={saving}>
-            <Save size={16} />
-            {saving ? t("saving") : t("saveSettings")}
-          </button>
         </div>
       </div>
 
+      <div className="settings-body">
       <section className="settings-version-card">
         <div>
           <span>{t("appVersion")}</span>
@@ -4142,21 +4732,72 @@ function SettingsPage({ settings, onSave, saving }) {
         <p>{appInfo?.name || "Skill Manager"} · {appInfo?.isPackaged ? t("packagedApp") : t("devMode")}</p>
       </section>
 
+      {showSettingsDiff && hasSettingChanges ? (
+        <aside className="settings-diff-panel">
+          <div className="settings-diff-head">
+            <div>
+              <h3>{t("settingsChanges")}</h3>
+              <p>{settingChanges.length ? t("settingChangeCount").replace("{count}", settingChanges.length) : t("noSettingChanges")}</p>
+            </div>
+            <button className="settings-diff-close" onClick={() => setShowSettingsDiff(false)} aria-label={t("cancel")} title={t("cancel")}>
+              <X size={15} />
+            </button>
+          </div>
+          {settingChanges.length ? (
+            settingsMode === "json" ? (
+              <SettingsJsonDiff before={settingsJsonBefore} after={settingsJsonAfter} />
+            ) : (
+              <div className="settings-diff-list">
+                {settingChangeGroups.map((group) => (
+                  <section className="settings-diff-group" key={group.group}>
+                    <div className="settings-diff-group-head">
+                      <strong>{group.group}</strong>
+                      <span>{group.rows.length}</span>
+                    </div>
+                    {group.rows.map((row) => (
+                      <div className="settings-diff-row" key={`${row.group}:${row.label}`}>
+                        <strong>{row.label}</strong>
+                        <div className="settings-diff-values">
+                          <code className="before">{row.before}</code>
+                          <span className="settings-diff-arrow">→</span>
+                          <code className="after">{row.after}</code>
+                        </div>
+                      </div>
+                    ))}
+                  </section>
+                ))}
+              </div>
+            )
+          ) : <div className="list-empty compact">{t("noSettingChanges")}</div>}
+        </aside>
+      ) : null}
+
       {settingsMode === "json" ? (
         <section className="settings-card settings-json-card">
           <div className="settings-card-head">
             <h3>{t("jsonSettings")}</h3>
             <p>{t("jsonSettingsDesc")}</p>
           </div>
-          <textarea
-            className={`settings-json-editor ${jsonError ? "has-error" : ""}`}
-            value={jsonText}
-            onChange={(event) => {
-              setJsonText(event.target.value);
-              if (jsonError) setJsonError("");
-            }}
-            spellCheck={false}
-          />
+          <div className={`settings-json-editor-shell ${jsonError ? "has-error" : ""}`}>
+            <div className="settings-json-editor-head">
+              <span>settings.json</span>
+              <em>{jsonText.split(/\r?\n/).length} lines</em>
+            </div>
+            <div className="settings-json-editor-body">
+              <pre className="settings-json-gutter" ref={settingsJsonGutterRef} aria-hidden="true">
+                {Array.from({ length: Math.max(1, jsonText.split(/\r?\n/).length) }, (_, index) => index + 1).join("\n")}
+              </pre>
+              <textarea
+                className="settings-json-editor"
+                value={jsonText}
+                onChange={(event) => updateJsonText(event.target.value)}
+                onScroll={(event) => {
+                  if (settingsJsonGutterRef.current) settingsJsonGutterRef.current.scrollTop = event.currentTarget.scrollTop;
+                }}
+                spellCheck={false}
+              />
+            </div>
+          </div>
           {jsonError ? <div className="json-error">{jsonError}</div> : null}
         </section>
       ) : (
@@ -4168,7 +4809,7 @@ function SettingsPage({ settings, onSave, saving }) {
           </div>
           <label className="settings-field">
             <span>{t("installToAgent")}</span>
-            <select value={draft.installSourceId || "agents"} onChange={(event) => setDraft({ ...draft, installSourceId: event.target.value })}>
+            <select value={draft.installSourceId || "agents"} onChange={(event) => updateVisualDraft({ ...draft, installSourceId: event.target.value })}>
               {installable.map((source) => (
                 <option key={source.id} value={source.id}>{source.client} · {shortPath(source.root)}</option>
               ))}
@@ -4176,22 +4817,70 @@ function SettingsPage({ settings, onSave, saving }) {
           </label>
           <label className="settings-field">
             <span>{t("installDialogDefault")}</span>
-            <select value={draft.installTargetMode || "remember-last"} onChange={(event) => setDraft({ ...draft, installTargetMode: event.target.value })}>
+            <select value={draft.installTargetMode || "remember-last"} onChange={(event) => updateVisualDraft({ ...draft, installTargetMode: event.target.value })}>
               <option value="remember-last">{t("rememberLast")}</option>
               <option value="always-default">{t("alwaysDefault")}</option>
             </select>
           </label>
           <label className="settings-field">
             <span>{t("language")}</span>
-            <select value={draft.language || "zh"} onChange={(event) => setDraft({ ...draft, language: event.target.value })}>
+            <select value={draft.language || "zh"} onChange={(event) => updateVisualDraft({ ...draft, language: event.target.value })}>
               <option value="zh">{t("zh")}</option>
               <option value="en">{t("en")}</option>
             </select>
           </label>
           <label className="toggle-field settings-toggle">
-            <input type="checkbox" checked={draft.mergeDuplicateSkills !== false} onChange={(event) => setDraft({ ...draft, mergeDuplicateSkills: event.target.checked })} />
+            <input type="checkbox" checked={draft.mergeDuplicateSkills !== false} onChange={(event) => updateVisualDraft({ ...draft, mergeDuplicateSkills: event.target.checked })} />
             {t("mergeAllAgents")}
           </label>
+        </section>
+
+        <section className="settings-card">
+          <div className="settings-card-head">
+            <h3>{t("localApi")}</h3>
+            <p>{t("localApiDesc")}</p>
+          </div>
+          <div className="api-panel">
+            <div className="api-panel-top">
+              <label className="toggle-field settings-toggle api-toggle">
+                <input type="checkbox" checked={draft.apiEnabled !== false} onChange={(event) => updateVisualDraft({ ...draft, apiEnabled: event.target.checked })} />
+                {t("enableLocalApi")}
+              </label>
+              <strong className={`api-connection-state ${apiConnection.state}`}>
+                {apiConnection.state === "testing" ? t("apiTesting") : apiConnection.state === "connected" ? t("apiConnected") : t("apiDisconnected")}
+              </strong>
+            </div>
+            <div className="api-port-row">
+              <label>
+                <span>{t("configuredPort")}</span>
+              </label>
+              <input
+                type="number"
+                min="1024"
+                max="65535"
+                value={draft.apiPort || 19010}
+                onChange={(event) => updateVisualDraft({ ...draft, apiPort: Number(event.target.value) || 19010 }, 500)}
+              />
+              <button className="soft-button api-mini-button" onClick={refreshLocalApi} disabled={apiBusy || Boolean(jsonError)}>
+                <RefreshCcw size={13} />
+                {apiBusy ? t("apiRefreshing") : t("refreshApi")}
+              </button>
+            </div>
+            <div className="api-status-card">
+              <div>
+                <span>{t("currentPort")}</span>
+                <strong>{appInfo?.apiEnabled ? (appInfo?.apiPort || t("apiStopped")) : t("apiStopped")}</strong>
+              </div>
+              <div>
+                <span>{t("apiBaseUrl")}</span>
+                <code>{appInfo?.apiBaseUrl || "-"}</code>
+              </div>
+              <button className="soft-button api-test-button" onClick={() => testApiConnection(appInfo?.apiPort)} disabled={apiBusy || !appInfo?.apiPort}>
+                {t("testApi")}
+              </button>
+            </div>
+            {apiConnection.message ? <em>{apiConnection.message}</em> : null}
+          </div>
         </section>
 
         <section className="settings-card">
@@ -4199,16 +4888,6 @@ function SettingsPage({ settings, onSave, saving }) {
             <h3>{t("retention")}</h3>
             <p>{t("retentionDesc")}</p>
           </div>
-          <label className="settings-field retention-field">
-            <span>{t("skillVersions")}</span>
-            <em>{t("retentionDays")}</em>
-            <input
-              type="number"
-              min="1"
-              value={draft.skillVersionRetentionDays || 30}
-              onChange={(event) => setRetentionDays("skillVersionRetentionDays", event.target.value)}
-            />
-          </label>
           <label className="settings-field retention-field">
             <span>{t("operationEvents")}</span>
             <select value={draft.eventRetentionDays ? "custom" : "forever"} onChange={(event) => setRetention("eventRetentionDays", event.target.value)}>
@@ -4219,8 +4898,10 @@ function SettingsPage({ settings, onSave, saving }) {
               type="number"
               min="1"
               disabled={!draft.eventRetentionDays}
-              value={draft.eventRetentionDays || 30}
+              value={retentionText.eventRetentionDays ?? (draft.eventRetentionDays || 30)}
+              onFocus={() => beginRetentionEdit("eventRetentionDays")}
               onChange={(event) => setRetentionDays("eventRetentionDays", event.target.value)}
+              onBlur={() => commitRetentionDays("eventRetentionDays")}
             />
           </label>
           <label className="settings-field retention-field">
@@ -4233,8 +4914,10 @@ function SettingsPage({ settings, onSave, saving }) {
               type="number"
               min="1"
               disabled={!draft.logRetentionDays}
-              value={draft.logRetentionDays || 30}
+              value={retentionText.logRetentionDays ?? (draft.logRetentionDays || 30)}
+              onFocus={() => beginRetentionEdit("logRetentionDays")}
               onChange={(event) => setRetentionDays("logRetentionDays", event.target.value)}
+              onBlur={() => commitRetentionDays("logRetentionDays")}
             />
           </label>
         </section>
@@ -4247,7 +4930,11 @@ function SettingsPage({ settings, onSave, saving }) {
           <textarea
             className="ignore-editor"
             value={ignoreText}
-            onChange={(event) => setIgnoreText(event.target.value)}
+            onChange={(event) => {
+              const value = event.target.value;
+              setIgnoreText(value);
+              updateVisualDraft((current) => current, 500, value);
+            }}
             spellCheck={false}
           />
         </section>
@@ -4260,32 +4947,105 @@ function SettingsPage({ settings, onSave, saving }) {
             </div>
             <button className="soft-button" onClick={addSource}>{t("addAgent")}</button>
           </div>
+          {agentNameError ? <div className="settings-inline-error">{agentNameError}</div> : null}
           <div className="agent-editor-list">
-            {draft.sources.map((source) => (
-              <div className="agent-editor-row" key={source.id}>
-                <label className="toggle-field">
-                  <input type="checkbox" checked={source.enabled} onChange={(event) => updateSource(source.id, { enabled: event.target.checked })} />
+            {draft.sources.map((source, index) => (
+              (() => {
+                const rootKey = settingsPathKey(source.root);
+                const missing = pathStatus[rootKey] === false;
+                const pathExists = pathStatus[rootKey] === true;
+                const cannotEnable = !rootKey || !pathExists;
+                return (
+              <div
+                className={`agent-editor-row ${dragOverSourceId === source.id ? "drag-over" : ""} ${editingSourceId === source.id ? "editing" : ""}`}
+                key={source.id}
+                onFocusCapture={() => setEditingSourceId(source.id)}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  if (draggedSourceId && draggedSourceId !== source.id) setDragOverSourceId(source.id);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  if (draggedSourceId && draggedSourceId !== source.id) reorderSource(draggedSourceId, index);
+                  setDraggedSourceId("");
+                  setDragOverSourceId("");
+                }}
+              >
+                <div className="agent-reorder-controls">
+                  <button
+                    className="agent-drag-handle"
+                    draggable
+                    title={t("dragToReorder")}
+                    aria-label={t("dragToReorder")}
+                    onDragStart={(event) => {
+                      setDraggedSourceId(source.id);
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData("text/plain", source.id);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedSourceId("");
+                      setDragOverSourceId("");
+                    }}
+                  >
+                    <GripVertical size={15} />
+                  </button>
+                  <button className="agent-move-button" disabled={index === 0} onClick={() => reorderSource(source.id, index - 1)} aria-label={t("moveUp")} title={t("moveUp")}>
+                    <ChevronUp size={13} />
+                  </button>
+                  <button className="agent-move-button" disabled={index === draft.sources.length - 1} onClick={() => reorderSource(source.id, index + 1)} aria-label={t("moveDown")} title={t("moveDown")}>
+                    <ChevronDown size={13} />
+                  </button>
+                </div>
+                <label className={`toggle-field ${cannotEnable ? "disabled" : ""}`}>
+                  <input
+                    className="agent-enable-input"
+                    type="checkbox"
+                    checked={Boolean(source.enabled) && !missing}
+                    disabled={cannotEnable}
+                    title={missing ? t("directoryMissing") : t("enabled")}
+                    onChange={(event) => {
+                      if (cannotEnable) return;
+                      updateSource(source.id, { enabled: event.target.checked });
+                    }}
+                  />
+                  <span className={`agent-enable-mark ${missing ? "missing" : ""} ${source.enabled && !missing ? "checked" : ""}`}>
+                    {missing ? <X size={11} /> : source.enabled && !missing ? "✓" : ""}
+                  </span>
                   {t("enabled")}
                 </label>
                 <label>
                   <span>{t("name")}</span>
-                  <input value={source.client} onChange={(event) => updateSource(source.id, { client: event.target.value })} />
+                  <input ref={(node) => { agentNameRefs.current[source.id] = node; }} value={source.client} onChange={(event) => updateSource(source.id, { client: event.target.value }, 500)} />
                 </label>
                 <label>
                   <span>{t("description")}</span>
-                  <input value={source.label} onChange={(event) => updateSource(source.id, { label: event.target.value })} />
+                  <input value={source.label} onChange={(event) => updateSource(source.id, { label: event.target.value }, 500)} />
                 </label>
-                <label>
+                <label className="agent-path-field">
                   <span>{t("directory")}</span>
-                  <input value={source.root} onChange={(event) => updateSource(source.id, { root: event.target.value })} />
+                  <input
+                    className={missing ? "missing-path" : ""}
+                    value={source.root}
+                    title={source.root}
+                    onDoubleClick={() => openAgentDirectory(source.root)}
+                    onChange={(event) => updateSource(source.id, { root: event.target.value }, 500)}
+                  />
+                  <button type="button" className="agent-path-open" title={t("openDirectory")} aria-label={t("openDirectory")} onClick={() => openAgentDirectory(source.root)}>
+                    <FolderOpen size={13} />
+                  </button>
+                  {missing ? <em className="agent-path-missing">{t("directoryMissing")}</em> : null}
+                  {pathNoticeId === rootKey ? <em className="agent-path-popover">{t("directoryMissing")}</em> : null}
                 </label>
                 <button className="tiny-danger" onClick={() => removeSource(source.id)}>{t("remove")}</button>
               </div>
+                );
+              })()
             ))}
           </div>
         </section>
       </div>
       )}
+      </div>
     </section>
   );
 }
@@ -4341,7 +5101,13 @@ function InstallTargetDialog({ pending, targets, selectedTargets, onChangeTarget
                     <strong>{target.client}</strong>
                     <em>{shortPath(target.root || target.dir)}</em>
                     {target.disabledReason ? <em>{target.disabledReason}</em> : null}
-                    {isDeleteUninstalled && versionLabel ? <em>{t("snapshotVersion")} {versionLabel}</em> : target.installed && versionLabel ? <em>{t("installedVersion")} {versionLabel}</em> : target.installed ? <em>{t("installedVersion")}</em> : (isSync || isRestore ? <em>{t("notInstalled")}</em> : null)}
+                    {isDeleteUninstalled
+                      ? (versionLabel ? <em>{t("snapshotVersion")} {versionLabel}</em> : null)
+                      : target.installed && versionLabel
+                        ? <em>{t("installedVersion")} {versionLabel}</em>
+                        : target.installed
+                          ? <em>{t("installedVersion")}</em>
+                          : <em>{t("notInstalled")}</em>}
                     {isDeleteUninstalled && target.recordScope !== "skill" ? <em>{shortPath(target.dir || target.root)}</em> : null}
                   </span>
                 </label>
@@ -4401,6 +5167,17 @@ function InstallConflictDialog({ pending, conflicts, actions, onChangeAction, on
 
 function OperationLogPage({ logs, onRefresh, onClear }) {
   const { t } = useI18n();
+  const [selectedTypes, setSelectedTypes] = useState(null);
+  const [query, setQuery] = useState("");
+  const typeOptions = useMemo(() => [...new Set(logs.map((log) => normalizeOperationType(log.type)))], [logs]);
+  const activeTypes = selectedTypes === null ? typeOptions : selectedTypes;
+  const allTypeSelected = typeOptions.length > 0 && activeTypes.length === typeOptions.length && typeOptions.every((type) => activeTypes.includes(type));
+  const filteredLogs = useMemo(() => logs.filter((log) => {
+    if (!activeTypes.includes(normalizeOperationType(log.type))) return false;
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return [log.type, log.status, log.title, log.message, log.detail].some((value) => String(value || "").toLowerCase().includes(q));
+  }), [logs, activeTypes, query]);
   return (
     <section className="logs-page">
       <div className="settings-head">
@@ -4409,6 +5186,30 @@ function OperationLogPage({ logs, onRefresh, onClear }) {
           <p>{t("operationLogsDesc")}</p>
         </div>
         <div className="log-actions">
+          <input className="log-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("searchLogs")} />
+          <details className="log-type-filter">
+            <summary>
+              <span>{t("logFilter")}</span>
+            </summary>
+            <div>
+              <button className="soft-button compact-filter-toggle" onClick={() => setSelectedTypes(allTypeSelected ? [] : null)}>{allTypeSelected ? t("selectNoTypes") : t("selectAll")}</button>
+              {typeOptions.map((type) => (
+                <label key={type} className={operationTypeClass(type)}>
+                  <input
+                    type="checkbox"
+                    checked={activeTypes.includes(type)}
+                    onChange={(event) => {
+                      const current = new Set(activeTypes);
+                      if (event.target.checked) current.add(type);
+                      else current.delete(type);
+                      setSelectedTypes([...current]);
+                    }}
+                  />
+                  <span>{operationTypeLabel(type, t)}</span>
+                </label>
+              ))}
+            </div>
+          </details>
           <button className="soft-button" onClick={onRefresh}>
             <RefreshCcw size={16} />
             {t("refresh")}
@@ -4417,10 +5218,10 @@ function OperationLogPage({ logs, onRefresh, onClear }) {
         </div>
       </div>
       <div className="log-list">
-        {logs.length ? logs.map((log) => (
+        {filteredLogs.length ? filteredLogs.map((log) => (
           <article className={`log-entry ${log.status}`} key={log.id}>
             <div className="log-entry-head">
-              <span>{operationTypeLabel(log.type, t)}</span>
+              <span className={operationTypeClass(log.type)}>{operationTypeLabel(log.type, t)}</span>
               <strong>{log.title || "-"}</strong>
               <em>{formatDate(log.createdAt)}</em>
             </div>
@@ -4440,7 +5241,18 @@ function OperationLogPage({ logs, onRefresh, onClear }) {
 
 function OperationEventPage({ events, onRefresh, onClear }) {
   const { t } = useI18n();
+  const [selectedTypes, setSelectedTypes] = useState(null);
+  const [query, setQuery] = useState("");
   const stages = ["queued", "running", "success"];
+  const typeOptions = useMemo(() => [...new Set(events.map((event) => normalizeOperationType(event.type)))], [events]);
+  const activeTypes = selectedTypes === null ? typeOptions : selectedTypes;
+  const allTypeSelected = typeOptions.length > 0 && activeTypes.length === typeOptions.length && typeOptions.every((type) => activeTypes.includes(type));
+  const filteredEvents = useMemo(() => events.filter((event) => {
+    if (!activeTypes.includes(normalizeOperationType(event.type))) return false;
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return [event.type, event.status, event.title, event.detail, event.current, event.error].some((value) => String(value || "").toLowerCase().includes(q));
+  }), [events, activeTypes, query]);
   function stageState(event, stage) {
     if (event.status === "failed") return stage === "success" ? "failed" : "done";
     const index = stages.indexOf(stage);
@@ -4457,6 +5269,30 @@ function OperationEventPage({ events, onRefresh, onClear }) {
           <p>{t("operationEventsDesc")}</p>
         </div>
         <div className="log-actions">
+          <input className="log-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("searchLogs")} />
+          <details className="log-type-filter">
+            <summary>
+              <span>{t("logFilter")}</span>
+            </summary>
+            <div>
+              <button className="soft-button compact-filter-toggle" onClick={() => setSelectedTypes(allTypeSelected ? [] : null)}>{allTypeSelected ? t("selectNoTypes") : t("selectAll")}</button>
+              {typeOptions.map((type) => (
+                <label key={type} className={operationTypeClass(type)}>
+                  <input
+                    type="checkbox"
+                    checked={activeTypes.includes(type)}
+                    onChange={(event) => {
+                      const current = new Set(activeTypes);
+                      if (event.target.checked) current.add(type);
+                      else current.delete(type);
+                      setSelectedTypes([...current]);
+                    }}
+                  />
+                  <span>{operationTypeLabel(type, t)}</span>
+                </label>
+              ))}
+            </div>
+          </details>
           <button className="soft-button" onClick={onRefresh}>
             <RefreshCcw size={16} />
             {t("refresh")}
@@ -4465,13 +5301,13 @@ function OperationEventPage({ events, onRefresh, onClear }) {
         </div>
       </div>
       <div className="log-list">
-        {events.length ? events.map((event) => {
+        {filteredEvents.length ? filteredEvents.map((event) => {
           const percent = Math.round((event.progress / Math.max(1, event.total)) * 100);
           const eventDetail = operationDetailLabel(event.current || event.detail, t);
           return (
             <article className={`event-entry ${event.status}`} key={event.id}>
               <div className="log-entry-head">
-                <span>{operationTypeLabel(event.type, t)}</span>
+                <span className={operationTypeClass(event.type)}>{operationTypeLabel(event.type, t)}</span>
                 <strong>{event.title}</strong>
                 <em>{formatDate(event.updatedAt)}</em>
               </div>
@@ -4588,16 +5424,34 @@ function operationStatusLabel(status, t) {
   return status || t("typeUnknown");
 }
 
+function normalizeOperationType(type) {
+  const normalized = String(type || "unknown").trim().toLowerCase();
+  if (!normalized) return "unknown";
+  if (normalized.includes("uninstall")) return "uninstall";
+  if (normalized.includes("restore") || normalized.includes("recover")) return "recover";
+  if (normalized.includes("update")) return "update";
+  if (normalized.includes("sync")) return "sync";
+  if (normalized.includes("settings") || normalized.includes("setting")) return "settings";
+  if (normalized.includes("publish") || normalized.includes("version")) return "publish";
+  if (normalized.includes("delete") || normalized.includes("clear")) return "delete";
+  if (normalized.includes("install")) return "install";
+  return normalized.replace(/[^a-z0-9-]+/g, "-") || "unknown";
+}
+
+function operationTypeClass(type) {
+  return `op-type op-type-${normalizeOperationType(type)}`;
+}
+
 function operationTypeLabel(type, t) {
-  const normalized = String(type || "").toLowerCase();
-  if (normalized.includes("uninstall")) return t("typeUninstall");
-  if (normalized.includes("restore")) return t("typeRestore");
-  if (normalized.includes("recover")) return t("typeRecover");
-  if (normalized.includes("update")) return t("typeUpdate");
-  if (normalized.includes("sync")) return t("typeSync");
-  if (normalized.includes("settings")) return t("typeSettings");
-  if (normalized.includes("publish") || normalized.includes("version")) return t("typePublish");
-  if (normalized.includes("install")) return t("typeInstall");
+  const normalized = normalizeOperationType(type);
+  if (normalized === "uninstall") return t("typeUninstall");
+  if (normalized === "recover") return t("typeRecover");
+  if (normalized === "update") return t("typeUpdate");
+  if (normalized === "sync") return t("typeSync");
+  if (normalized === "settings") return t("typeSettings");
+  if (normalized === "publish") return t("typePublish");
+  if (normalized === "delete") return t("typeDelete");
+  if (normalized === "install") return t("typeInstall");
   return type || t("typeUnknown");
 }
 
@@ -4682,6 +5536,7 @@ function App() {
   const [operationEvents, setOperationEvents] = useState([]);
   const [busyAction, setBusyAction] = useState("");
   const [notice, setNotice] = useState("");
+  const [noticeDuration, setNoticeDuration] = useState(1800);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const lang = settings?.language === "en" ? "en" : "zh";
   const t = useMemo(() => createTranslator(lang), [lang]);
@@ -4757,10 +5612,29 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!window.skillStudio.onSkillsChanged) return undefined;
+    let timer = 0;
+    const unsubscribe = window.skillStudio.onSkillsChanged(() => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        refreshAll();
+        refreshEvents();
+      }, 120);
+    });
+    return () => {
+      window.clearTimeout(timer);
+      unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
     if (!notice) return undefined;
-    const timer = window.setTimeout(() => setNotice(""), 1800);
+    const timer = window.setTimeout(() => {
+      setNotice("");
+      setNoticeDuration(1800);
+    }, noticeDuration);
     return () => window.clearTimeout(timer);
-  }, [notice]);
+  }, [notice, noticeDuration]);
 
   useEffect(() => {
     if (!starSourceOpen) return undefined;
@@ -4788,6 +5662,24 @@ function App() {
     window.addEventListener("pointerdown", close);
     return () => window.removeEventListener("pointerdown", close);
   }, [searchConfigOpen]);
+
+  useEffect(() => {
+    const closeOpenDetails = (event) => {
+      document.querySelectorAll("details[open]").forEach((node) => {
+        if (!node.contains(event.target)) node.removeAttribute("open");
+      });
+    };
+    const closeOpenDetailsOnEscape = (event) => {
+      if (event.key !== "Escape") return;
+      document.querySelectorAll("details[open]").forEach((node) => node.removeAttribute("open"));
+    };
+    window.addEventListener("pointerdown", closeOpenDetails);
+    window.addEventListener("keydown", closeOpenDetailsOnEscape);
+    return () => {
+      window.removeEventListener("pointerdown", closeOpenDetails);
+      window.removeEventListener("keydown", closeOpenDetailsOnEscape);
+    };
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(async () => {
@@ -5367,6 +6259,7 @@ function App() {
     setSettingsSaving(true);
     setNotice("");
     try {
+      const beforeSettings = settings;
       const saved = await window.skillStudio.saveSettings(nextSettings);
       setSettings(saved);
       if (saved.installTargetMode === "always-default") {
@@ -5374,22 +6267,24 @@ function App() {
         setSelectedInstallTargets(defaults);
         setDialogTargetIds(defaults);
       }
-      await refreshAll();
-      setNotice(t("settingsSaved"));
+      refreshLogs();
+      const needsSkillRefresh = JSON.stringify(beforeSettings?.sources || []) !== JSON.stringify(saved.sources || [])
+        || JSON.stringify(beforeSettings?.ignorePatterns || []) !== JSON.stringify(saved.ignorePatterns || [])
+        || beforeSettings?.mergeDuplicateSkills !== saved.mergeDuplicateSkills;
+      if (needsSkillRefresh) refreshAll();
+      return saved;
     } catch (err) {
       setNotice(t("settingsSaveFailed").replace("{message}", err.message || String(err)));
+      throw err;
     } finally {
       setSettingsSaving(false);
     }
   }
 
   const agentCounts = useMemo(() => {
-    const map = new Map();
-    (data?.skills || []).forEach((skill) => map.set(skill.client, (map.get(skill.client) || 0) + 1));
-    return [...map.entries()]
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-  }, [data]);
+    const sources = settings?.sources?.length ? settings.sources : data?.sources || [];
+    return orderedAgentCounts(sources, data?.skills || []);
+  }, [settings, data]);
 
   const installedFiltered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -5623,6 +6518,7 @@ function App() {
 
   const installedCount = new Set((data?.skills || []).map((skill) => skillGroupKey(skill))).size;
   const uninstalledCount = new Set((uninstalledData?.skills || []).map((skill) => skillGroupKey(skill))).size;
+  const showGlobalSearch = ["discover", "installed", "uninstalled", "starred", "tags"].includes(listMode);
   const visibleCount = listMode === "discover" ? discoverItems.length : listMode === "tags" ? allTagCounts.length : listMode === "starred" ? starredFiltered.length : listMode === "uninstalled" ? uninstalledFiltered.length : installedFiltered.length;
   const discoverTotalLabel = githubTrends.meta?.tabLabels?.alltime || githubTrends.meta?.totalLabel || githubTrends.items.length || 0;
   const discoverModeTotalLabel = githubTrends.meta?.totalLabel || (discoverSource === "alltime" ? discoverTotalLabel : "");
@@ -5695,6 +6591,11 @@ function App() {
     }
   }, [installTargets, selectedInstallTargets]);
 
+  useEffect(() => {
+    if (showGlobalSearch) return;
+    setSearchConfigOpen(false);
+  }, [showGlobalSearch]);
+
   return (
     <I18nContext.Provider value={i18nValue}>
     <main className="shell">
@@ -5706,25 +6607,27 @@ function App() {
             <p>{t("appSubtitle")}</p>
           </div>
         </div>
-        <div className="toolbar">
-          <label className="search-box">
-            <Search size={18} />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={searchPlaceholder(searchOptions, t)} />
-          </label>
-          <div className="search-config-wrap" ref={searchConfigRef}>
-            <button
-              className={`icon-button search-config-button ${searchOptions.content ? "active" : ""}`}
-              onClick={() => setSearchConfigOpen((open) => !open)}
-              title={t("searchConfig")}
-            >
-              <SlidersHorizontal size={18} />
+        {showGlobalSearch ? (
+          <div className="toolbar">
+            <label className="search-box">
+              <Search size={18} />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={searchPlaceholder(searchOptions, t)} />
+            </label>
+            <div className="search-config-wrap" ref={searchConfigRef}>
+              <button
+                className={`icon-button search-config-button ${searchOptions.content ? "active" : ""}`}
+                onClick={() => setSearchConfigOpen((open) => !open)}
+                title={t("searchConfig")}
+              >
+                <SlidersHorizontal size={18} />
+              </button>
+              <SearchConfig open={searchConfigOpen} options={searchOptions} onChange={setSearchOptions} />
+            </div>
+            <button className="icon-button" onClick={refresh} disabled={loading} title={t("rescan")}>
+              <RefreshCcw size={18} />
             </button>
-            <SearchConfig open={searchConfigOpen} options={searchOptions} onChange={setSearchOptions} />
           </div>
-          <button className="icon-button" onClick={refresh} disabled={loading} title={t("rescan")}>
-            <RefreshCcw size={18} />
-          </button>
-        </div>
+        ) : null}
       </header>
 
       {error ? <div className="error">{error}</div> : null}
@@ -5745,7 +6648,7 @@ function App() {
             <div className="section-label">{t("agents")}</div>
             <CountRow label={t("allAgents")} count={installedCount} active={listMode === "installed" && sourceFilter === "all"} onClick={() => { setListMode("installed"); setSourceFilter("all"); }} />
             {agentCounts.map((agent) => (
-              <CountRow key={agent.name} label={agent.name} count={agent.count} active={listMode === "installed" && sourceFilter === agent.name} onClick={() => { setListMode("installed"); setSourceFilter(agent.name); }} />
+              <CountRow key={agent.id} label={agent.name} count={agent.count} active={listMode === "installed" && sourceFilter === agent.name} onClick={() => { setListMode("installed"); setSourceFilter(agent.name); }} />
             ))}
           </div>
           <div className="settings-nav">
@@ -5756,7 +6659,7 @@ function App() {
         </aside>
 
         {listMode === "settings" ? (
-          <SettingsPage settings={settings} onSave={saveSettings} saving={settingsSaving} />
+          <SettingsPage settings={settings} onSave={saveSettings} />
         ) : listMode === "events" ? (
           <OperationEventPage events={operationEvents} onRefresh={refreshEvents} onClear={clearEvents} />
         ) : listMode === "logs" ? (

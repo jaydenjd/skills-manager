@@ -3,6 +3,7 @@ const crypto = require("node:crypto");
 const { execFile } = require("node:child_process");
 const fs = require("node:fs");
 const fsp = require("node:fs/promises");
+const http = require("node:http");
 const https = require("node:https");
 const path = require("node:path");
 const zlib = require("node:zlib");
@@ -14,6 +15,8 @@ const isDev = !app.isPackaged;
 let storeFile = "";
 let storeCache = {};
 let historyDir = "";
+let apiServer = null;
+let apiActualPort = null;
 const uninstallMetaFile = ".skill-manager-uninstall.json";
 const legacyUninstallMetaFile = ".skill-studio-uninstall.json";
 const discoverPageSize = 80;
@@ -64,7 +67,9 @@ function defaultSettings() {
     mergeDuplicateSkills: true,
     skillVersionRetentionDays: 30,
     logRetentionDays: null,
-    eventRetentionDays: null
+    eventRetentionDays: null,
+    apiEnabled: true,
+    apiPort: 19010
   };
 }
 
@@ -79,6 +84,12 @@ function normalizeRetentionDays(value) {
   return Number.isFinite(days) && days > 0 ? Math.floor(days) : null;
 }
 
+function normalizeApiPort(value) {
+  const port = Number(value);
+  if (!Number.isFinite(port)) return 19010;
+  return Math.min(65535, Math.max(1024, Math.floor(port)));
+}
+
 function getSettings() {
   const sources = normalizeSources(getStoreValue("sources", defaultSources()));
   const installSourceId = getStoreValue("installSourceId", "agents");
@@ -91,11 +102,13 @@ function getSettings() {
     mergeDuplicateSkills: getStoreValue("mergeDuplicateSkills", true),
     skillVersionRetentionDays: normalizeRetentionDays(getStoreValue("skillVersionRetentionDays", 30)) || 30,
     logRetentionDays: normalizeRetentionDays(getStoreValue("logRetentionDays", null)),
-    eventRetentionDays: normalizeRetentionDays(getStoreValue("eventRetentionDays", null))
+    eventRetentionDays: normalizeRetentionDays(getStoreValue("eventRetentionDays", null)),
+    apiEnabled: getStoreValue("apiEnabled", true) !== false,
+    apiPort: normalizeApiPort(getStoreValue("apiPort", 19010))
   };
 }
 
-function saveSettings(settings) {
+function saveSettings(settings, options = {}) {
   const sources = normalizeSources(settings?.sources);
   const next = {
     sources,
@@ -106,18 +119,26 @@ function saveSettings(settings) {
     mergeDuplicateSkills: settings?.mergeDuplicateSkills !== false,
     skillVersionRetentionDays: normalizeRetentionDays(settings?.skillVersionRetentionDays) || 30,
     logRetentionDays: normalizeRetentionDays(settings?.logRetentionDays),
-    eventRetentionDays: normalizeRetentionDays(settings?.eventRetentionDays)
+    eventRetentionDays: normalizeRetentionDays(settings?.eventRetentionDays),
+    apiEnabled: settings?.apiEnabled !== false,
+    apiPort: normalizeApiPort(settings?.apiPort || 19010)
   };
-  setStoreValue("sources", next.sources);
-  setStoreValue("ignorePatterns", next.ignorePatterns);
-  setStoreValue("installSourceId", next.installSourceId);
-  setStoreValue("installTargetMode", next.installTargetMode);
-  setStoreValue("language", next.language);
-  setStoreValue("mergeDuplicateSkills", next.mergeDuplicateSkills);
-  setStoreValue("skillVersionRetentionDays", next.skillVersionRetentionDays);
-  setStoreValue("logRetentionDays", next.logRetentionDays);
-  setStoreValue("eventRetentionDays", next.eventRetentionDays);
-  pruneOperationStores(next);
+  Object.assign(storeCache, {
+    sources: next.sources,
+    ignorePatterns: next.ignorePatterns,
+    installSourceId: next.installSourceId,
+    installTargetMode: next.installTargetMode,
+    language: next.language,
+    mergeDuplicateSkills: next.mergeDuplicateSkills,
+    skillVersionRetentionDays: next.skillVersionRetentionDays,
+    logRetentionDays: next.logRetentionDays,
+    eventRetentionDays: next.eventRetentionDays,
+    apiEnabled: next.apiEnabled,
+    apiPort: next.apiPort,
+    operationLogs: pruneEntriesByRetention(getStoreValue("operationLogs", []), next.logRetentionDays, ["createdAt", "updatedAt"]),
+    operationEvents: pruneEntriesByRetention(getStoreValue("operationEvents", []), next.eventRetentionDays, ["updatedAt", "createdAt"])
+  });
+  if (options.write !== false) writeStore();
   return getSettings();
 }
 
@@ -143,9 +164,18 @@ function notifyOpenSettings() {
   });
 }
 
+function notifySkillsChanged(payload = {}) {
+  BrowserWindow.getAllWindows().forEach((window) => {
+    window.webContents.send("skills:changed", {
+      changedAt: new Date().toISOString(),
+      ...payload
+    });
+  });
+}
+
 function setLanguage(language) {
   const current = getSettings();
-  const saved = saveSettings({ ...current, language: language === "en" ? "en" : "zh" });
+  const { saved } = saveSettingsWithLog({ ...current, language: language === "en" ? "en" : "zh" });
   buildAppMenu();
   notifyLanguageChanged(saved.language);
   return saved;
@@ -326,6 +356,16 @@ function sourceLabelById(settings, id) {
   return settings.sources.find((source) => source.id === id)?.client || id || "-";
 }
 
+function sourceByIdOrName(value, settings = getSettings()) {
+  const token = String(value || "").trim();
+  if (!token) return null;
+  return settings.sources.find((source) => (
+    source.id === token
+    || source.client === token
+    || source.label === token
+  )) || null;
+}
+
 function settingModeLabel(mode) {
   return mode === "always-default" ? "每次使用默认 Agent" : "记住上次选择";
 }
@@ -346,6 +386,12 @@ function summarizeSettingsChange(before, after) {
   }
   if (before.skillVersionRetentionDays !== after.skillVersionRetentionDays) {
     changes.push(`Skill 版本保留：${before.skillVersionRetentionDays} 天 -> ${after.skillVersionRetentionDays} 天`);
+  }
+  if (before.apiEnabled !== after.apiEnabled) {
+    changes.push(`本地 API：${before.apiEnabled ? "开启" : "关闭"} -> ${after.apiEnabled ? "开启" : "关闭"}`);
+  }
+  if (before.apiPort !== after.apiPort) {
+    changes.push(`本地 API 端口：${before.apiPort} -> ${after.apiPort}`);
   }
 
   const beforeIgnore = (before.ignorePatterns || []).join("\n");
@@ -372,11 +418,35 @@ function summarizeSettingsChange(before, after) {
   return changes.length ? changes.join("；") : "无配置变化";
 }
 
+function saveSettingsWithLog(settings) {
+  const before = getSettings();
+  const saved = saveSettings(settings, { write: false });
+  const detail = summarizeSettingsChange(before, saved);
+  if (detail !== "无配置变化") {
+    const logs = pruneEntriesByRetention(getStoreValue("operationLogs", []), saved.logRetentionDays, ["createdAt", "updatedAt"]);
+    storeCache.operationLogs = [{
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      createdAt: new Date().toISOString(),
+      type: "settings",
+      status: "success",
+      title: "Settings",
+      message: "设置已保存。",
+      detail
+    }, ...logs];
+  }
+  writeStore();
+  return { before, saved };
+}
+
 function installRootFor(sourceId) {
   const settings = getSettings();
   const sources = settings.sources.length ? settings.sources : defaultSources();
   const selected = sources.find((source) => source.id === sourceId) || sources.find((source) => source.id === settings.installSourceId) || sources.find((source) => source.id === "agents");
   return selected?.root ? expandHome(selected.root) : path.join(app.getPath("home"), ".agents", "skills");
+}
+
+function normalizeUserPathInput(value) {
+  return String(value || "").trim().replace(/^["']|["']$/g, "").replace(/^～(?=$|\/|\\)/, "~");
 }
 
 function safeName(input) {
@@ -459,10 +529,14 @@ function getStoreValue(key, fallback) {
   return Object.prototype.hasOwnProperty.call(storeCache, key) ? storeCache[key] : fallback;
 }
 
-function setStoreValue(key, value) {
-  storeCache[key] = value;
+function writeStore() {
   fs.mkdirSync(path.dirname(storeFile), { recursive: true });
   fs.writeFileSync(storeFile, JSON.stringify(storeCache, null, 2));
+}
+
+function setStoreValue(key, value) {
+  storeCache[key] = value;
+  writeStore();
 }
 
 async function moveDirectoryContents(sourceDir, targetDir) {
@@ -962,6 +1036,7 @@ async function archiveSkillDirectory(skillDir, metadata = {}) {
     sourceClient: metadata.client || metadata.sourceClient || "",
     sourceLabel: metadata.sourceLabel || "",
     reason: metadata.reason || "archive",
+    message: metadata.message || metadata.note || "",
     archivePath,
     createdAt: now,
     contentUpdatedAt
@@ -1433,6 +1508,7 @@ async function previewSkillUpgrade(payload = {}) {
 
 async function commitSkillUpgrade(payload = {}) {
   const { skillDir, sourceInfo = {}, nextVersion } = payload;
+  const message = String(payload.message || "").trim();
   if (!skillDir || !fs.existsSync(skillDir)) throw new Error("缺少 skill 目录。");
   const { meta, fileVersion, latestManagedVersion, targetVersion } = await resolveSkillPublishTarget(skillDir, nextVersion, sourceInfo);
   const skillFilePath = path.join(skillDir, "SKILL.md");
@@ -1451,7 +1527,12 @@ async function commitSkillUpgrade(payload = {}) {
       if (activeManifest?.hash === currentHash) throw new Error("目标版本与当前版本一致。");
     }
   }
-  const activeVersion = await archiveSkillDirectory(skillDir, { ...sourceInfo, skillKey: meta.skillKey, reason: "manual-version-active" });
+  const activeVersion = await archiveSkillDirectory(skillDir, {
+    ...sourceInfo,
+    skillKey: meta.skillKey,
+    reason: "manual-version-active",
+    message
+  });
   await setActiveVersionState(skillDir, sourceInfo, activeVersion);
   appendOperationLog({
     type: "version",
@@ -1460,6 +1541,7 @@ async function commitSkillUpgrade(payload = {}) {
     message: `已发布版本 v${targetVersion}。`,
     detail: skillDir
   });
+  notifySkillsChanged({ type: "version", skillDir, sourceInfo });
   const stats = await fsp.stat(skillFilePath);
   const snapshot = await scanSkillDirectory(skillDir, {
     id: sourceInfo?.sourceId || activeVersion?.sourceId || "local",
@@ -2214,6 +2296,313 @@ function parseSkillsShDetail(html, item = {}) {
   };
 }
 
+async function scanInstalledSkills() {
+  const settings = getSettings();
+  return scanSkills(settings.sources, { ignorePatterns: settings.ignorePatterns, includeTree: false, fastStats: true });
+}
+
+async function scanUninstalledSkills() {
+  return scanSkills([
+    { id: "uninstalled", client: "Uninstalled", label: "Uninstalled", root: uninstalledSkillsDir(), enabled: true }
+  ], { ignorePatterns: getSettings().ignorePatterns, includeTree: false, fastStats: true });
+}
+
+async function skillDetailSnapshot(payload = {}) {
+  const { skillDir, source = {} } = payload;
+  if (!skillDir) throw new Error("缺少 skill 目录。");
+  if (!fs.existsSync(skillDir) || !fs.existsSync(path.join(skillDir, "SKILL.md"))) {
+    return {
+      id: `${source.id || source.sourceId || "missing"}:${safeName(path.basename(skillDir))}`,
+      name: path.basename(skillDir),
+      dir: skillDir,
+      sourceId: source.id || source.sourceId || "missing",
+      client: source.client || source.sourceClient || "Missing",
+      sourceLabel: source.label || source.sourceLabel || "Missing",
+      missing: true,
+      detailLoaded: false
+    };
+  }
+  const settings = getSettings();
+  const snapshot = await scanSkillDirectory(skillDir, {
+    id: source.id || source.sourceId || "local",
+    client: source.client || source.sourceClient || "Local",
+    label: source.label || source.sourceLabel || source.client || "Local",
+    root: source.root || path.dirname(skillDir)
+  }, { ignorePatterns: settings.ignorePatterns });
+  if (!snapshot?.dir || snapshot.sourceId === "uninstalled") return snapshot;
+  try {
+    const versionInfo = await ensureInstallVersionState(snapshot);
+    return { ...snapshot, versionInfo };
+  } catch {
+    return snapshot;
+  }
+}
+
+function apiStatus() {
+  const settings = getSettings();
+  return {
+    ok: true,
+    app: {
+      name: app.getName(),
+      version: app.getVersion(),
+      isPackaged: app.isPackaged
+    },
+    api: {
+      enabled: settings.apiEnabled,
+      configuredPort: settings.apiPort,
+      port: apiActualPort,
+      baseUrl: apiActualPort ? `http://127.0.0.1:${apiActualPort}` : ""
+    }
+  };
+}
+
+function readRequestBody(request) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    request.on("data", (chunk) => chunks.push(chunk));
+    request.on("end", () => {
+      const raw = Buffer.concat(chunks).toString("utf8");
+      if (!raw.trim()) {
+        resolve({});
+        return;
+      }
+      try {
+        resolve(JSON.parse(raw));
+      } catch (error) {
+        reject(new Error(`Invalid JSON body: ${error.message}`));
+      }
+    });
+    request.on("error", reject);
+  });
+}
+
+function writeApiJson(response, statusCode, payload) {
+  response.writeHead(statusCode, {
+    "content-type": "application/json; charset=utf-8",
+    "access-control-allow-origin": "http://127.0.0.1",
+    "access-control-allow-methods": "GET,POST,OPTIONS",
+    "access-control-allow-headers": "content-type"
+  });
+  response.end(JSON.stringify(payload, null, 2));
+}
+
+function resolveSkillTarget(payload = {}) {
+  const settings = getSettings();
+  const source = sourceByIdOrName(payload.sourceId || payload.agent || payload.targetSourceId, settings)
+    || (payload.skillDir ? sourceByIdOrName(inferSourceIdForSkillDir(expandHome(payload.skillDir)), settings) : null)
+    || sourceByIdOrName(settings.installSourceId, settings)
+    || settings.sources[0];
+  const sourceId = source?.id || payload.sourceId || payload.agent || settings.installSourceId;
+  const skillDir = payload.skillDir
+    ? expandHome(payload.skillDir)
+    : path.join(installRootFor(sourceId), safeName(payload.skill || payload.name || ""));
+  return {
+    skillDir,
+    source,
+    sourceInfo: {
+      sourceId,
+      client: source?.client || payload.agent || sourceId,
+      sourceLabel: source?.label || payload.sourceLabel || source?.client || sourceId,
+      root: source?.root
+    }
+  };
+}
+
+async function routeLocalApi(request, url) {
+  if (request.method === "OPTIONS") return { status: 204, body: {} };
+  if (request.method === "GET" && ["/", "/api", "/api/status"].includes(url.pathname)) {
+    return { status: 200, body: apiStatus() };
+  }
+  if (request.method === "GET" && url.pathname === "/api/settings") {
+    return { status: 200, body: getSettings() };
+  }
+  if (request.method === "POST" && url.pathname === "/api/settings") {
+    const { saved: next } = saveSettingsWithLog(await readRequestBody(request));
+    setTimeout(() => restartLocalApiServer(), 0);
+    buildAppMenu();
+    return { status: 200, body: next };
+  }
+  if (request.method === "GET" && url.pathname === "/api/skills") {
+    const scope = url.searchParams.get("scope") || "installed";
+    return { status: 200, body: scope === "uninstalled" ? await scanUninstalledSkills() : await scanInstalledSkills() };
+  }
+  if (request.method === "POST" && url.pathname === "/api/skills/detail") {
+    return { status: 200, body: await skillDetailSnapshot(await readRequestBody(request)) };
+  }
+  if (request.method === "POST" && url.pathname === "/api/skills/publish") {
+    const payload = await readRequestBody(request);
+    const target = resolveSkillTarget(payload);
+    return {
+      status: 200,
+      body: await commitSkillUpgrade({
+        skillDir: target.skillDir,
+        sourceInfo: target.sourceInfo,
+        nextVersion: payload.nextVersion,
+        message: payload.message
+      })
+    };
+  }
+  if (request.method === "POST" && url.pathname === "/api/skills/install-local") {
+    const payload = await readRequestBody(request);
+    const target = resolveSkillTarget(payload);
+    const sourceDir = expandHome(payload.sourceDir || payload.skillDir || "");
+    return { status: 200, body: await performInstallLocalSkill(sourceDir, target.sourceInfo.sourceId, payload.conflictStrategy) };
+  }
+  if (request.method === "POST" && url.pathname === "/api/skills/uninstall") {
+    const payload = await readRequestBody(request);
+    const target = resolveSkillTarget(payload);
+    return { status: 200, body: await performUninstallSkill(target.skillDir, target.sourceInfo) };
+  }
+  if (request.method === "POST" && url.pathname === "/api/skills/recover") {
+    const payload = await readRequestBody(request);
+    const target = resolveSkillTarget(payload);
+    const sourceDir = expandHome(payload.sourceDir || payload.skillDir || "");
+    return { status: 200, body: await performRestoreSkill(sourceDir, target.sourceInfo.sourceId, payload.conflictStrategy) };
+  }
+  if (request.method === "POST" && url.pathname === "/api/discover/install") {
+    const payload = await readRequestBody(request);
+    const target = resolveSkillTarget(payload);
+    return {
+      status: 200,
+      body: await performInstallDiscoverSkill(payload.item, target.sourceInfo.sourceId, Boolean(payload.forceUpdate), payload.conflictStrategy)
+    };
+  }
+  if (request.method === "GET" && url.pathname === "/api/logs") {
+    return { status: 200, body: getOperationLogs() };
+  }
+  if (request.method === "GET" && url.pathname === "/api/events") {
+    return { status: 200, body: getOperationEvents() };
+  }
+  if (request.method === "POST" && url.pathname === "/api/events") {
+    const payload = await readRequestBody(request);
+    const targetIds = payload.targetIds || [];
+    const skills = payload.skills || [];
+    const targets = payload.targets || [];
+    const title = payload.title || payload.item?.name || payload.skillName || "Operation";
+    const total = payload.type === "uninstall"
+      ? Math.max(1, skills.length)
+      : payload.type === "sync-skill"
+        ? Math.max(1, targets.length)
+        : Math.max(1, targetIds.length);
+    const detail = payload.type === "uninstall"
+      ? `${skills.length} installed copies`
+      : payload.type === "sync-skill"
+        ? targets.map((target) => target.client || path.basename(target.dir)).join(", ")
+        : sourceNamesForTargetIds(targetIds);
+    const event = createOperationEvent({ type: payload.type, title, total, detail });
+    setTimeout(() => runOperationEvent(event.id, payload), 0);
+    return { status: 202, body: event };
+  }
+  return { status: 404, body: { ok: false, error: "Not found" } };
+}
+
+async function handleLocalApiRequest(request, response) {
+  try {
+    const url = new URL(request.url || "/", `http://${request.headers.host || "127.0.0.1"}`);
+    const result = await routeLocalApi(request, url);
+    writeApiJson(response, result.status, result.body);
+  } catch (error) {
+    writeApiJson(response, 500, { ok: false, error: error.message || String(error) });
+  }
+}
+
+function listenApiServerOn(port) {
+  return new Promise((resolve, reject) => {
+    const server = http.createServer(handleLocalApiRequest);
+    server.once("error", reject);
+    server.listen(port, "127.0.0.1", () => {
+      server.removeListener("error", reject);
+      resolve(server);
+    });
+  });
+}
+
+async function stopLocalApiServer() {
+  const server = apiServer;
+  apiServer = null;
+  apiActualPort = null;
+  if (!server) return;
+  await new Promise((resolve) => {
+    server.close(() => resolve());
+    server.closeAllConnections?.();
+    server.closeIdleConnections?.();
+  });
+}
+
+async function startLocalApiServer() {
+  const settings = getSettings();
+  await stopLocalApiServer();
+  if (!settings.apiEnabled) return null;
+  const startPort = normalizeApiPort(settings.apiPort);
+  const maxPort = Math.min(65535, startPort + 99);
+  for (let port = startPort; port <= maxPort; port += 1) {
+    try {
+      apiServer = await listenApiServerOn(port);
+      apiActualPort = port;
+      return apiActualPort;
+    } catch (error) {
+      if (error?.code !== "EADDRINUSE" && error?.code !== "EACCES") throw error;
+    }
+  }
+  throw new Error(`No available local API port from ${startPort} to ${maxPort}.`);
+}
+
+async function restartLocalApiServer() {
+  try {
+    return await startLocalApiServer();
+  } catch (error) {
+    appendOperationLog({
+      type: "api",
+      status: "failed",
+      title: "Local API",
+      message: error.message || String(error),
+      detail: `Configured port: ${getSettings().apiPort}`
+    });
+    return null;
+  }
+}
+
+function localApiInfo() {
+  const settings = getSettings();
+  return {
+    name: app.getName(),
+    version: app.getVersion(),
+    isPackaged: app.isPackaged,
+    apiPort: apiActualPort,
+    apiBaseUrl: apiActualPort ? `http://127.0.0.1:${apiActualPort}` : "",
+    apiEnabled: settings.apiEnabled
+  };
+}
+
+function testLocalApiConnection(port = apiActualPort) {
+  const targetPort = Number(port || apiActualPort);
+  if (!Number.isFinite(targetPort) || targetPort <= 0) {
+    return Promise.resolve({ ok: false, port: null, message: "Local API is not running." });
+  }
+  return new Promise((resolve) => {
+    const request = http.get({
+      host: "127.0.0.1",
+      port: targetPort,
+      path: "/api/status",
+      timeout: 1200
+    }, (response) => {
+      response.resume();
+      resolve({
+        ok: response.statusCode >= 200 && response.statusCode < 300,
+        port: targetPort,
+        statusCode: response.statusCode
+      });
+    });
+    request.on("timeout", () => {
+      request.destroy();
+      resolve({ ok: false, port: targetPort, message: "Connection timed out." });
+    });
+    request.on("error", (error) => {
+      resolve({ ok: false, port: targetPort, message: error.message || String(error) });
+    });
+  });
+}
+
 function createWindow() {
   const appIcon = path.join(__dirname, "../build/icon.png");
   if (process.platform === "darwin" && app.dock && fs.existsSync(appIcon)) {
@@ -2244,8 +2633,7 @@ function createWindow() {
 }
 
 ipcMain.handle("skills:scan", async () => {
-  const settings = getSettings();
-  return scanSkills(settings.sources, { ignorePatterns: settings.ignorePatterns, includeTree: false, fastStats: true });
+  return scanInstalledSkills();
 });
 
 ipcMain.handle("clipboard:write", async (_event, text) => {
@@ -2255,9 +2643,7 @@ ipcMain.handle("clipboard:write", async (_event, text) => {
 });
 
 ipcMain.handle("skills:uninstalled", async () => {
-  return scanSkills([
-    { id: "uninstalled", client: "Uninstalled", label: "Uninstalled", root: uninstalledSkillsDir(), enabled: true }
-  ], { ignorePatterns: getSettings().ignorePatterns, includeTree: false, fastStats: true });
+  return scanUninstalledSkills();
 });
 
 ipcMain.handle("skills:delete-uninstalled", async (_event, dirs = []) => {
@@ -2285,38 +2671,12 @@ ipcMain.handle("skills:delete-uninstalled", async (_event, dirs = []) => {
     message: `已删除 ${deleted.length} 个 Uninstalled 记录。`,
     detail: skipped.length ? `跳过 ${skipped.length} 个记录。` : root
   });
+  notifySkillsChanged({ type: "delete-uninstalled", deleted });
   return { deleted, skipped };
 });
 
 ipcMain.handle("skills:detail", async (_event, payload = {}) => {
-  const { skillDir, source = {} } = payload;
-  if (!skillDir) throw new Error("缺少 skill 目录。");
-  if (!fs.existsSync(skillDir) || !fs.existsSync(path.join(skillDir, "SKILL.md"))) {
-    return {
-      id: `${source.id || source.sourceId || "missing"}:${safeName(path.basename(skillDir))}`,
-      name: path.basename(skillDir),
-      dir: skillDir,
-      sourceId: source.id || source.sourceId || "missing",
-      client: source.client || source.sourceClient || "Missing",
-      sourceLabel: source.label || source.sourceLabel || "Missing",
-      missing: true,
-      detailLoaded: false
-    };
-  }
-  const settings = getSettings();
-  const snapshot = await scanSkillDirectory(skillDir, {
-    id: source.id || source.sourceId || "local",
-    client: source.client || source.sourceClient || "Local",
-    label: source.label || source.sourceLabel || source.client || "Local",
-    root: source.root || path.dirname(skillDir)
-  }, { ignorePatterns: settings.ignorePatterns });
-  if (!snapshot?.dir || snapshot.sourceId === "uninstalled") return snapshot;
-  try {
-    const versionInfo = await ensureInstallVersionState(snapshot);
-    return { ...snapshot, versionInfo };
-  } catch {
-    return snapshot;
-  }
+  return skillDetailSnapshot(payload);
 });
 
 async function diffDirsHandler(_event, payload = {}) {
@@ -2371,6 +2731,7 @@ async function performUninstallSkill(skillDir, sourceInfo = {}) {
       uninstalledAt: new Date().toISOString()
     }, null, 2));
     appendOperationLog({ type: "uninstall", status: "success", title: path.basename(skillDir), message: "已移动到 Uninstalled。", detail: `${skillDir} -> ${target}` });
+    notifySkillsChanged({ type: "uninstall", skillDir, target, sourceInfo });
     return { path: target };
   } catch (error) {
     appendOperationLog({ type: "uninstall", status: "failed", title: path.basename(skillDir), message: error.message || String(error), detail: skillDir });
@@ -2418,6 +2779,7 @@ async function performRestoreSkill(skillDir, targetSourceId, conflictStrategy = 
       client: sourceLabelById(getSettings(), targetSourceId || getSettings().installSourceId)
     }, restoredManifest);
     appendOperationLog({ type: "restore", status: "success", title: path.basename(finalTarget), message: "已恢复安装。", detail: `${skillDir} -> ${finalTarget}` });
+    notifySkillsChanged({ type: "restore", skillDir, target: finalTarget, targetSourceId });
     return { path: finalTarget };
   } catch (error) {
     appendOperationLog({ type: "restore", status: "failed", title: path.basename(skillDir), message: error.message || String(error), detail: skillDir });
@@ -2469,6 +2831,7 @@ async function performInstallLocalSkill(skillDir, targetSourceId, conflictStrate
       client: sourceLabelById(getSettings(), targetSourceId || getSettings().installSourceId)
     }, manifest);
     appendOperationLog({ type: "install", status: "success", title: path.basename(skillDir), message: "已复制安装到指定 Agent。", detail: `${skillDir} -> ${finalTarget}` });
+    notifySkillsChanged({ type: "install-local", skillDir, target: finalTarget, targetSourceId });
     return { path: finalTarget, installed: true };
   } catch (error) {
     appendOperationLog({ type: "install", status: "failed", title: path.basename(skillDir), message: error.message || String(error), detail: `${skillDir} -> ${target}` });
@@ -2499,11 +2862,12 @@ async function performSyncSkill(sourceSkillDir, targetSkillDir, targetInfo = {})
     message: `已同步到 ${targetInfo.client || targetInfo.sourceClient || path.basename(path.dirname(targetSkillDir))}。`,
     detail: `${sourceSkillDir} -> ${targetSkillDir}`
   });
+  notifySkillsChanged({ type: "sync", source: sourceSkillDir, target: targetSkillDir, targetInfo });
   return { source: sourceSkillDir, target: targetSkillDir, manifest };
 }
 
 ipcMain.handle("skills:reveal", async (_event, filePath) => {
-  shell.showItemInFolder(filePath);
+  shell.showItemInFolder(expandHome(normalizeUserPathInput(filePath)));
   return true;
 });
 
@@ -2512,8 +2876,16 @@ ipcMain.handle("skills:open", async (_event, filePath) => {
     await shell.openExternal(filePath);
     return true;
   }
-  await shell.openPath(filePath);
+  const target = expandHome(normalizeUserPathInput(filePath));
+  if (!fs.existsSync(target)) throw new Error("目录不存在");
+  await shell.openPath(target);
   return true;
+});
+
+ipcMain.handle("path:exists", async (_event, filePath) => {
+  if (!filePath) return false;
+  const target = expandHome(normalizeUserPathInput(filePath));
+  return fs.existsSync(target);
 });
 
 ipcMain.handle("files:read", async (_event, filePath) => {
@@ -2752,6 +3124,7 @@ async function performInstallDiscoverSkill(item, targetSourceId, forceUpdate = f
       }, manifest);
       const message = cloneResult.method === "github-zip" ? "git 失败后，已通过 GitHub zip 安装到指定 Agent。" : "已安装到指定 Agent。";
       appendOperationLog({ type: "install", status: "success", title: item.name, message, detail: `${repoUrl} -> ${finalTarget}` });
+      notifySkillsChanged({ type: "install-discover", item, target: finalTarget, targetSourceId });
       return { path: finalTarget, installed: true, command: item.installCommand, method: cloneResult.method === "github-zip" ? "github-zip-fallback" : "copy-from-repo" };
     }
 
@@ -2767,6 +3140,7 @@ async function performInstallDiscoverSkill(item, targetSourceId, forceUpdate = f
         client: sourceLabelById(getSettings(), targetSourceId || getSettings().installSourceId)
       }, manifest);
       appendOperationLog({ type: "install", status: "success", title: item.name, message: "已安装到指定 Agent。", detail: `${item.url} -> ${finalTarget}` });
+      notifySkillsChanged({ type: "install-discover", item, target: finalTarget, targetSourceId });
       return { path: finalTarget, installed: true, method: "git-clone" };
     } catch (gitError) {
       const repoFullName = githubRepoFullName(item.url);
@@ -2786,6 +3160,7 @@ async function performInstallDiscoverSkill(item, targetSourceId, forceUpdate = f
         client: sourceLabelById(getSettings(), targetSourceId || getSettings().installSourceId)
       }, manifest);
       appendOperationLog({ type: "install", status: "success", title: item.name, message: "git 失败后，已通过 GitHub zip 安装到指定 Agent。", detail: `${item.url} -> ${finalTarget}` });
+      notifySkillsChanged({ type: "install-discover", item, target: finalTarget, targetSourceId });
       return { path: finalTarget, installed: true, method: "github-zip-fallback" };
     }
   } catch (error) {
@@ -2808,20 +3183,27 @@ ipcMain.handle("sources:save", async (_event, sources) => {
 ipcMain.handle("settings:get", async () => getSettings());
 
 ipcMain.handle("settings:save", async (_event, settings) => {
-  const before = getSettings();
-  const saved = saveSettings(settings);
+  const { before, saved } = saveSettingsWithLog(settings);
   buildAppMenu();
   if (before.language !== saved.language) notifyLanguageChanged(saved.language);
+  if (before.apiEnabled !== saved.apiEnabled || before.apiPort !== saved.apiPort) await restartLocalApiServer();
   return saved;
 });
 
 ipcMain.handle("settings:set-language", async (_event, language) => setLanguage(language));
 
-ipcMain.handle("app:info", async () => ({
-  name: app.getName(),
-  version: app.getVersion(),
-  isPackaged: app.isPackaged
-}));
+ipcMain.handle("api:restart", async (_event, settings) => {
+  const { before, saved } = saveSettingsWithLog(settings || getSettings());
+  buildAppMenu();
+  if (before.language !== saved.language) notifyLanguageChanged(saved.language);
+  await restartLocalApiServer();
+  const connection = await testLocalApiConnection();
+  return { settings: saved, info: localApiInfo(), connection };
+});
+
+ipcMain.handle("api:test", async (_event, port) => testLocalApiConnection(port || apiActualPort));
+
+ipcMain.handle("app:info", async () => localApiInfo());
 
 function sourceNamesForTargetIds(targetIds = []) {
   const settings = getSettings();
@@ -2935,11 +3317,16 @@ app.whenReady().then(async () => {
   saveSettings(getSettings());
   buildAppMenu();
   await migrateLegacyManagedDirectories();
+  await restartLocalApiServer();
   createWindow();
 });
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
+});
+
+app.on("before-quit", () => {
+  if (apiServer) apiServer.close();
 });
 
 app.on("activate", () => {

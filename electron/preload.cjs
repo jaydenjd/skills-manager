@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld("skillStudio", {
   restoreSkill: (dir, targetSourceId, conflictStrategy) => ipcRenderer.invoke("skills:restore", dir, targetSourceId, conflictStrategy),
   reveal: (path) => ipcRenderer.invoke("skills:reveal", path),
   open: (path) => ipcRenderer.invoke("skills:open", path),
+  pathExists: (path) => ipcRenderer.invoke("path:exists", path),
   copyText: (text) => ipcRenderer.invoke("clipboard:write", text),
   readFile: (path) => ipcRenderer.invoke("files:read", path),
   createFileEntry: (payload) => ipcRenderer.invoke("files:create", payload),
@@ -33,6 +34,8 @@ contextBridge.exposeInMainWorld("skillStudio", {
   getAppInfo: () => ipcRenderer.invoke("app:info"),
   getSettings: () => ipcRenderer.invoke("settings:get"),
   saveSettings: (settings) => ipcRenderer.invoke("settings:save", settings),
+  restartApi: (settings) => ipcRenderer.invoke("api:restart", settings),
+  testApi: (port) => ipcRenderer.invoke("api:test", port),
   setLanguage: (language) => ipcRenderer.invoke("settings:set-language", language),
   onLanguageChanged: (callback) => {
     const listener = (_event, language) => callback(language);
@@ -43,6 +46,11 @@ contextBridge.exposeInMainWorld("skillStudio", {
     const listener = () => callback();
     ipcRenderer.on("app:open-settings", listener);
     return () => ipcRenderer.removeListener("app:open-settings", listener);
+  },
+  onSkillsChanged: (callback) => {
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on("skills:changed", listener);
+    return () => ipcRenderer.removeListener("skills:changed", listener);
   },
   operationLogs: () => ipcRenderer.invoke("operations:list"),
   clearOperationLogs: () => ipcRenderer.invoke("operations:clear"),
