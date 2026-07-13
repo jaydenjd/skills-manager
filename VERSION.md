@@ -2,8 +2,8 @@
 
 ## 当前版本
 
-- App version: `0.2.5`
-- Git tag: `v0.2.5`
+- App version: `0.2.6`
+- Git tag: `v0.2.6`
 - Branch: `master`
 - Release type: patch
 
@@ -36,15 +36,16 @@ git diff --check
 6. 创建并推送版本 tag，例如：
 
 ```bash
-git tag v0.2.5
+git tag v0.2.6
 git push origin master
-git push origin v0.2.5
+git push origin v0.2.6
 ```
 
 ## 版本记录
 
 | Version | Date | Notes |
 | --- | --- | --- |
+| `0.2.6` | 2026-07-13 | 修复设置页 Agents 排序保存与滚动布局问题。 |
 | `0.2.5` | 2026-07-13 | 调整搜索与刷新入口位置，统一第二栏顶部布局。 |
 | `0.2.4` | 2026-07-12 | 增加菜单语言/设置入口，优化 Discover 加载速度与双语布局。 |
 | `0.2.3` | 2026-07-11 | 优化本地扫描、目录操作、启动加载与标签来源。 |

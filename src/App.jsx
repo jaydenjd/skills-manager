@@ -75,6 +75,7 @@ const messages = {
     matches: "个匹配项",
     searchConfig: "搜索配置",
     rescan: "重新扫描",
+    sortOrder: "排序",
     sortUpdated: "更新时间",
     sortAlpha: "字母顺序",
     tagFilter: "标签",
@@ -440,6 +441,7 @@ const messages = {
     matches: "matches",
     searchConfig: "Search settings",
     rescan: "Rescan",
+    sortOrder: "Order",
     sortUpdated: "Updated",
     sortAlpha: "A-Z",
     tagFilter: "Tags",
@@ -864,6 +866,13 @@ function settingsDiffRows(before = {}, after = {}, t = (key) => key) {
   push(t("localApi"), settingFieldLabel("apiEnabled", t), before.apiEnabled, after.apiEnabled);
   push(t("localApi"), settingFieldLabel("apiPort", t), before.apiPort, after.apiPort);
   push(t("ignoreTitle"), settingFieldLabel("ignorePatterns", t), before.ignorePatterns || [], after.ignorePatterns || []);
+  const beforeOrder = (before.sources || []).map((source) => source.id);
+  const afterOrder = (after.sources || []).map((source) => source.id);
+  if (JSON.stringify(beforeOrder) !== JSON.stringify(afterOrder)) {
+    const beforeNames = (before.sources || []).map((source) => source.client || source.id);
+    const afterNames = (after.sources || []).map((source) => source.client || source.id);
+    push(t("agents"), t("sortOrder"), beforeNames, afterNames);
+  }
   const beforeSources = new Map((before.sources || []).map((source) => [source.id, source]));
   const afterSources = new Map((after.sources || []).map((source) => [source.id, source]));
   const ids = [...new Set([...beforeSources.keys(), ...afterSources.keys()])];
