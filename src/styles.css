@@ -6895,3 +6895,197 @@ textarea:focus-visible {
     min-width: 230px;
   }
 }
+
+/* List header refresh: search belongs to the list column, refresh belongs to Library. */
+.section-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.section-label-row span {
+  min-width: 0;
+}
+
+.rail-refresh-button {
+  width: 24px;
+  height: 24px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid #d8d1c2;
+  border-radius: 7px;
+  background: #fffdf7;
+  color: #3f443d;
+  box-shadow: 0 1px 0 rgba(31, 33, 29, 0.04);
+  cursor: pointer;
+}
+
+.rail-refresh-button:hover:not(:disabled) {
+  border-color: var(--sm-ink);
+  background: #f3efe4;
+}
+
+.rail-refresh-button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.results.has-list-search {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.result-search-row {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 2px 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(201, 195, 180, 0.62);
+}
+
+.result-search-box {
+  width: 100%;
+  height: 34px;
+  padding: 0 11px;
+  gap: 8px;
+  border-radius: 8px;
+}
+
+.result-search-box input {
+  min-width: 0;
+  font-size: 12px;
+}
+
+.result-search-row .icon-button {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+}
+
+.result-search-row .search-config-panel {
+  top: 42px;
+  right: 0;
+}
+
+.results .result-head {
+  flex: 0 0 auto;
+  height: 78px;
+  min-height: 78px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+  margin: 0 0 10px;
+  padding: 0 2px 10px;
+  border-bottom: 1px solid rgba(201, 195, 180, 0.82);
+  overflow: visible;
+}
+
+.results .result-head > div:first-child {
+  height: auto;
+  min-width: 0;
+  display: grid;
+  align-content: end;
+  gap: 5px;
+  position: static;
+}
+
+.results .result-head h2 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.results .result-meta {
+  position: static;
+  left: auto;
+  bottom: auto;
+  height: 32px;
+  min-height: 32px;
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  margin: 0;
+  color: #62675e;
+}
+
+.results .result-meta-main {
+  min-width: 0;
+  display: grid;
+  align-content: end;
+  gap: 2px;
+  padding: 0;
+}
+
+.results .result-controls {
+  height: 34px;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  align-self: end;
+  gap: 7px;
+  flex-wrap: nowrap;
+  overflow: visible;
+}
+
+.results .result-controls select,
+.results .tag-cloud-toggle,
+.results .star-source-toggle,
+.results .compact-ghost-button,
+.results .compact-danger-button,
+.results .segmented {
+  height: 32px;
+  min-height: 32px;
+}
+
+.results .result-controls select {
+  width: 92px;
+  flex: 0 0 92px;
+}
+
+.results .segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid #d8d1c2;
+  border-radius: 8px;
+  background: #f3efe4;
+}
+
+.results .segmented button {
+  height: 26px;
+  min-width: 44px;
+  padding: 0 9px;
+  border-radius: 6px;
+}
+
+.results .uninstalled-tools,
+.results .uninstalled-action-row {
+  height: 32px;
+  min-height: 32px;
+  align-items: center;
+}
+
+.results .uninstalled-action-row {
+  gap: 7px;
+}
+
+.results .skill-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  padding-right: 10px;
+  padding-bottom: 30px;
+}
+
+.results .active-filter-row {
+  flex: 0 0 auto;
+}

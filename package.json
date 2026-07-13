@@ -1,6 +1,6 @@
 {
   "name": "skill-manager",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Local multi-client skill manager for macOS",
   "private": true,
   "type": "module",

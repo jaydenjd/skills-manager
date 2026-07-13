@@ -5552,6 +5552,14 @@ function App() {
     await refreshLogs();
   }
 
+  async function refreshCurrentLists() {
+    if (listMode === "discover") {
+      await githubTrends.refresh?.();
+      return;
+    }
+    await refreshAll();
+  }
+
   async function refreshLogs() {
     try {
       setOperationLogs(await window.skillStudio.operationLogs());
@@ -6596,6 +6604,25 @@ function App() {
     setSearchConfigOpen(false);
   }, [showGlobalSearch]);
 
+  const listSearch = showGlobalSearch ? (
+    <div className="result-search-row">
+      <label className="search-box result-search-box">
+        <Search size={16} />
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={searchPlaceholder(searchOptions, t)} />
+      </label>
+      <div className="search-config-wrap" ref={searchConfigRef}>
+        <button
+          className={`icon-button search-config-button ${searchOptions.content ? "active" : ""}`}
+          onClick={() => setSearchConfigOpen((open) => !open)}
+          title={t("searchConfig")}
+        >
+          <SlidersHorizontal size={16} />
+        </button>
+        <SearchConfig open={searchConfigOpen} options={searchOptions} onChange={setSearchOptions} />
+      </div>
+    </div>
+  ) : null;
+
   return (
     <I18nContext.Provider value={i18nValue}>
     <main className="shell">
@@ -6607,27 +6634,6 @@ function App() {
             <p>{t("appSubtitle")}</p>
           </div>
         </div>
-        {showGlobalSearch ? (
-          <div className="toolbar">
-            <label className="search-box">
-              <Search size={18} />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={searchPlaceholder(searchOptions, t)} />
-            </label>
-            <div className="search-config-wrap" ref={searchConfigRef}>
-              <button
-                className={`icon-button search-config-button ${searchOptions.content ? "active" : ""}`}
-                onClick={() => setSearchConfigOpen((open) => !open)}
-                title={t("searchConfig")}
-              >
-                <SlidersHorizontal size={18} />
-              </button>
-              <SearchConfig open={searchConfigOpen} options={searchOptions} onChange={setSearchOptions} />
-            </div>
-            <button className="icon-button" onClick={refresh} disabled={loading} title={t("rescan")}>
-              <RefreshCcw size={18} />
-            </button>
-          </div>
-        ) : null}
       </header>
 
       {error ? <div className="error">{error}</div> : null}
@@ -6636,7 +6642,17 @@ function App() {
       <section className="dashboard">
         <aside className="left-rail">
           <div className="library-nav">
-            <div className="section-label">{t("library")}</div>
+            <div className="section-label section-label-row">
+              <span>{t("library")}</span>
+              <button
+                className="rail-refresh-button"
+                onClick={refreshCurrentLists}
+                disabled={loading || githubTrends.loading}
+                title={t("rescan")}
+              >
+                <RefreshCcw size={13} />
+              </button>
+            </div>
             <NavRow icon={Github} label={t("discover")} count={discoverTotalLabel} active={listMode === "discover"} onClick={() => setListMode("discover")} />
             <NavRow icon={FileCode2} label={t("installed")} count={installedCount} active={listMode === "installed"} onClick={() => { setListMode("installed"); setSourceFilter("all"); }} />
             <NavRow icon={RotateCcw} label={t("uninstalled")} count={uninstalledCount} active={listMode === "uninstalled"} onClick={() => { setListMode("uninstalled"); setSourceFilter("all"); }} />
@@ -6666,7 +6682,8 @@ function App() {
           <OperationLogPage logs={operationLogs} onRefresh={refreshLogs} onClear={clearLogs} />
         ) : (
         <>
-        <section className="results">
+        <section className={`results ${showGlobalSearch ? "has-list-search" : ""}`}>
+          {listSearch}
           <div className="result-head">
             <div>
               <h2>{listMode === "discover" ? t("discover") : listMode === "tags" ? t("tags") : listMode === "starred" ? t("starred") : listMode === "uninstalled" ? t("uninstalled") : t("installed")}</h2>
