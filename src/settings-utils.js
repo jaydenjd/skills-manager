@@ -21,11 +21,12 @@ export function orderedAgentCounts(sources = [], skills = []) {
     .map((source) => ({
       id: source.id,
       name: source.client,
-      count: counts.get(source.client) || 0
+      count: counts.get(source.client) || 0,
+      source
     }));
   const fallback = [...counts.entries()]
     .filter(([name]) => !configuredClients.has(name))
-    .map(([name, count]) => ({ id: `client:${name}`, name, count }))
+    .map(([name, count]) => ({ id: `client:${name}`, name, count, source: { id: `client:${name}`, client: name } }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return [...configured, ...fallback];

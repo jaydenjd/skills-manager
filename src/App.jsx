@@ -2,8 +2,6 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState 
 import { createRoot } from "react-dom/client";
 import {
   Activity,
-  ChevronDown,
-  ChevronUp,
   Command,
   Edit3,
   ExternalLink,
@@ -176,11 +174,14 @@ const messages = {
     duplicateAgentName: "Agent 名称不能重复：{name}",
     enabled: "启用",
     disabled: "停用",
+    enabledStatus: "已启用",
+    detectedDisabled: "已检测但未启用",
     name: "名称",
     description: "说明",
     directory: "目录",
     openDirectory: "打开目录",
     remove: "移除",
+    removeAgentConfirm: "确认移除 Agent「{name}」？相关配置会从 Skill Manager 中删除。",
     chooseInstallAgent: "选择安装到的 agent",
     chooseUninstallAgent: "选择卸载的 agent",
     chooseUpgradeAgent: "选择发布版本的 agent",
@@ -542,11 +543,14 @@ const messages = {
     duplicateAgentName: "Agent name already exists: {name}",
     enabled: "Enabled",
     disabled: "Disabled",
+    enabledStatus: "Enabled",
+    detectedDisabled: "Detected but disabled",
     name: "Name",
     description: "Description",
     directory: "Directory",
     openDirectory: "Open directory",
     remove: "Remove",
+    removeAgentConfirm: "Remove Agent \"{name}\"? This removes its configuration from Skill Manager.",
     chooseInstallAgent: "Choose install agents",
     chooseUninstallAgent: "Choose uninstall agents",
     chooseUpgradeAgent: "Choose publish-version agents",
@@ -1731,9 +1735,10 @@ function NavRow({ icon: Icon, label, count, active, onClick }) {
   );
 }
 
-function CountRow({ label, count, active, onClick }) {
+function CountRow({ label, count, active, onClick, logo }) {
   return (
     <button className={`count-row ${active ? "active" : ""}`} onClick={onClick}>
+      {logo ? <span className="count-row-logo">{logo}</span> : null}
       <span>{label}</span>
       <em>{count}</em>
     </button>
@@ -1767,13 +1772,51 @@ function MetaStrip({ items, className = "" }) {
 
 function SkillManagerLogo() {
   return (
-    <div className="skill-manager-logo" aria-hidden="true">
-      <span />
-      <span />
-      <span />
-      <i />
-    </div>
+    <svg className="skill-manager-logo" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+      <defs>
+        <linearGradient id="logoGradient" x1="18" y1="14" x2="48" y2="52" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#5FE0D4" />
+          <stop offset="0.55" stopColor="#45BF87" />
+          <stop offset="1" stopColor="#8B7CFF" />
+        </linearGradient>
+      </defs>
+      <rect x="4" y="4" width="56" height="56" rx="15" className="logo-tile" />
+      <path
+        className="logo-s"
+        d="M21.1 20.2c3.2-4.4 9.3-6.3 16.6-5 4.8.8 8.3 2.7 10.5 5l-4.5 6c-1.9-1.9-4.8-3.3-8.2-3.5-3.8-.2-6.7.6-7.9 2.3-1.1 1.6.1 3 4.6 4.3l4.8 1.4c7.7 2.2 11.7 6.1 10.7 12.1-1.1 6.6-7.8 10.1-16.2 8.7-6.1-1-10.8-3.7-13.7-7.5l4.9-5.8c2.1 2.6 5.2 4.5 9.3 5.2 4.4.8 7.5-.4 8.1-2.6.5-1.8-1.1-3.2-5.3-4.4l-4.8-1.4c-7.9-2.3-11.7-6-10.5-12 .2-1 .8-2 1.6-2.8Z"
+      />
+      <circle cx="44" cy="25.2" r="3" className="logo-dot green" />
+      <circle cx="44" cy="25.2" r="1" className="logo-dot-core" />
+      <circle cx="20.2" cy="40.6" r="2.7" className="logo-dot violet" />
+      <circle cx="20.2" cy="40.6" r="0.9" className="logo-dot-core" />
+    </svg>
   );
+}
+
+function AgentLogo({ source }) {
+  const raw = `${source?.id || ""} ${source?.client || ""}`.toLowerCase();
+  let brand = "agent";
+  let label = String(source?.client || "A").trim().slice(0, 1).toUpperCase() || "A";
+  if (raw.includes("codex")) {
+    brand = "codex";
+    label = "◎";
+  } else if (raw.includes("claude")) {
+    brand = "claude";
+    label = "✹";
+  } else if (raw.includes("qoderwork")) {
+    brand = "qoderwork";
+    label = "QW";
+  } else if (raw.includes("qoder")) {
+    brand = "qoder";
+    label = "Q";
+  } else if (raw.includes("openclaw")) {
+    brand = "openclaw";
+    label = "OC";
+  } else if (raw.includes("agents")) {
+    brand = "agents";
+    label = "A";
+  }
+  return <span className={`agent-logo agent-logo-${brand}`} aria-hidden="true">{label}</span>;
 }
 
 function SkillRow({ skill, index = 0, tone = "installed", selected, onSelect, actionLabel, onAction, busy, starred, onStar, sourceLabel, selectable = false, checked = false, onToggleSelect }) {
@@ -4284,6 +4327,7 @@ function SettingsPage({ settings, onSave }) {
   const [draggedSourceId, setDraggedSourceId] = useState("");
   const [dragOverSourceId, setDragOverSourceId] = useState("");
   const [editingSourceId, setEditingSourceId] = useState("");
+  const [editingPathId, setEditingPathId] = useState("");
   const [agentNameError, setAgentNameError] = useState("");
   const [savingDraft, setSavingDraft] = useState(false);
   const [showSettingsDiff, setShowSettingsDiff] = useState(false);
@@ -4294,8 +4338,13 @@ function SettingsPage({ settings, onSave }) {
   const [settingsSaveNotice, setSettingsSaveNotice] = useState("");
   const [apiBusy, setApiBusy] = useState(false);
   const [apiConnection, setApiConnection] = useState({ state: "unknown", message: "" });
+  const [editingAgentText, setEditingAgentText] = useState({ sourceId: "", field: "" });
+  const [editingIgnore, setEditingIgnore] = useState(false);
   const agentNameRefs = useRef({});
+  const agentLabelRefs = useRef({});
+  const agentPathRefs = useRef({});
   const settingsJsonGutterRef = useRef(null);
+  const autoSaveTimerRef = useRef(0);
 
   useEffect(() => {
     if (!settings) return;
@@ -4530,6 +4579,9 @@ function SettingsPage({ settings, onSave }) {
   }
 
   function removeSource(id) {
+    const target = draft.sources.find((source) => source.id === id);
+    const name = target?.client || id;
+    if (!window.confirm(t("removeAgentConfirm").replace("{name}", name))) return;
     updateVisualDraft((current) => {
       const sources = current.sources.filter((source) => source.id !== id);
       return {
@@ -4635,6 +4687,39 @@ function SettingsPage({ settings, onSave }) {
     });
   }
 
+  function editAgentPath(sourceId) {
+    setEditingSourceId(sourceId);
+    setEditingPathId(sourceId);
+    window.setTimeout(() => {
+      agentPathRefs.current[sourceId]?.focus?.();
+      agentPathRefs.current[sourceId]?.select?.();
+    }, 0);
+  }
+
+  function editAgentLabel(sourceId) {
+    setEditingSourceId(sourceId);
+    setEditingAgentText({ sourceId, field: "label" });
+    window.setTimeout(() => {
+      agentLabelRefs.current[sourceId]?.focus?.();
+      agentLabelRefs.current[sourceId]?.select?.();
+    }, 0);
+  }
+
+  function editAgentName(sourceId) {
+    setEditingSourceId(sourceId);
+    setEditingAgentText({ sourceId, field: "client" });
+    window.setTimeout(() => {
+      agentNameRefs.current[sourceId]?.focus?.();
+      agentNameRefs.current[sourceId]?.select?.();
+    }, 0);
+  }
+
+  function closeAgentTextEdit(sourceId, field) {
+    setEditingAgentText((current) => (
+      current.sourceId === sourceId && current.field === field ? { sourceId: "", field: "" } : current
+    ));
+  }
+
   const normalizedDraftSettings = normalizeVisualSettings(draft);
   const settingChanges = settingsDiffRows(settings || fallbackSettings, normalizedDraftSettings, t);
   const hasSettingChanges = settingChanges.length > 0;
@@ -4648,6 +4733,15 @@ function SettingsPage({ settings, onSave }) {
     }
     return Array.from(groups.entries()).map(([group, rows]) => ({ group, rows }));
   }, [settingChanges]);
+
+  useEffect(() => {
+    window.clearTimeout(autoSaveTimerRef.current);
+    if (!hasSettingChanges || savingDraft || jsonError || agentNameError) return undefined;
+    autoSaveTimerRef.current = window.setTimeout(() => {
+      saveDraftSettings();
+    }, settingsMode === "json" ? 900 : 650);
+    return () => window.clearTimeout(autoSaveTimerRef.current);
+  }, [hasSettingChanges, settingsJsonAfter, settingsMode, savingDraft, jsonError, agentNameError]);
 
   async function saveDraftSettings() {
     let nextSettings = normalizeVisualSettings(draft);
@@ -4707,24 +4801,9 @@ function SettingsPage({ settings, onSave }) {
           <p>{t("settingsDesc")}</p>
         </div>
         <div className="settings-head-actions">
-          <div className="settings-change-actions">
-            {hasSettingChanges ? (
-              <button className="settings-dirty-button" onClick={() => setShowSettingsDiff((value) => !value)}>
-                {t("unsavedSettings")}
-              </button>
-            ) : null}
-            <button className="settings-action-button" onClick={discardDraftSettings} disabled={!hasSettingChanges || savingDraft}>
-              {t("discardSettings")}
-            </button>
-            <button
-              className={`settings-action-button settings-save-button ${savingDraft || settingsSaveNotice ? "is-active" : ""}`}
-              onClick={saveDraftSettings}
-              disabled={(!hasSettingChanges && !settingsSaveNotice) || savingDraft || Boolean(jsonError) || Boolean(agentNameError)}
-            >
-              <Save size={15} />
-              {settingsSaveNotice ? t("settingsSaved") : savingDraft ? t("saving") : t("saveSettings")}
-            </button>
-          </div>
+          <span className={`settings-autosave-state ${savingDraft ? "saving" : settingsSaveNotice ? "saved" : hasSettingChanges ? "dirty" : ""}`}>
+            {savingDraft ? t("saving") : settingsSaveNotice ? t("settingsSaved") : hasSettingChanges ? t("unsavedSettings") : ""}
+          </span>
           <div className="settings-mode-switch">
             <button className={settingsMode === "visual" ? "on" : ""} onClick={() => switchSettingsMode("visual")}>{t("visual")}</button>
             <button className={settingsMode === "json" ? "on" : ""} onClick={() => switchSettingsMode("json")}>{t("json")}</button>
@@ -4811,6 +4890,150 @@ function SettingsPage({ settings, onSave }) {
         </section>
       ) : (
       <div className="settings-grid">
+        <section className="settings-card wide agents-settings-card">
+          <div className="settings-card-head row">
+            <div>
+              <h3>Agents</h3>
+              <p>{t("agentsDesc")}</p>
+            </div>
+            <button className="soft-button" onClick={addSource}>{t("addAgent")}</button>
+          </div>
+          {agentNameError ? <div className="settings-inline-error">{agentNameError}</div> : null}
+          <div className="agent-editor-list">
+            {draft.sources.map((source, index) => (
+              (() => {
+                const rootKey = settingsPathKey(source.root);
+                const missing = pathStatus[rootKey] === false;
+                const pathExists = pathStatus[rootKey] === true;
+                const cannotEnable = !rootKey || !pathExists;
+                const statusLabel = missing
+                  ? t("directoryMissing")
+                  : pathExists
+                    ? (source.enabled ? t("enabledStatus") : t("detectedDisabled"))
+                    : t("notInstalled");
+                const statusClass = missing
+                  ? "missing"
+                  : pathExists
+                    ? (source.enabled ? "enabled" : "detected")
+                    : "not-installed";
+                return (
+              <div
+                className={`agent-editor-row ${dragOverSourceId === source.id ? "drag-over" : ""} ${editingSourceId === source.id ? "editing" : ""}`}
+                key={source.id}
+                onFocusCapture={() => setEditingSourceId(source.id)}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  if (draggedSourceId && draggedSourceId !== source.id) setDragOverSourceId(source.id);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  if (draggedSourceId && draggedSourceId !== source.id) reorderSource(draggedSourceId, index);
+                  setDraggedSourceId("");
+                  setDragOverSourceId("");
+                }}
+              >
+                <div className="agent-reorder-controls">
+                  <button
+                    className="agent-drag-handle"
+                    draggable
+                    title={t("dragToReorder")}
+                    aria-label={t("dragToReorder")}
+                    onDragStart={(event) => {
+                      setDraggedSourceId(source.id);
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData("text/plain", source.id);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedSourceId("");
+                      setDragOverSourceId("");
+                    }}
+                  >
+                    <GripVertical size={15} />
+                  </button>
+                </div>
+                <label className={`toggle-field ${cannotEnable ? "disabled" : ""}`} aria-label={source.enabled ? t("disabled") : t("enabled")}>
+                  <input
+                    className="agent-enable-input"
+                    type="checkbox"
+                    checked={Boolean(source.enabled) && !missing}
+                    disabled={cannotEnable}
+                    title={missing ? t("directoryMissing") : t("enabled")}
+                    onChange={(event) => {
+                      if (cannotEnable) return;
+                      updateSource(source.id, { enabled: event.target.checked });
+                    }}
+                  />
+                  <span className={`agent-enable-mark ${missing ? "missing" : ""} ${source.enabled && !missing ? "checked" : ""}`}>
+                    {missing ? <X size={11} /> : source.enabled && !missing ? "✓" : ""}
+                  </span>
+                </label>
+                <AgentLogo source={source} />
+                <label>
+                  <span>{t("name")}</span>
+                  <input
+                    ref={(node) => { agentNameRefs.current[source.id] = node; }}
+                    className={editingAgentText.sourceId === source.id && editingAgentText.field === "client" ? "editing-agent-text" : ""}
+                    value={source.client}
+                    readOnly={!(editingAgentText.sourceId === source.id && editingAgentText.field === "client")}
+                    title={t("name")}
+                    onDoubleClick={() => editAgentName(source.id)}
+                    onChange={(event) => updateSource(source.id, { client: event.target.value }, 500)}
+                    onBlur={() => closeAgentTextEdit(source.id, "client")}
+                  />
+                </label>
+                <span className={`agent-status-badge ${statusClass}`}>{statusLabel}</span>
+                <label>
+                  <span>{t("description")}</span>
+                  <input
+                    ref={(node) => { agentLabelRefs.current[source.id] = node; }}
+                    className={editingAgentText.sourceId === source.id && editingAgentText.field === "label" ? "editing-agent-text" : ""}
+                    value={source.label}
+                    readOnly={!(editingAgentText.sourceId === source.id && editingAgentText.field === "label")}
+                    title={t("description")}
+                    onDoubleClick={() => editAgentLabel(source.id)}
+                    onChange={(event) => updateSource(source.id, { label: event.target.value }, 500)}
+                    onBlur={() => closeAgentTextEdit(source.id, "label")}
+                  />
+                </label>
+                <label className="agent-path-field">
+                  <span>{t("directory")}</span>
+                  <input
+                    ref={(node) => { agentPathRefs.current[source.id] = node; }}
+                    className={`${missing ? "missing-path" : ""} ${editingPathId === source.id ? "editing-path" : ""}`}
+                    value={source.root}
+                    title={source.root}
+                    readOnly={editingPathId !== source.id}
+                    onDoubleClick={() => openAgentDirectory(source.root)}
+                    onChange={(event) => updateSource(source.id, { root: event.target.value }, 500)}
+                    onBlur={() => setEditingPathId((current) => current === source.id ? "" : current)}
+                  />
+                  <button type="button" className="agent-path-edit" title={t("edit")} aria-label={t("edit")} onClick={() => editAgentPath(source.id)}>
+                    <Edit3 size={13} />
+                  </button>
+                  <button type="button" className="agent-path-open" title={t("openDirectory")} aria-label={t("openDirectory")} onClick={() => openAgentDirectory(source.root)}>
+                    <FolderOpen size={13} />
+                  </button>
+                  {missing ? <em className="agent-path-missing">{t("directoryMissing")}</em> : null}
+                  {pathNoticeId === rootKey ? <em className="agent-path-popover">{t("directoryMissing")}</em> : null}
+                </label>
+                <button
+                  type="button"
+                  className="tiny-danger"
+                  onMouseDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    removeSource(source.id);
+                  }}
+                >
+                  {t("remove")}
+                </button>
+              </div>
+                );
+              })()
+            ))}
+          </div>
+        </section>
+
         <section className="settings-card">
           <div className="settings-card-head">
             <h3>{t("defaultInstallTarget")}</h3>
@@ -4932,13 +5155,25 @@ function SettingsPage({ settings, onSave }) {
         </section>
 
         <section className="settings-card">
-          <div className="settings-card-head">
-            <h3>{t("ignoreTitle")}</h3>
-            <p>{t("ignoreDesc")}</p>
+          <div className="settings-card-head row">
+            <div>
+              <h3>{t("ignoreTitle")}</h3>
+              <p>{t("ignoreDesc")}</p>
+            </div>
+            <button
+              type="button"
+              className={`soft-button icon-soft-button ${editingIgnore ? "active" : ""}`}
+              onClick={() => setEditingIgnore((value) => !value)}
+              title={t("edit")}
+              aria-label={t("edit")}
+            >
+              <Edit3 size={14} />
+            </button>
           </div>
           <textarea
-            className="ignore-editor"
+            className={`ignore-editor ${editingIgnore ? "editing" : ""}`}
             value={ignoreText}
+            readOnly={!editingIgnore}
             onChange={(event) => {
               const value = event.target.value;
               setIgnoreText(value);
@@ -4948,110 +5183,6 @@ function SettingsPage({ settings, onSave }) {
           />
         </section>
 
-        <section className="settings-card wide">
-          <div className="settings-card-head row">
-            <div>
-              <h3>Agents</h3>
-              <p>{t("agentsDesc")}</p>
-            </div>
-            <button className="soft-button" onClick={addSource}>{t("addAgent")}</button>
-          </div>
-          {agentNameError ? <div className="settings-inline-error">{agentNameError}</div> : null}
-          <div className="agent-editor-list">
-            {draft.sources.map((source, index) => (
-              (() => {
-                const rootKey = settingsPathKey(source.root);
-                const missing = pathStatus[rootKey] === false;
-                const pathExists = pathStatus[rootKey] === true;
-                const cannotEnable = !rootKey || !pathExists;
-                return (
-              <div
-                className={`agent-editor-row ${dragOverSourceId === source.id ? "drag-over" : ""} ${editingSourceId === source.id ? "editing" : ""}`}
-                key={source.id}
-                onFocusCapture={() => setEditingSourceId(source.id)}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  if (draggedSourceId && draggedSourceId !== source.id) setDragOverSourceId(source.id);
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  if (draggedSourceId && draggedSourceId !== source.id) reorderSource(draggedSourceId, index);
-                  setDraggedSourceId("");
-                  setDragOverSourceId("");
-                }}
-              >
-                <div className="agent-reorder-controls">
-                  <button
-                    className="agent-drag-handle"
-                    draggable
-                    title={t("dragToReorder")}
-                    aria-label={t("dragToReorder")}
-                    onDragStart={(event) => {
-                      setDraggedSourceId(source.id);
-                      event.dataTransfer.effectAllowed = "move";
-                      event.dataTransfer.setData("text/plain", source.id);
-                    }}
-                    onDragEnd={() => {
-                      setDraggedSourceId("");
-                      setDragOverSourceId("");
-                    }}
-                  >
-                    <GripVertical size={15} />
-                  </button>
-                  <button className="agent-move-button" disabled={index === 0} onClick={() => reorderSource(source.id, index - 1)} aria-label={t("moveUp")} title={t("moveUp")}>
-                    <ChevronUp size={13} />
-                  </button>
-                  <button className="agent-move-button" disabled={index === draft.sources.length - 1} onClick={() => reorderSource(source.id, index + 1)} aria-label={t("moveDown")} title={t("moveDown")}>
-                    <ChevronDown size={13} />
-                  </button>
-                </div>
-                <label className={`toggle-field ${cannotEnable ? "disabled" : ""}`}>
-                  <input
-                    className="agent-enable-input"
-                    type="checkbox"
-                    checked={Boolean(source.enabled) && !missing}
-                    disabled={cannotEnable}
-                    title={missing ? t("directoryMissing") : t("enabled")}
-                    onChange={(event) => {
-                      if (cannotEnable) return;
-                      updateSource(source.id, { enabled: event.target.checked });
-                    }}
-                  />
-                  <span className={`agent-enable-mark ${missing ? "missing" : ""} ${source.enabled && !missing ? "checked" : ""}`}>
-                    {missing ? <X size={11} /> : source.enabled && !missing ? "✓" : ""}
-                  </span>
-                  {t("enabled")}
-                </label>
-                <label>
-                  <span>{t("name")}</span>
-                  <input ref={(node) => { agentNameRefs.current[source.id] = node; }} value={source.client} onChange={(event) => updateSource(source.id, { client: event.target.value }, 500)} />
-                </label>
-                <label>
-                  <span>{t("description")}</span>
-                  <input value={source.label} onChange={(event) => updateSource(source.id, { label: event.target.value }, 500)} />
-                </label>
-                <label className="agent-path-field">
-                  <span>{t("directory")}</span>
-                  <input
-                    className={missing ? "missing-path" : ""}
-                    value={source.root}
-                    title={source.root}
-                    onDoubleClick={() => openAgentDirectory(source.root)}
-                    onChange={(event) => updateSource(source.id, { root: event.target.value }, 500)}
-                  />
-                  <button type="button" className="agent-path-open" title={t("openDirectory")} aria-label={t("openDirectory")} onClick={() => openAgentDirectory(source.root)}>
-                    <FolderOpen size={13} />
-                  </button>
-                  {missing ? <em className="agent-path-missing">{t("directoryMissing")}</em> : null}
-                  {pathNoticeId === rootKey ? <em className="agent-path-popover">{t("directoryMissing")}</em> : null}
-                </label>
-                <button className="tiny-danger" onClick={() => removeSource(source.id)}>{t("remove")}</button>
-              </div>
-                );
-              })()
-            ))}
-          </div>
-        </section>
       </div>
       )}
       </div>
@@ -5550,6 +5681,25 @@ function App() {
   const lang = settings?.language === "en" ? "en" : "zh";
   const t = useMemo(() => createTranslator(lang), [lang]);
   const i18nValue = useMemo(() => ({ lang, t }), [lang, t]);
+
+  function startWindowDrag(event) {
+    if (event.button !== 0 || !window.skillStudio?.startWindowDrag) return;
+    event.preventDefault();
+    const toPoint = (mouseEvent) => ({ x: mouseEvent.screenX, y: mouseEvent.screenY });
+    window.skillStudio.startWindowDrag(toPoint(event));
+    const handleMove = (moveEvent) => {
+      window.skillStudio?.moveWindowDrag?.(toPoint(moveEvent));
+    };
+    const handleEnd = () => {
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleEnd);
+      window.removeEventListener("blur", handleEnd);
+      window.skillStudio?.endWindowDrag?.();
+    };
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleEnd);
+    window.addEventListener("blur", handleEnd);
+  }
 
   async function refreshAll() {
     await refresh();
@@ -6635,14 +6785,8 @@ function App() {
   return (
     <I18nContext.Provider value={i18nValue}>
     <main className="shell">
-      <header className="topbar">
-        <div className="brand">
-          <div className="brand-mark"><SkillManagerLogo /></div>
-          <div>
-            <h1>Skill Manager</h1>
-            <p>{t("appSubtitle")}</p>
-          </div>
-        </div>
+      <header className="topbar" role="presentation" onMouseDown={startWindowDrag}>
+        <span className="window-drag-strip" />
       </header>
 
       {error ? <div className="error">{error}</div> : null}
@@ -6650,6 +6794,14 @@ function App() {
 
       <section className="dashboard">
         <aside className="left-rail">
+          <div className="brand rail-brand" onMouseDown={startWindowDrag}>
+            <div className="brand-mark"><SkillManagerLogo /></div>
+            <div>
+              <h1>Skill Manager</h1>
+              <p>{t("appSubtitle")}</p>
+            </div>
+          </div>
+
           <div className="library-nav">
             <div className="section-label section-label-row">
               <span>{t("library")}</span>
@@ -6671,9 +6823,22 @@ function App() {
 
           <div className="agent-nav">
             <div className="section-label">{t("agents")}</div>
-            <CountRow label={t("allAgents")} count={installedCount} active={listMode === "installed" && sourceFilter === "all"} onClick={() => { setListMode("installed"); setSourceFilter("all"); }} />
+            <CountRow
+              label={t("allAgents")}
+              count={installedCount}
+              active={listMode === "installed" && sourceFilter === "all"}
+              onClick={() => { setListMode("installed"); setSourceFilter("all"); }}
+              logo={<span className="agent-logo agent-logo-all" aria-hidden="true">A</span>}
+            />
             {agentCounts.map((agent) => (
-              <CountRow key={agent.id} label={agent.name} count={agent.count} active={listMode === "installed" && sourceFilter === agent.name} onClick={() => { setListMode("installed"); setSourceFilter(agent.name); }} />
+              <CountRow
+                key={agent.id}
+                label={agent.name}
+                count={agent.count}
+                active={listMode === "installed" && sourceFilter === agent.name}
+                onClick={() => { setListMode("installed"); setSourceFilter(agent.name); }}
+                logo={<AgentLogo source={agent.source || { id: agent.id, client: agent.name }} />}
+              />
             ))}
           </div>
           <div className="settings-nav">

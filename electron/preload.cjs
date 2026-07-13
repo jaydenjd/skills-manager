@@ -36,6 +36,9 @@ contextBridge.exposeInMainWorld("skillStudio", {
   saveSettings: (settings) => ipcRenderer.invoke("settings:save", settings),
   restartApi: (settings) => ipcRenderer.invoke("api:restart", settings),
   testApi: (port) => ipcRenderer.invoke("api:test", port),
+  startWindowDrag: (point) => ipcRenderer.send("window-drag:start", point),
+  moveWindowDrag: (point) => ipcRenderer.send("window-drag:move", point),
+  endWindowDrag: () => ipcRenderer.send("window-drag:end"),
   setLanguage: (language) => ipcRenderer.invoke("settings:set-language", language),
   onLanguageChanged: (callback) => {
     const listener = (_event, language) => callback(language);

@@ -17,6 +17,7 @@ let storeCache = {};
 let historyDir = "";
 let apiServer = null;
 let apiActualPort = null;
+const windowDragState = new Map();
 const uninstallMetaFile = ".skill-manager-uninstall.json";
 const legacyUninstallMetaFile = ".skill-studio-uninstall.json";
 const discoverPageSize = 80;
@@ -2631,6 +2632,38 @@ function createWindow() {
   }
   return win;
 }
+
+function normalizeDragPoint(point) {
+  const x = Number(point?.x);
+  const y = Number(point?.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x, y };
+}
+
+ipcMain.on("window-drag:start", (event, point) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const startMouse = normalizeDragPoint(point);
+  if (!win || !startMouse || win.isDestroyed() || win.isFullScreen()) return;
+  const [windowX, windowY] = win.getPosition();
+  windowDragState.set(event.sender.id, {
+    startMouse,
+    startWindow: { x: windowX, y: windowY }
+  });
+});
+
+ipcMain.on("window-drag:move", (event, point) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const drag = windowDragState.get(event.sender.id);
+  const mouse = normalizeDragPoint(point);
+  if (!win || !drag || !mouse || win.isDestroyed() || win.isFullScreen()) return;
+  const nextX = Math.round(drag.startWindow.x + mouse.x - drag.startMouse.x);
+  const nextY = Math.round(drag.startWindow.y + mouse.y - drag.startMouse.y);
+  win.setPosition(nextX, nextY, false);
+});
+
+ipcMain.on("window-drag:end", (event) => {
+  windowDragState.delete(event.sender.id);
+});
 
 ipcMain.handle("skills:scan", async () => {
   return scanInstalledSkills();
