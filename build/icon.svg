@@ -28,8 +28,7 @@
     </filter>
   </defs>
 
-  <rect width="1024" height="1024" rx="224" fill="#F6F8FA"/>
-
+  <g transform="translate(-66.56 -66.56) scale(1.13)">
   <g filter="url(#shadow)">
     <rect x="158" y="142" width="708" height="708" rx="188" fill="url(#tile)" stroke="#DDE4EC" stroke-width="18"/>
 
@@ -46,5 +45,6 @@
     <circle cx="704" cy="402" r="15" fill="#FFFFFF"/>
     <circle cx="324" cy="650" r="38" fill="#8B7CFF" stroke="#FFFFFF" stroke-width="18"/>
     <circle cx="324" cy="650" r="13" fill="#FFFFFF"/>
+  </g>
   </g>
 </svg>
