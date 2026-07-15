@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld("skillStudio", {
   diffDirs: (payload) => ipcRenderer.invoke("skills:diff-dirs", payload),
   uninstallSkill: (dir, sourceInfo) => ipcRenderer.invoke("skills:uninstall", dir, sourceInfo),
   installLocalSkill: (dir, targetSourceId, conflictStrategy) => ipcRenderer.invoke("skills:install-local", dir, targetSourceId, conflictStrategy),
+  inspectLocalSkill: (dir) => ipcRenderer.invoke("skills:inspect-local", dir),
+  chooseLocalSkillDirectory: () => ipcRenderer.invoke("dialog:choose-local-skill"),
   restoreSkill: (dir, targetSourceId, conflictStrategy) => ipcRenderer.invoke("skills:restore", dir, targetSourceId, conflictStrategy),
   reveal: (path) => ipcRenderer.invoke("skills:reveal", path),
   open: (path) => ipcRenderer.invoke("skills:open", path),
@@ -39,6 +41,7 @@ contextBridge.exposeInMainWorld("skillStudio", {
   startWindowDrag: (point) => ipcRenderer.send("window-drag:start", point),
   moveWindowDrag: (point) => ipcRenderer.send("window-drag:move", point),
   endWindowDrag: () => ipcRenderer.send("window-drag:end"),
+  toggleWindowMaximize: () => ipcRenderer.send("window:maximize-toggle"),
   setLanguage: (language) => ipcRenderer.invoke("settings:set-language", language),
   onLanguageChanged: (callback) => {
     const listener = (_event, language) => callback(language);

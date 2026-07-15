@@ -16,7 +16,19 @@ function defaultSources() {
     { id: "claude", client: "Claude", label: "Claude Skills", root: path.join(home, ".claude/skills"), enabled: true },
     { id: "qoder", client: "Qoder", label: "Qoder Skills", root: path.join(home, ".qoder/skills"), enabled: true },
     { id: "qoderwork", client: "QoderWork", label: "QoderWork Skills", root: path.join(home, ".qoderwork/skills"), enabled: true },
-    { id: "openclaw", client: "OpenClaw", label: "OpenClaw Skills", root: path.join(home, ".openclaw/skills"), enabled: true }
+    { id: "openclaw", client: "OpenClaw", label: "OpenClaw Skills", root: path.join(home, ".openclaw/skills"), enabled: true },
+    { id: "cursor", client: "Cursor", label: "Cursor Skills", root: path.join(home, ".cursor/skills"), enabled: false },
+    { id: "opencode", client: "OpenCode", label: "OpenCode Skills", root: path.join(home, ".opencode/skills"), enabled: false },
+    { id: "qwen", client: "Qwen Code", label: "Qwen Code Skills", root: path.join(home, ".qwen/skills"), enabled: false },
+    { id: "kiro", client: "Kiro CLI", label: "Kiro CLI Skills", root: path.join(home, ".kiro/skills"), enabled: false },
+    { id: "iflow", client: "iFlow CLI", label: "iFlow CLI Skills", root: path.join(home, ".iflow/skills"), enabled: false },
+    { id: "github-copilot", client: "GitHub Copilot", label: "GitHub Copilot Skills", root: path.join(home, ".copilot/skills"), enabled: false },
+    { id: "gemini", client: "Gemini CLI", label: "Gemini CLI Skills", root: path.join(home, ".gemini/skills"), enabled: false },
+    { id: "windsurf", client: "Windsurf", label: "Windsurf Skills", root: path.join(home, ".windsurf/skills"), enabled: false },
+    { id: "grok", client: "Grok", label: "Grok Skills", root: path.join(home, ".grok/skills"), enabled: false },
+    { id: "amp", client: "Amp", label: "Amp Skills", root: path.join(home, ".amp/skills"), enabled: false },
+    { id: "antigravity", client: "Antigravity", label: "Antigravity Skills", root: path.join(home, ".antigravity/skills"), enabled: false },
+    { id: "hermes", client: "Hermes Agent", label: "Hermes Agent Skills", root: path.join(home, ".hermes/skills"), enabled: false }
   ];
 }
 

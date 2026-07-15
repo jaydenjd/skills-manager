@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, Menu, ipcMain, shell, dialog } = require("electron");
 const crypto = require("node:crypto");
 const { execFile } = require("node:child_process");
 const fs = require("node:fs");
@@ -24,14 +24,9 @@ const discoverPageSize = 80;
 const removedDefaultSourceIds = new Set([
   "codex-system",
   "codex-plugins",
-  "cursor",
   "qoderwork-kb",
   "qoderwork-workspace",
-  "qwen",
-  "kiro",
   "openclaw-workspace",
-  "opencode",
-  "iflow"
 ]);
 
 function managedDataDir() {
@@ -75,8 +70,26 @@ function defaultSettings() {
 }
 
 function normalizeSources(sources) {
-  const next = (Array.isArray(sources) ? sources : defaultSources()).filter((source) => !removedDefaultSourceIds.has(source.id));
-  return next.length ? next : defaultSources();
+  const defaults = defaultSources().filter((source) => !removedDefaultSourceIds.has(source.id));
+  const incoming = (Array.isArray(sources) ? sources : []).filter((source) => source && !removedDefaultSourceIds.has(source.id));
+  const defaultById = new Map(defaults.map((source) => [source.id, source]));
+  const incomingIds = new Set();
+  const mergedById = new Map();
+
+  for (const source of incoming) {
+    incomingIds.add(source.id);
+    mergedById.set(source.id, { ...(defaultById.get(source.id) || {}), ...source });
+  }
+  for (const source of defaults) {
+    if (!mergedById.has(source.id)) mergedById.set(source.id, source);
+  }
+
+  const orderedIds = [
+    ...incoming.map((source) => source.id),
+    ...defaults.filter((source) => !incomingIds.has(source.id)).map((source) => source.id)
+  ];
+  const next = orderedIds.map((id) => mergedById.get(id)).filter(Boolean);
+  return next.length ? next : defaults;
 }
 
 function normalizeRetentionDays(value) {
@@ -2665,6 +2678,16 @@ ipcMain.on("window-drag:end", (event) => {
   windowDragState.delete(event.sender.id);
 });
 
+ipcMain.on("window:maximize-toggle", (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed() || win.isFullScreen()) return;
+  if (win.isMaximized()) {
+    win.unmaximize();
+  } else {
+    win.maximize();
+  }
+});
+
 ipcMain.handle("skills:scan", async () => {
   return scanInstalledSkills();
 });
@@ -2921,6 +2944,42 @@ ipcMain.handle("path:exists", async (_event, filePath) => {
   return fs.existsSync(target);
 });
 
+async function inspectLocalSkillDirectory(inputPath) {
+  const skillDir = expandHome(normalizeUserPathInput(inputPath || ""));
+  if (!skillDir) throw new Error("请选择本地 skill 目录。");
+  const stats = await fsp.stat(skillDir).catch(() => null);
+  if (!stats?.isDirectory()) throw new Error("目录不存在或不是文件夹。");
+  const skillFile = path.join(skillDir, "SKILL.md");
+  const skillFileStats = await fsp.stat(skillFile).catch(() => null);
+  if (!skillFileStats?.isFile()) throw new Error("请选择包含 SKILL.md 的 skill 目录。");
+  const raw = await fsp.readFile(skillFile, "utf8").catch(() => "");
+  const parsed = raw ? matter(raw) : { data: {} };
+  const name = String(parsed.data?.name || path.basename(skillDir) || "skill").trim();
+  return {
+    id: `local-import:${crypto.createHash("sha1").update(skillDir).digest("hex").slice(0, 12)}`,
+    name,
+    dir: skillDir,
+    filePath: skillFile,
+    description: String(parsed.data?.description || "").trim(),
+    version: parsed.data?.version ? String(parsed.data.version) : "",
+    source: "local-import"
+  };
+}
+
+ipcMain.handle("skills:inspect-local", async (_event, filePath) => {
+  return inspectLocalSkillDirectory(filePath);
+});
+
+ipcMain.handle("dialog:choose-local-skill", async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const result = await dialog.showOpenDialog(win, {
+    title: "选择本地 Skill 目录",
+    properties: ["openDirectory"]
+  });
+  if (result.canceled || !result.filePaths?.[0]) return null;
+  return inspectLocalSkillDirectory(result.filePaths[0]);
+});
+
 ipcMain.handle("files:read", async (_event, filePath) => {
   const stats = await fsp.stat(filePath);
   if (stats.isDirectory()) {
@@ -3140,7 +3199,7 @@ async function performInstallDiscoverSkill(item, targetSourceId, forceUpdate = f
       });
       await fsp.rm(target, { recursive: true, force: true });
     }
-    if (item.installMethod === "skills-cli" || item.source === "skillssh") {
+    if (item.installMethod === "skills-cli" || item.installMethod === "remote-git" || item.source === "skillssh") {
       tempRoot = await fsp.mkdtemp(path.join(app.getPath("temp"), "skill-manager-install-"));
       const repoDir = path.join(tempRoot, "repo");
       const cloneResult = await cloneGithubRepoWithFallback(repoUrl, repoDir, tempRoot);
@@ -3159,6 +3218,27 @@ async function performInstallDiscoverSkill(item, targetSourceId, forceUpdate = f
       appendOperationLog({ type: "install", status: "success", title: item.name, message, detail: `${repoUrl} -> ${finalTarget}` });
       notifySkillsChanged({ type: "install-discover", item, target: finalTarget, targetSourceId });
       return { path: finalTarget, installed: true, command: item.installCommand, method: cloneResult.method === "github-zip" ? "github-zip-fallback" : "copy-from-repo" };
+    }
+
+    if (item.installMethod === "remote-archive") {
+      tempRoot = await fsp.mkdtemp(path.join(app.getPath("temp"), "skill-manager-install-"));
+      const repoDir = path.join(tempRoot, "archive");
+      const archiveBuffer = await fetchBuffer(repoUrl);
+      await extractZipBuffer(archiveBuffer, repoDir);
+      const skillDir = await findSkillDirectory(repoDir, item.name);
+      await fsp.cp(skillDir, finalTarget, { recursive: true, force: true });
+      const manifest = await archiveSkillDirectory(finalTarget, {
+        sourceId: targetSourceId || getSettings().installSourceId,
+        client: sourceLabelById(getSettings(), targetSourceId || getSettings().installSourceId),
+        reason: strategy === "replace" ? "update-active" : "install-remote-active"
+      });
+      await setActiveVersionState(finalTarget, {
+        sourceId: targetSourceId || getSettings().installSourceId,
+        client: sourceLabelById(getSettings(), targetSourceId || getSettings().installSourceId)
+      }, manifest);
+      appendOperationLog({ type: "install", status: "success", title: item.name, message: "已通过远程压缩包安装到指定 Agent。", detail: `${repoUrl} -> ${finalTarget}` });
+      notifySkillsChanged({ type: "install-discover", item, target: finalTarget, targetSourceId });
+      return { path: finalTarget, installed: true, method: "remote-archive" };
     }
 
     try {

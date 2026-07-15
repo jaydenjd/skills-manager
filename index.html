@@ -43,34 +43,35 @@
       .boot-logo {
         width: 48px;
         height: 48px;
-        position: relative;
-        display: grid;
-        place-items: center;
-        border: 1px solid #1f211d;
-        border-radius: 12px;
-        background: linear-gradient(145deg, #fdfbf4 0%, #e9e3d4 100%);
-        box-shadow: 7px 7px 0 #d2ff2f;
+        display: block;
+        border-radius: 14px;
+        filter: drop-shadow(0 7px 16px rgba(15, 23, 42, 0.1));
       }
 
-      .boot-logo::before,
-      .boot-logo::after {
-        content: "";
-        position: absolute;
-        width: 24px;
-        height: 14px;
-        border: 2px solid #1f211d;
-        border-radius: 6px;
-        background: #fffdf7;
-        transform: rotate(-8deg);
+      .boot-logo .logo-tile {
+        fill: #ffffff;
+        stroke: #dfe4ea;
+        stroke-width: 1.8;
       }
 
-      .boot-logo::before {
-        top: 12px;
+      .boot-logo .logo-s {
+        fill: url("#bootLogoGradient");
       }
 
-      .boot-logo::after {
-        top: 21px;
-        background: #d2ff2f;
+      .boot-logo .logo-dot-green {
+        fill: #45bf87;
+        stroke: #ffffff;
+        stroke-width: 1.6;
+      }
+
+      .boot-logo .logo-dot-violet {
+        fill: #8b7cff;
+        stroke: #ffffff;
+        stroke-width: 1.4;
+      }
+
+      .boot-logo .logo-dot-core {
+        fill: #ffffff;
       }
 
       .boot-dots {
@@ -123,7 +124,24 @@
     <div id="root">
       <div class="boot-splash">
         <div class="boot-card">
-          <div class="boot-logo" aria-hidden="true"></div>
+          <svg class="boot-logo" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+            <defs>
+              <linearGradient id="bootLogoGradient" x1="18" y1="14" x2="48" y2="52" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#5FE0D4" />
+                <stop offset="0.55" stop-color="#45BF87" />
+                <stop offset="1" stop-color="#8B7CFF" />
+              </linearGradient>
+            </defs>
+            <rect x="4" y="4" width="56" height="56" rx="15" class="logo-tile" />
+            <path
+              class="logo-s"
+              d="M21.1 20.2c3.2-4.4 9.3-6.3 16.6-5 4.8.8 8.3 2.7 10.5 5l-4.5 6c-1.9-1.9-4.8-3.3-8.2-3.5-3.8-.2-6.7.6-7.9 2.3-1.1 1.6.1 3 4.6 4.3l4.8 1.4c7.7 2.2 11.7 6.1 10.7 12.1-1.1 6.6-7.8 10.1-16.2 8.7-6.1-1-10.8-3.7-13.7-7.5l4.9-5.8c2.1 2.6 5.2 4.5 9.3 5.2 4.4.8 7.5-.4 8.1-2.6.5-1.8-1.1-3.2-5.3-4.4l-4.8-1.4c-7.9-2.3-11.7-6-10.5-12 .2-1 .8-2 1.6-2.8Z"
+            />
+            <circle cx="44" cy="25.2" r="3" class="logo-dot-green" />
+            <circle cx="44" cy="25.2" r="1" class="logo-dot-core" />
+            <circle cx="20.2" cy="40.6" r="2.7" class="logo-dot-violet" />
+            <circle cx="20.2" cy="40.6" r="0.9" class="logo-dot-core" />
+          </svg>
           <strong>Skill Manager</strong>
           <p>正在准备本地 skill 管理器</p>
           <span class="boot-dots" aria-hidden="true"><i></i><i></i><i></i></span>

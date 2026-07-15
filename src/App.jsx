@@ -86,6 +86,26 @@ const messages = {
     totalInstalls: "累计",
     recentEightWeeks: "近 8 周",
     install: "安装",
+    installSkills: "安装 Skills",
+    skillsLeaderboard: "Skills 榜单",
+    skillsLeaderboardDesc: "来自 skills.sh 的公开榜单",
+    localInstall: "本地导入",
+    localInstallDesc: "从本机目录导入包含 SKILL.md 的 skill",
+    remoteInstall: "远程安装",
+    remoteInstallDesc: "从 Git / URL / 压缩包安装 skill",
+    importLocal: "本地导入",
+    importLocalTitle: "导入本地 skill",
+    importLocalDesc: "选择或输入一个包含 SKILL.md 的目录，导入后会复制安装到选中的 Agent。",
+    chooseDirectory: "选择目录",
+    localSkillPath: "本地 skill 目录",
+    localSkillPathPlaceholder: "~/work/my-skill",
+    importLocalInvalid: "导入失败：{message}",
+    remoteSkillUrl: "远程地址",
+    remoteSkillUrlPlaceholder: "https://github.com/owner/repo 或 https://example.com/skill.zip",
+    remoteSkillName: "skill 名称（可选）",
+    remoteSkillNamePlaceholder: "仓库里有多个 skill 时填写",
+    remoteInstallHint: "支持 GitHub、Git URL 和 zip 压缩包。仓库内有多个 skill 时建议填写 skill 名称。",
+    remoteInstallInvalid: "远程安装失败：{message}",
     uninstall: "卸载",
     update: "更新",
     recover: "恢复",
@@ -169,6 +189,8 @@ const messages = {
     moveUp: "上移",
     moveDown: "下移",
     addAgent: "新增 agent",
+    moreAgents: "更多 Agent（{count}）",
+    collapseAgents: "收起 Agent",
     newAgent: "New Agent",
     newAgentSkills: "New Agent Skills",
     duplicateAgentName: "Agent 名称不能重复：{name}",
@@ -455,6 +477,26 @@ const messages = {
     totalInstalls: "Total",
     recentEightWeeks: "Last 8 weeks",
     install: "Install",
+    installSkills: "Install Skills",
+    skillsLeaderboard: "Skills Leaderboard",
+    skillsLeaderboardDesc: "Public leaderboard from skills.sh",
+    localInstall: "Local import",
+    localInstallDesc: "Import a local directory that contains SKILL.md",
+    remoteInstall: "Remote install",
+    remoteInstallDesc: "Install from Git / URL / archive",
+    importLocal: "Import local",
+    importLocalTitle: "Import local skill",
+    importLocalDesc: "Choose or enter a directory that contains SKILL.md. It will be copied into the selected Agents.",
+    chooseDirectory: "Choose directory",
+    localSkillPath: "Local skill directory",
+    localSkillPathPlaceholder: "~/work/my-skill",
+    importLocalInvalid: "Import failed: {message}",
+    remoteSkillUrl: "Remote URL",
+    remoteSkillUrlPlaceholder: "https://github.com/owner/repo or https://example.com/skill.zip",
+    remoteSkillName: "Skill name (optional)",
+    remoteSkillNamePlaceholder: "Use when a repository contains multiple skills",
+    remoteInstallHint: "Supports GitHub, Git URLs, and zip archives. Add a skill name when the repo contains multiple skills.",
+    remoteInstallInvalid: "Remote install failed: {message}",
     uninstall: "Uninstall",
     update: "Update",
     recover: "Recover",
@@ -538,6 +580,8 @@ const messages = {
     moveUp: "Move up",
     moveDown: "Move down",
     addAgent: "Add agent",
+    moreAgents: "More agents ({count})",
+    collapseAgents: "Collapse agents",
     newAgent: "New Agent",
     newAgentSkills: "New Agent Skills",
     duplicateAgentName: "Agent name already exists: {name}",
@@ -804,6 +848,22 @@ function sourceFilterLabel(value, t) {
   if (value === "installed") return t("installed");
   if (value === "uninstalled") return t("uninstalled");
   return value;
+}
+
+function remoteSkillNameFromUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const cleaned = raw.replace(/[#?].*$/, "").replace(/\/+$/, "");
+  const githubMatch = cleaned.match(/github\.com[:/]([^/\s]+)\/([^/\s]+?)(?:\.git)?$/i);
+  if (githubMatch) return githubMatch[2].replace(/\.git$/i, "");
+  const last = cleaned.split("/").filter(Boolean).pop() || "";
+  return last.replace(/\.(git|zip|tar|tgz|tar\.gz)$/i, "") || "remote-skill";
+}
+
+function remoteInstallMethodFromUrl(value) {
+  const raw = String(value || "").trim();
+  if (/\.zip(?:[#?].*)?$/i.test(raw)) return "remote-archive";
+  return "remote-git";
 }
 
 function readStoredJson(primaryKey, legacyKey, fallback) {
@@ -1479,8 +1539,9 @@ function useSkillData() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  async function refresh() {
-    setLoading(true);
+  async function refresh(options = {}) {
+    const silent = Boolean(options.silent);
+    if (!silent) setLoading(true);
     setError("");
     try {
       const result = await window.skillStudio.scan();
@@ -1491,7 +1552,7 @@ function useSkillData() {
       setError(err.message || String(err));
       return null;
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
@@ -1797,7 +1858,43 @@ function AgentLogo({ source }) {
   const raw = `${source?.id || ""} ${source?.client || ""}`.toLowerCase();
   let brand = "agent";
   let label = String(source?.client || "A").trim().slice(0, 1).toUpperCase() || "A";
-  if (raw.includes("codex")) {
+  if (raw.includes("github") || raw.includes("copilot")) {
+    brand = "github";
+    label = "GH";
+  } else if (raw.includes("cursor")) {
+    brand = "cursor";
+    label = "C";
+  } else if (raw.includes("opencode")) {
+    brand = "opencode";
+    label = "OC";
+  } else if (raw.includes("qwen")) {
+    brand = "qwen";
+    label = "Q";
+  } else if (raw.includes("kiro")) {
+    brand = "kiro";
+    label = "K";
+  } else if (raw.includes("iflow")) {
+    brand = "iflow";
+    label = "iF";
+  } else if (raw.includes("gemini")) {
+    brand = "gemini";
+    label = "✦";
+  } else if (raw.includes("windsurf")) {
+    brand = "windsurf";
+    label = "W";
+  } else if (raw.includes("grok")) {
+    brand = "grok";
+    label = "G";
+  } else if (raw.includes("amp")) {
+    brand = "amp";
+    label = "A";
+  } else if (raw.includes("antigravity")) {
+    brand = "antigravity";
+    label = "AG";
+  } else if (raw.includes("hermes")) {
+    brand = "hermes";
+    label = "H";
+  } else if (raw.includes("codex")) {
     brand = "codex";
     label = "◎";
   } else if (raw.includes("claude")) {
@@ -2116,6 +2213,34 @@ function DiscoverDetail({ item, onInstall, onUninstall, busy, starred, onStar, i
           </div>
         </div>
       </section>
+    </section>
+  );
+}
+
+function InstallSourceDetail({ mode }) {
+  const { t } = useI18n();
+  const isLocal = mode === "local";
+  return (
+    <section className="detail install-source-detail">
+      <div className="detail-header">
+        <div className="detail-icon source-detail-icon">
+          {isLocal ? <FolderOpen size={24} /> : <Github size={24} />}
+        </div>
+        <div>
+          <h2>{isLocal ? t("localInstall") : t("remoteInstall")}</h2>
+          <p>{isLocal ? t("localInstallDesc") : t("remoteInstallHint")}</p>
+        </div>
+      </div>
+      <div className="source-guide-grid">
+        <div>
+          <strong>{isLocal ? t("localSkillPath") : t("remoteSkillUrl")}</strong>
+          <span>{isLocal ? t("localSkillPathPlaceholder") : t("remoteSkillUrlPlaceholder")}</span>
+        </div>
+        <div>
+          <strong>{t("install")}</strong>
+          <span>{isLocal ? t("importLocalDesc") : t("remoteInstallDesc")}</span>
+        </div>
+      </div>
     </section>
   );
 }
@@ -3726,6 +3851,7 @@ function Detail({
           root: copy.dir,
           dir: copy.dir,
           skill: copy,
+          installed: true,
           version: skillVersion(copy),
           versionLabel: skillVersionLabel(copy),
           disabled: !hasContentChanges,
@@ -4012,19 +4138,6 @@ function Detail({
         })}
       </div>
       {versionSwitching ? <div className="version-switching-note">{t("switchingVersion")}</div> : null}
-      {mode === "edit" ? (
-        <div className="copy-edit-actions">
-          <span>{t("editing")} {activeCopy.client} · {shortPath(activeFile?.path)}</span>
-          <button onClick={saveDraft} disabled={saving || draft === activeFile?.content}>
-            <Save size={14} />
-            {saving ? t("savingChanges") : t("saveChanges")}
-          </button>
-          <button className="soft-button" onClick={() => { setDraft(activeFile?.content || ""); setPendingNavigation(null); }} disabled={draft === activeFile?.content}>
-            <RotateCcw size={14} />
-            {t("discardChanges")}
-          </button>
-        </div>
-      ) : null}
       {pendingNavigation ? (
         <div className="pending-edit-panel">
           <span>{pendingNavigation.type === "mode" ? t("unsavedBeforeExitEdit") : t("unsavedBeforeSwitch")}</span>
@@ -4086,7 +4199,19 @@ function Detail({
             </span>
             {!readOnly ? <button title={t("addFileTitle")} onClick={() => beginCreateEntry("file")}>{t("addFile")}</button> : null}
             {!readOnly ? <button title={t("addDirectoryTitle")} onClick={() => beginCreateEntry("directory")}>{t("addDirectory")}</button> : null}
-            {!readOnly ? <button className="reader-mode-toggle" onClick={() => setMode(mode === "edit" ? "view" : "edit")}>
+            {mode === "edit" ? (
+              <div className="reader-edit-actions" title={`${t("editing")} ${activeCopy.client} · ${shortPath(activeFile?.path)}`}>
+                <button className="reader-save-button" onClick={saveDraft} disabled={saving || draft === activeFile?.content}>
+                  <Save size={13} />
+                  {saving ? t("savingChanges") : t("saveChanges")}
+                </button>
+                <button className="reader-discard-button" onClick={() => { setDraft(activeFile?.content || ""); setPendingNavigation(null); }} disabled={draft === activeFile?.content}>
+                  <RotateCcw size={13} />
+                  {t("discardChanges")}
+                </button>
+              </div>
+            ) : null}
+            {!readOnly ? <button className={`reader-mode-toggle ${mode === "edit" ? "active" : ""}`} onClick={() => mode === "edit" ? exitEditMode() : setMode("edit")}>
               {mode === "edit" ? t("editMode") : t("readMode")}
             </button> : null}
           </div>
@@ -4213,7 +4338,7 @@ function Detail({
         onChangeTargets={setUpgradeTargetCopyIds}
         onCancel={() => setUpgradeTargetPending(null)}
         onConfirm={async () => {
-          const enabledTargets = upgradeTargetPending?.targets?.filter((target) => !target.disabled) || [];
+          const enabledTargets = upgradeTargetPending?.targets?.filter((target) => target.installed && !target.disabled) || [];
           const selectedCopies = installations.filter((item) => upgradeTargetCopyIds.includes(item.id) && enabledTargets.some((target) => target.id === item.id));
           const previewCopy = activeCopy;
           setUpgradeTargetPending(null);
@@ -4338,11 +4463,14 @@ function SettingsPage({ settings, onSave }) {
   const [settingsSaveNotice, setSettingsSaveNotice] = useState("");
   const [apiBusy, setApiBusy] = useState(false);
   const [apiConnection, setApiConnection] = useState({ state: "unknown", message: "" });
+  const [editingApiPort, setEditingApiPort] = useState(false);
   const [editingAgentText, setEditingAgentText] = useState({ sourceId: "", field: "" });
   const [editingIgnore, setEditingIgnore] = useState(false);
+  const [showAgentOverflow, setShowAgentOverflow] = useState(false);
   const agentNameRefs = useRef({});
   const agentLabelRefs = useRef({});
   const agentPathRefs = useRef({});
+  const apiPortRef = useRef(null);
   const settingsJsonGutterRef = useRef(null);
   const autoSaveTimerRef = useRef(0);
 
@@ -4714,6 +4842,14 @@ function SettingsPage({ settings, onSave }) {
     }, 0);
   }
 
+  function editApiPort() {
+    setEditingApiPort(true);
+    window.setTimeout(() => {
+      apiPortRef.current?.focus?.();
+      apiPortRef.current?.select?.();
+    }, 0);
+  }
+
   function closeAgentTextEdit(sourceId, field) {
     setEditingAgentText((current) => (
       current.sourceId === sourceId && current.field === field ? { sourceId: "", field: "" } : current
@@ -4890,7 +5026,7 @@ function SettingsPage({ settings, onSave }) {
         </section>
       ) : (
       <div className="settings-grid">
-        <section className="settings-card wide agents-settings-card">
+        <section className={`settings-card wide agents-settings-card ${showAgentOverflow ? "show-agent-overflow" : ""}`}>
           <div className="settings-card-head row">
             <div>
               <h3>Agents</h3>
@@ -5032,6 +5168,15 @@ function SettingsPage({ settings, onSave }) {
               })()
             ))}
           </div>
+          {draft.sources.length > 12 ? (
+            <button
+              type="button"
+              className="more-agents-button"
+              onClick={() => setShowAgentOverflow((current) => !current)}
+            >
+              {showAgentOverflow ? t("collapseAgents") : t("moreAgents").replace("{count}", draft.sources.length - 12)}
+            </button>
+          ) : null}
         </section>
 
         <section className="settings-card">
@@ -5087,12 +5232,25 @@ function SettingsPage({ settings, onSave }) {
                 <span>{t("configuredPort")}</span>
               </label>
               <input
+                ref={apiPortRef}
+                className={editingApiPort ? "editing-api-port" : ""}
                 type="number"
                 min="1024"
                 max="65535"
                 value={draft.apiPort || 19010}
+                readOnly={!editingApiPort}
                 onChange={(event) => updateVisualDraft({ ...draft, apiPort: Number(event.target.value) || 19010 }, 500)}
+                onBlur={() => setEditingApiPort(false)}
               />
+              <button
+                type="button"
+                className="agent-path-edit api-port-edit"
+                title={t("edit")}
+                aria-label={t("edit")}
+                onClick={editApiPort}
+              >
+                <Edit3 size={13} />
+              </button>
               <button className="soft-button api-mini-button" onClick={refreshLocalApi} disabled={apiBusy || Boolean(jsonError)}>
                 <RefreshCcw size={13} />
                 {apiBusy ? t("apiRefreshing") : t("refreshApi")}
@@ -5201,11 +5359,11 @@ function InstallTargetDialog({ pending, targets, selectedTargets, onChangeTarget
   const isDeleteUninstalled = pending.type === "delete-uninstalled";
   const isUpdate = pending.forceUpdate;
   const selectedSet = new Set(selectedTargets);
-  const selectableTargets = targets.filter((target) => !target.disabled);
+  const selectableTargets = targets.filter((target) => !target.disabled && (!isUpgrade || target.installed));
   const allSelected = selectableTargets.length > 0 && selectableTargets.every((target) => selectedSet.has(target.id));
   function toggleTarget(id) {
     const target = targets.find((item) => item.id === id);
-    if (target?.disabled) return;
+    if (target?.disabled || (isUpgrade && !target.installed)) return;
     const next = new Set(selectedSet);
     if (next.has(id)) next.delete(id);
     else next.add(id);
@@ -5235,8 +5393,8 @@ function InstallTargetDialog({ pending, targets, selectedTargets, onChangeTarget
             (() => {
               const versionLabel = targetVersionLabel(target);
               return (
-                <label key={target.id} className={`target-check ${target.disabled ? "disabled" : ""}`}>
-                  <input type="checkbox" checked={selectedSet.has(target.id)} disabled={target.disabled} onChange={() => toggleTarget(target.id)} />
+                <label key={target.id} className={`target-check ${target.disabled || (isUpgrade && !target.installed) ? "disabled" : ""}`}>
+                  <input type="checkbox" checked={selectedSet.has(target.id)} disabled={target.disabled || (isUpgrade && !target.installed)} onChange={() => toggleTarget(target.id)} />
                   <span>
                     <strong>{target.client}</strong>
                     <em>{shortPath(target.root || target.dir)}</em>
@@ -5258,6 +5416,144 @@ function InstallTargetDialog({ pending, targets, selectedTargets, onChangeTarget
         <div className="dialog-actions">
           <button className="soft-button" onClick={onCancel} disabled={busy}>{t("cancel")}</button>
           <button onClick={onConfirm} disabled={busy || !selectedTargets.length}>{busy ? t("processing") : isUninstall ? t("uninstall") : isUpgrade ? t("publishVersion") : isSync ? t("sync") : isRestore ? t("recover") : isDeleteUninstalled ? t("delete") : isUpdate ? t("update") : t("install")}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InstallSourcePanel({
+  mode,
+  localPath,
+  localError,
+  localBusy,
+  onLocalPathChange,
+  onChooseLocal,
+  onConfirmLocal,
+  remoteUrl,
+  remoteName,
+  remoteError,
+  remoteBusy,
+  onRemoteUrlChange,
+  onRemoteNameChange,
+  onConfirmRemote
+}) {
+  const { t } = useI18n();
+  if (mode === "leaderboard") return null;
+  const isLocal = mode === "local";
+  return (
+    <div className="install-source-panel">
+      <div className="install-source-card">
+        <div className="install-source-card-head">
+          <div className="source-icon-wrap">
+            {isLocal ? <FolderOpen size={18} /> : <Github size={18} />}
+          </div>
+          <div>
+            <h3>{isLocal ? t("localInstall") : t("remoteInstall")}</h3>
+            <p>{isLocal ? t("localInstallDesc") : t("remoteInstallHint")}</p>
+          </div>
+        </div>
+        {isLocal ? (
+          <div className="install-source-form">
+            <label>
+              <span>{t("localSkillPath")}</span>
+              <div className="inline-input-row">
+                <input
+                  value={localPath}
+                  onChange={(event) => onLocalPathChange(event.target.value)}
+                  placeholder={t("localSkillPathPlaceholder")}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") onConfirmLocal();
+                  }}
+                />
+                <button className="soft-button" onClick={onChooseLocal} disabled={localBusy}>
+                  <FolderOpen size={15} />
+                  {t("chooseDirectory")}
+                </button>
+              </div>
+            </label>
+            {localError ? <div className="local-import-error">{localError}</div> : null}
+            <div className="install-source-actions">
+              <button onClick={onConfirmLocal} disabled={localBusy || !localPath.trim()}>
+                {localBusy ? t("processing") : t("install")}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="install-source-form">
+            <label>
+              <span>{t("remoteSkillUrl")}</span>
+              <input
+                value={remoteUrl}
+                onChange={(event) => onRemoteUrlChange(event.target.value)}
+                placeholder={t("remoteSkillUrlPlaceholder")}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") onConfirmRemote();
+                }}
+              />
+            </label>
+            <label>
+              <span>{t("remoteSkillName")}</span>
+              <input
+                value={remoteName}
+                onChange={(event) => onRemoteNameChange(event.target.value)}
+                placeholder={t("remoteSkillNamePlaceholder")}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") onConfirmRemote();
+                }}
+              />
+            </label>
+            {remoteError ? <div className="local-import-error">{remoteError}</div> : null}
+            <div className="install-source-actions">
+              <button onClick={onConfirmRemote} disabled={remoteBusy || !remoteUrl.trim()}>
+                {remoteBusy ? t("processing") : t("install")}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function LocalImportDialog({ open, pathValue, error, busy, onPathChange, onChooseDirectory, onCancel, onConfirm }) {
+  const { t } = useI18n();
+  if (!open) return null;
+  return (
+    <div className="modal-overlay">
+      <div className="local-import-dialog">
+        <div className="local-import-head">
+          <div>
+            <h3>{t("importLocalTitle")}</h3>
+            <p>{t("importLocalDesc")}</p>
+          </div>
+          <button className="icon-button" onClick={onCancel} disabled={busy} aria-label={t("close")}>
+            <X size={16} />
+          </button>
+        </div>
+        <label className="local-import-field">
+          <span>{t("localSkillPath")}</span>
+          <div>
+            <input
+              value={pathValue}
+              onChange={(event) => onPathChange(event.target.value)}
+              placeholder={t("localSkillPathPlaceholder")}
+              autoFocus
+              onKeyDown={(event) => {
+                if (event.key === "Enter") onConfirm();
+                if (event.key === "Escape") onCancel();
+              }}
+            />
+            <button className="soft-button" onClick={onChooseDirectory} disabled={busy}>
+              <FolderOpen size={15} />
+              {t("chooseDirectory")}
+            </button>
+          </div>
+        </label>
+        {error ? <div className="local-import-error">{error}</div> : null}
+        <div className="dialog-actions">
+          <button className="soft-button" onClick={onCancel} disabled={busy}>{t("cancel")}</button>
+          <button onClick={onConfirm} disabled={busy || !pathValue.trim()}>{busy ? t("processing") : t("importLocal")}</button>
         </div>
       </div>
     </div>
@@ -5635,6 +5931,7 @@ function operationMessageLabel(message, t) {
 function App() {
   const { data, loading, error, refresh } = useSkillData();
   const [discoverSort, setDiscoverSort] = useState("alltime");
+  const [installSourceMode, setInstallSourceMode] = useState("leaderboard");
   const discoverSource = discoverSort;
   const [uninstalledData, setUninstalledData] = useState(null);
   const [settings, setSettings] = useState(null);
@@ -5649,7 +5946,7 @@ function App() {
     content: false
   });
   const [listMode, setListMode] = useState("installed");
-  const discoverQuery = useDebouncedValue(listMode === "discover" ? query.trim() : "", 260);
+  const discoverQuery = useDebouncedValue(listMode === "discover" && installSourceMode === "leaderboard" ? query.trim() : "", 260);
   const githubTrends = useGithubTrends(discoverSource, discoverQuery);
   const [localSort, setLocalSort] = useState("updated");
   const [sourceFilter, setSourceFilter] = useState("all");
@@ -5671,6 +5968,14 @@ function App() {
   const [pendingInstall, setPendingInstall] = useState(null);
   const [pendingConflict, setPendingConflict] = useState(null);
   const [conflictActions, setConflictActions] = useState({});
+  const [localImportOpen, setLocalImportOpen] = useState(false);
+  const [localImportPath, setLocalImportPath] = useState("");
+  const [localImportError, setLocalImportError] = useState("");
+  const [localImportBusy, setLocalImportBusy] = useState(false);
+  const [remoteInstallUrl, setRemoteInstallUrl] = useState("");
+  const [remoteInstallName, setRemoteInstallName] = useState("");
+  const [remoteInstallError, setRemoteInstallError] = useState("");
+  const [remoteInstallBusy, setRemoteInstallBusy] = useState(false);
   const [starredMap, setStarredMap] = useState({});
   const [operationLogs, setOperationLogs] = useState([]);
   const [operationEvents, setOperationEvents] = useState([]);
@@ -5678,6 +5983,7 @@ function App() {
   const [notice, setNotice] = useState("");
   const [noticeDuration, setNoticeDuration] = useState(1800);
   const [settingsSaving, setSettingsSaving] = useState(false);
+  const lastSilentSkillRefreshRef = useRef(0);
   const lang = settings?.language === "en" ? "en" : "zh";
   const t = useMemo(() => createTranslator(lang), [lang]);
   const i18nValue = useMemo(() => ({ lang, t }), [lang, t]);
@@ -5701,8 +6007,14 @@ function App() {
     window.addEventListener("blur", handleEnd);
   }
 
-  async function refreshAll() {
-    await refresh();
+  function toggleWindowMaximize(event) {
+    if (!window.skillStudio?.toggleWindowMaximize) return;
+    if (event.target.closest("button, input, select, textarea, a, details, summary, [data-no-drag]")) return;
+    window.skillStudio.toggleWindowMaximize();
+  }
+
+  async function refreshAll(options = {}) {
+    await refresh(options);
     try {
       setUninstalledData(await window.skillStudio.scanUninstalled());
     } catch {
@@ -5784,9 +6096,9 @@ function App() {
     const unsubscribe = window.skillStudio.onSkillsChanged(() => {
       window.clearTimeout(timer);
       timer = window.setTimeout(() => {
-        refreshAll();
+        refreshAll({ silent: true });
         refreshEvents();
-      }, 120);
+      }, 700);
     });
     return () => {
       window.clearTimeout(timer);
@@ -5852,7 +6164,11 @@ function App() {
     const timer = window.setInterval(async () => {
       await refreshEvents();
       const hasRunning = operationEvents.some((event) => event.status === "queued" || event.status === "running");
-      if (hasRunning) await refreshAll();
+      const now = Date.now();
+      if (hasRunning && now - lastSilentSkillRefreshRef.current > 6500) {
+        lastSilentSkillRefreshRef.current = now;
+        await refreshAll({ silent: true });
+      }
     }, 1600);
     return () => window.clearInterval(timer);
   }, [operationEvents]);
@@ -6038,6 +6354,90 @@ function App() {
 
   function beginInstallLocal(skill) {
     openInstallDialog("local", skill, installTargetsWithInstalledVersions(skill));
+  }
+
+  function openLocalImportDialog() {
+    setLocalImportError("");
+    setLocalImportOpen(true);
+  }
+
+  function closeLocalImportDialog() {
+    if (localImportBusy) return;
+    setLocalImportOpen(false);
+    setLocalImportError("");
+  }
+
+  async function beginLocalImportFromItem(item) {
+    if (!item?.dir) return;
+    setLocalImportOpen(false);
+    setLocalImportError("");
+    beginInstallLocal({
+      ...item,
+      id: item.id || `local-import:${item.dir}`,
+      description: item.description || t("noDescription")
+    });
+  }
+
+  async function chooseLocalImportDirectory() {
+    setLocalImportBusy(true);
+    setLocalImportError("");
+    try {
+      const item = await window.skillStudio.chooseLocalSkillDirectory();
+      if (!item) return;
+      setLocalImportPath(item.dir || "");
+      await beginLocalImportFromItem(item);
+    } catch (err) {
+      setLocalImportError(t("importLocalInvalid").replace("{message}", err.message || String(err)));
+    } finally {
+      setLocalImportBusy(false);
+    }
+  }
+
+  async function confirmLocalImportPath() {
+    const nextPath = localImportPath.trim();
+    if (!nextPath) return;
+    setLocalImportBusy(true);
+    setLocalImportError("");
+    try {
+      const item = await window.skillStudio.inspectLocalSkill(nextPath);
+      await beginLocalImportFromItem(item);
+    } catch (err) {
+      setLocalImportError(t("importLocalInvalid").replace("{message}", err.message || String(err)));
+    } finally {
+      setLocalImportBusy(false);
+    }
+  }
+
+  async function confirmRemoteInstall() {
+    const url = remoteInstallUrl.trim();
+    if (!url) return;
+    setRemoteInstallBusy(true);
+    setRemoteInstallError("");
+    try {
+      const name = (remoteInstallName.trim() || remoteSkillNameFromUrl(url)).trim();
+      if (!name) throw new Error(t("remoteSkillName"));
+      beginInstallDiscover({
+        id: `remote:${url}:${name}`,
+        name,
+        fullName: url,
+        description: `${name} from ${url}`,
+        url,
+        repositoryUrl: url,
+        source: "remote",
+        sourceLabel: "Remote",
+        sourceName: url,
+        sourceUrl: url,
+        installCommand: `git clone --depth 1 ${url}`,
+        installMethod: remoteInstallMethodFromUrl(url),
+        stars: 0,
+        language: "Agent skill",
+        updatedAt: new Date().toISOString()
+      });
+    } catch (err) {
+      setRemoteInstallError(t("remoteInstallInvalid").replace("{message}", err.message || String(err)));
+    } finally {
+      setRemoteInstallBusy(false);
+    }
   }
 
   function beginUninstallMany(item, skills) {
@@ -6685,13 +7085,29 @@ function App() {
 
   const installedCount = new Set((data?.skills || []).map((skill) => skillGroupKey(skill))).size;
   const uninstalledCount = new Set((uninstalledData?.skills || []).map((skill) => skillGroupKey(skill))).size;
+  const isDiscoverLeaderboard = listMode === "discover" && installSourceMode === "leaderboard";
   const showGlobalSearch = ["discover", "installed", "uninstalled", "starred", "tags"].includes(listMode);
-  const visibleCount = listMode === "discover" ? discoverItems.length : listMode === "tags" ? allTagCounts.length : listMode === "starred" ? starredFiltered.length : listMode === "uninstalled" ? uninstalledFiltered.length : installedFiltered.length;
+  const visibleCount = listMode === "discover"
+    ? (isDiscoverLeaderboard ? discoverItems.length : 1)
+    : listMode === "tags"
+      ? allTagCounts.length
+      : listMode === "starred"
+        ? starredFiltered.length
+        : listMode === "uninstalled"
+          ? uninstalledFiltered.length
+          : installedFiltered.length;
   const discoverTotalLabel = githubTrends.meta?.tabLabels?.alltime || githubTrends.meta?.totalLabel || githubTrends.items.length || 0;
   const discoverModeTotalLabel = githubTrends.meta?.totalLabel || (discoverSource === "alltime" ? discoverTotalLabel : "");
-  const discoverMetaCount = query.trim()
+  const discoverMetaCount = installSourceMode === "local"
+    ? t("localInstall")
+    : installSourceMode === "remote"
+      ? t("remoteInstall")
+      : query.trim()
     ? `${visibleCount} ${t("matches")}`
     : `${discoverModeTotalLabel || visibleCount} ${t("matches")}`;
+  const discoverMetaSubline = installSourceMode === "leaderboard"
+    ? (githubTrends.meta?.cachedAt ? formatDate(githubTrends.meta.cachedAt) : "skills.sh")
+    : "";
   const discoverTabLabels = githubTrends.meta?.tabLabels || {};
   const installTargets = useMemo(() => {
     const sources = settings?.sources?.length ? settings.sources : data?.sources || [];
@@ -6785,7 +7201,7 @@ function App() {
   return (
     <I18nContext.Provider value={i18nValue}>
     <main className="shell">
-      <header className="topbar" role="presentation" onMouseDown={startWindowDrag}>
+      <header className="topbar" role="presentation" onMouseDown={startWindowDrag} onDoubleClick={toggleWindowMaximize}>
         <span className="window-drag-strip" />
       </header>
 
@@ -6858,14 +7274,15 @@ function App() {
         <>
         <section className={`results ${showGlobalSearch ? "has-list-search" : ""}`}>
           {listSearch}
-          <div className="result-head">
-            <div>
-              <h2>{listMode === "discover" ? t("discover") : listMode === "tags" ? t("tags") : listMode === "starred" ? t("starred") : listMode === "uninstalled" ? t("uninstalled") : t("installed")}</h2>
-              <p className="result-meta">
+          <div className={`result-head ${listMode === "discover" ? "discover-head" : ""}`}>
+            <div className="result-summary">
+              <div className="result-title-row">
+                <h2>{listMode === "discover" ? t("installSkills") : listMode === "tags" ? t("tags") : listMode === "starred" ? t("starred") : listMode === "uninstalled" ? t("uninstalled") : t("installed")}</h2>
+                <p className="result-meta">
                 {listMode === "discover" ? (
                   <span className="result-meta-main">
                     <span>{discoverMetaCount}</span>
-                    <span>{githubTrends.meta?.cachedAt ? formatDate(githubTrends.meta.cachedAt) : "skills.sh"}</span>
+                    {discoverMetaSubline ? <span>{discoverMetaSubline}</span> : null}
                   </span>
                 ) : (
                   <span className="result-meta-main">
@@ -6873,13 +7290,13 @@ function App() {
                     <span>{data?.scannedAt ? formatDate(data.scannedAt) : t("preparing")}</span>
                   </span>
                 )}
-                {((listMode === "discover" && githubTrends.loading) || (listMode !== "discover" && loading)) ? (
-                  <span className="result-scan-state">
-                    <em>{listMode === "discover" ? t("loading") : t("scanning")}</em>
+                {((isDiscoverLeaderboard && githubTrends.loading) || (listMode !== "discover" && loading)) ? (
+                  <span className="result-scan-state" aria-label={listMode === "discover" ? t("loading") : t("scanning")}>
                     <i aria-hidden="true"><b /><b /><b /></i>
                   </span>
                 ) : null}
-              </p>
+                </p>
+              </div>
             </div>
             <div className="result-controls">
               {listMode === "installed" ? (
@@ -6889,15 +7306,73 @@ function App() {
                     <option value="alpha">{t("sortAlpha")}</option>
                   </select>
                   {renderTagFilter()}
+                  <button className="list-refresh-button" onClick={refreshCurrentLists} disabled={loading}>
+                    <RefreshCcw size={14} />
+                    <span>{t("refresh")}</span>
+                  </button>
                 </>
               ) : listMode === "discover" ? (
-                <>
-                  <div className="segmented">
-                    <button className={discoverSort === "alltime" ? "on" : ""} onClick={() => setDiscoverSort("alltime")}>All</button>
-                    <button className={discoverSort === "trending" ? "on" : ""} onClick={() => setDiscoverSort("trending")}>Trend</button>
-                    <button className={discoverSort === "hot" ? "on" : ""} onClick={() => setDiscoverSort("hot")}>Hot</button>
+                <div className="discover-toolbar">
+                  <div className="install-source-tabs">
+                    <div
+                      className={`install-source-tab leaderboard-source-tab ${installSourceMode === "leaderboard" ? "on" : ""}`}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setInstallSourceMode("leaderboard")}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") setInstallSourceMode("leaderboard");
+                      }}
+                    >
+                      <span className="leaderboard-source-label">
+                        <ListTree size={14} />
+                        <span className="source-tab-text-full">{t("skillsLeaderboard")}</span>
+                        <span className="source-tab-text-compact">{lang === "en" ? "Board" : "榜单"}</span>
+                      </span>
+                      {installSourceMode === "leaderboard" ? (
+                        <details
+                          className="leaderboard-sort-menu"
+                          onClick={(event) => event.stopPropagation()}
+                          onMouseDown={(event) => event.stopPropagation()}
+                          onPointerDown={(event) => event.stopPropagation()}
+                        >
+                          <summary aria-label={t("skillsLeaderboard")}>
+                            <span>{discoverSort === "trending" ? "Trend" : discoverSort === "hot" ? "Hot" : "All"}</span>
+                            <em aria-hidden="true">⌄</em>
+                          </summary>
+                          <div className="leaderboard-sort-options">
+                            {[
+                              ["alltime", "All"],
+                              ["trending", "Trend"],
+                              ["hot", "Hot"]
+                            ].map(([value, label]) => (
+                              <button
+                                key={value}
+                                type="button"
+                                className={discoverSort === value ? "on" : ""}
+                                onClick={(event) => {
+                                  event.currentTarget.closest("details")?.removeAttribute("open");
+                                  setDiscoverSort(value);
+                                }}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </details>
+                      ) : null}
+                    </div>
+                    <button className={installSourceMode === "local" ? "on" : ""} onClick={() => setInstallSourceMode("local")}>
+                      <FolderOpen size={14} />
+                      <span className="source-tab-text-full">{t("localInstall")}</span>
+                      <span className="source-tab-text-compact">{lang === "en" ? "Local" : "本地"}</span>
+                    </button>
+                    <button className={installSourceMode === "remote" ? "on" : ""} onClick={() => setInstallSourceMode("remote")}>
+                      <Github size={14} />
+                      <span className="source-tab-text-full">{t("remoteInstall")}</span>
+                      <span className="source-tab-text-compact">{lang === "en" ? "Remote" : "远程"}</span>
+                    </button>
                   </div>
-                </>
+                </div>
               ) : listMode === "starred" ? (
                 <>
                   <div className="star-source-wrap" ref={starSourceRef}>
@@ -6930,6 +7405,10 @@ function App() {
                     ) : null}
                   </div>
                   {renderTagFilter()}
+                  <button className="list-refresh-button" onClick={refreshCurrentLists} disabled={loading}>
+                    <RefreshCcw size={14} />
+                    <span>{t("refresh")}</span>
+                  </button>
                 </>
               ) : listMode === "uninstalled" ? (
                 <div className="uninstalled-tools">
@@ -6953,6 +7432,10 @@ function App() {
                         {t("cancelSelection")}
                       </button>
                     ) : renderTagFilter()}
+                    <button className="list-refresh-button" onClick={refreshCurrentLists} disabled={loading}>
+                      <RefreshCcw size={14} />
+                      <span>{t("refresh")}</span>
+                    </button>
                   </div>
                 </div>
               ) : null}
@@ -6969,21 +7452,21 @@ function App() {
           <div
             className="skill-list"
             onScroll={(event) => {
-              if (listMode !== "discover") return;
+              if (!isDiscoverLeaderboard) return;
               const element = event.currentTarget;
               if (element.scrollTop + element.clientHeight >= element.scrollHeight - 220) {
                 githubTrends.loadMore?.();
               }
             }}
           >
-            {listMode === "discover" && !githubTrends.loading && (githubTrends.error || githubTrends.meta?.stale) ? (
+            {isDiscoverLeaderboard && !githubTrends.loading && (githubTrends.error || githubTrends.meta?.stale) ? (
               <div className={`discover-status ${githubTrends.error ? "warn" : ""}`}>
                 {githubTrends.meta?.stale
                   ? t("discoverCacheFallback").replace("{suffix}", githubTrends.meta?.cachedAt ? ` · ${formatDate(githubTrends.meta.cachedAt)}` : "")
                   : t("discoverLoadFailed").replace("{message}", githubTrends.error)}
               </div>
             ) : null}
-            {visibleCount === 0 ? <EmptyList mode={listMode} scanning={listMode === "discover" ? githubTrends.loading : loading} /> : null}
+            {visibleCount === 0 && (listMode !== "discover" || isDiscoverLeaderboard) ? <EmptyList mode={listMode} scanning={listMode === "discover" ? githubTrends.loading : loading} /> : null}
             {listMode === "tags" ? (
               <div className="tag-overview">
                 {allTagCounts.map(({ tag, count }) => {
@@ -7003,6 +7486,32 @@ function App() {
                   );
                 })}
               </div>
+            ) : listMode === "discover" && installSourceMode !== "leaderboard" ? (
+              <InstallSourcePanel
+                mode={installSourceMode}
+                localPath={localImportPath}
+                localError={localImportError}
+                localBusy={localImportBusy}
+                onLocalPathChange={(value) => {
+                  setLocalImportPath(value);
+                  setLocalImportError("");
+                }}
+                onChooseLocal={chooseLocalImportDirectory}
+                onConfirmLocal={confirmLocalImportPath}
+                remoteUrl={remoteInstallUrl}
+                remoteName={remoteInstallName}
+                remoteError={remoteInstallError}
+                remoteBusy={remoteInstallBusy}
+                onRemoteUrlChange={(value) => {
+                  setRemoteInstallUrl(value);
+                  setRemoteInstallError("");
+                }}
+                onRemoteNameChange={(value) => {
+                  setRemoteInstallName(value);
+                  setRemoteInstallError("");
+                }}
+                onConfirmRemote={confirmRemoteInstall}
+              />
             ) : listMode === "discover" ? (
               <>
                 {visibleDiscoverItems.map((item, index) => (
@@ -7089,15 +7598,19 @@ function App() {
         </section>
 
         {listMode === "discover" ? (
-          <DiscoverDetail
-            item={selectedDiscover}
-            onInstall={beginInstallDiscover}
-            onUninstall={beginUninstallMany}
-            busy={selectedDiscover ? busyAction === `discover:${selectedDiscover.id}` || installedForDiscover(selectedDiscover).some((skill) => busyAction === `uninstall:${skill.id}`) : false}
-            starred={selectedDiscover ? isStarred("discover", selectedDiscover) : false}
-            onStar={(item) => toggleStar("discover", item)}
-            installedSkills={selectedDiscover ? installedForDiscover(selectedDiscover) : []}
-          />
+          installSourceMode === "leaderboard" ? (
+            <DiscoverDetail
+              item={selectedDiscover}
+              onInstall={beginInstallDiscover}
+              onUninstall={beginUninstallMany}
+              busy={selectedDiscover ? busyAction === `discover:${selectedDiscover.id}` || installedForDiscover(selectedDiscover).some((skill) => busyAction === `uninstall:${skill.id}`) : false}
+              starred={selectedDiscover ? isStarred("discover", selectedDiscover) : false}
+              onStar={(item) => toggleStar("discover", item)}
+              installedSkills={selectedDiscover ? installedForDiscover(selectedDiscover) : []}
+            />
+          ) : (
+            <InstallSourceDetail mode={installSourceMode} />
+          )
         ) : listMode === "tags" ? (
           <TagSkillPanel
             tag={selectedTag}
@@ -7165,6 +7678,19 @@ function App() {
         </>
         )}
       </section>
+      <LocalImportDialog
+        open={localImportOpen}
+        pathValue={localImportPath}
+        error={localImportError}
+        busy={localImportBusy}
+        onPathChange={(value) => {
+          setLocalImportPath(value);
+          setLocalImportError("");
+        }}
+        onChooseDirectory={chooseLocalImportDirectory}
+        onCancel={closeLocalImportDialog}
+        onConfirm={confirmLocalImportPath}
+      />
       <InstallTargetDialog
         pending={pendingInstall}
         targets={pendingInstall?.targets || installTargets}
