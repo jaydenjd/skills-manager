@@ -3529,12 +3529,14 @@ button.tag-pill {
 
 .api-port-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 150px) 30px auto;
-  gap: 7px;
+  grid-template-columns: minmax(118px, 180px) 32px max-content;
+  gap: 7px 8px;
   align-items: end;
+  justify-content: start;
 }
 
 .api-port-row label {
+  grid-column: 1 / -1;
   display: grid;
   gap: 4px;
 }
@@ -3548,6 +3550,7 @@ button.tag-pill {
 .api-port-row input {
   height: 30px;
   min-width: 0;
+  width: 100%;
   padding-right: 8px;
   border-radius: 7px;
   background: #fffdf8;
@@ -3571,6 +3574,9 @@ button.tag-pill {
 
 .api-port-edit {
   position: static;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 30px;
   height: 30px;
   align-self: end;
@@ -3594,6 +3600,11 @@ button.tag-pill {
   font-size: 11px;
   font-weight: 720;
   white-space: nowrap;
+}
+
+.api-mini-button {
+  min-width: 102px;
+  justify-content: center;
 }
 
 .api-status-card {
@@ -11518,6 +11529,10 @@ body {
   color: #0d8b66;
 }
 
+.agent-overflow-head {
+  display: none;
+}
+
 .agents-settings-card.show-agent-overflow::before {
   content: "";
   position: fixed;
@@ -11527,32 +11542,83 @@ body {
   backdrop-filter: blur(2px);
 }
 
+.agents-settings-card.show-agent-overflow .agent-overflow-head {
+  position: fixed;
+  left: 50%;
+  top: 78px;
+  z-index: 72;
+  display: flex;
+  width: min(1180px, calc(100vw - 64px));
+  min-height: 52px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px 10px;
+  border: 1px solid #d8e2e8;
+  border-bottom: 0;
+  border-radius: 16px 16px 0 0;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
+  transform: translateX(-50%);
+}
+
+.agents-settings-card.show-agent-overflow .agent-overflow-head > div {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.agents-settings-card.show-agent-overflow .agent-overflow-head strong {
+  color: #1f2933;
+  font-size: 17px;
+  font-weight: 760;
+}
+
+.agents-settings-card.show-agent-overflow .agent-overflow-head span {
+  color: #8a94a3;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.agents-settings-card.show-agent-overflow .agent-overflow-head .soft-button {
+  min-height: 30px;
+  padding: 0 13px;
+  border-color: #d8e2e8;
+  background: #f8fafc;
+  color: #445162;
+  font-size: 12px;
+  box-shadow: none;
+}
+
+.agents-settings-card.show-agent-overflow .agent-overflow-head .soft-button:hover {
+  border-color: #a9dfc8;
+  background: #eefdf7;
+  color: #0d8b66;
+}
+
 .agents-settings-card.show-agent-overflow .agent-editor-list {
   position: fixed;
   left: 50%;
-  top: 76px;
+  top: 130px;
   z-index: 71;
   width: min(1180px, calc(100vw - 64px));
-  max-height: calc(100vh - 128px);
+  max-height: calc(100vh - 182px);
   overflow: auto;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   padding: 16px;
   border: 1px solid #d8e2e8;
-  border-radius: 16px;
+  border-top: 0;
+  border-radius: 0 0 16px 16px;
   background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
+  box-shadow: 0 28px 60px rgba(15, 23, 42, 0.16);
   transform: translateX(-50%);
 }
 
 .agents-settings-card.show-agent-overflow .more-agents-button {
-  position: fixed;
-  top: 88px;
-  right: calc(50vw - min(590px, calc(50vw - 32px)) + 18px);
-  z-index: 72;
-  background: #202722;
-  color: #fff;
+  display: none;
 }
 
 @media (max-width: 1540px) {
@@ -11572,4 +11638,25 @@ body {
 .settings-page .agent-editor-list,
 .settings-page .agents-settings-card.show-agent-overflow .agent-editor-list {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.api-port-row .api-port-edit {
+  position: static;
+  right: auto;
+  bottom: auto;
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-self: end;
+  border: 1px solid #d8e2e8;
+  border-radius: 7px;
+  background: #fff;
+  color: #6b7683;
+  opacity: 1;
+}
+
+.api-port-row .api-port-edit:hover {
+  border-color: #a9dfc8;
+  background: #eefdf7;
+  color: #0d8b66;
 }

@@ -4416,7 +4416,7 @@ function Detail({
   );
 }
 
-function SettingsPage({ settings, onSave }) {
+function SettingsPage({ settings, onSave, onDraftChange }) {
   const { t } = useI18n();
   const fallbackSettings = {
     sources: [],
@@ -4500,6 +4500,15 @@ function SettingsPage({ settings, onSave }) {
     const timer = window.setTimeout(() => setSettingsSaveNotice(""), 1000);
     return () => window.clearTimeout(timer);
   }, [settingsSaveNotice]);
+
+  useEffect(() => {
+    if (!showAgentOverflow) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") setShowAgentOverflow(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showAgentOverflow]);
 
   useEffect(() => {
     let alive = true;
@@ -4609,7 +4618,9 @@ function SettingsPage({ settings, onSave }) {
   function updateVisualDraft(updater, _delay = 0, nextIgnoreText = ignoreText) {
     setDraft((current) => {
       const next = typeof updater === "function" ? updater(current) : updater;
-      setJsonText(JSON.stringify(normalizeVisualSettings(next, nextIgnoreText), null, 2));
+      const normalized = normalizeVisualSettings(next, nextIgnoreText);
+      setJsonText(JSON.stringify(normalized, null, 2));
+      onDraftChange?.(normalized);
       return next;
     });
   }
@@ -5035,6 +5046,21 @@ function SettingsPage({ settings, onSave }) {
             <button className="soft-button" onClick={addSource}>{t("addAgent")}</button>
           </div>
           {agentNameError ? <div className="settings-inline-error">{agentNameError}</div> : null}
+          {showAgentOverflow ? (
+            <div className="agent-overflow-head">
+              <div>
+                <strong>{t("agents")}</strong>
+                <span>{draft.sources.length}</span>
+              </div>
+              <button
+                type="button"
+                className="soft-button"
+                onClick={() => setShowAgentOverflow(false)}
+              >
+                {t("collapseAgents")}
+              </button>
+            </div>
+          ) : null}
           <div className="agent-editor-list">
             {draft.sources.map((source, index) => (
               (() => {
@@ -5239,6 +5265,10 @@ function SettingsPage({ settings, onSave }) {
                 max="65535"
                 value={draft.apiPort || 19010}
                 readOnly={!editingApiPort}
+                onMouseDown={() => {
+                  if (!editingApiPort) editApiPort();
+                }}
+                onClick={editApiPort}
                 onChange={(event) => updateVisualDraft({ ...draft, apiPort: Number(event.target.value) || 19010 }, 500)}
                 onBlur={() => setEditingApiPort(false)}
               />
@@ -5983,6 +6013,7 @@ function App() {
   const [notice, setNotice] = useState("");
   const [noticeDuration, setNoticeDuration] = useState(1800);
   const [settingsSaving, setSettingsSaving] = useState(false);
+  const [optimisticSources, setOptimisticSources] = useState(null);
   const lastSilentSkillRefreshRef = useRef(0);
   const lang = settings?.language === "en" ? "en" : "zh";
   const t = useMemo(() => createTranslator(lang), [lang]);
@@ -6066,6 +6097,7 @@ function App() {
     refreshEvents();
     window.skillStudio.getSettings().then((result) => {
       setSettings(result);
+      setOptimisticSources(result.sources || null);
       const remembered = readStoredJson(installTargetsStorageKey, legacyInstallTargetsStorageKey, []);
       const initialTargets = result.installTargetMode === "remember-last" && remembered.length ? remembered : [result.installSourceId || "agents"];
       setSelectedInstallTargets(initialTargets);
@@ -6080,6 +6112,7 @@ function App() {
         ...(current || {}),
         language: nextLanguage === "en" ? "en" : "zh"
       }));
+      setOptimisticSources((current) => current);
     });
   }, []);
 
@@ -6829,6 +6862,7 @@ function App() {
       const beforeSettings = settings;
       const saved = await window.skillStudio.saveSettings(nextSettings);
       setSettings(saved);
+      setOptimisticSources(saved.sources || null);
       if (saved.installTargetMode === "always-default") {
         const defaults = [saved.installSourceId || "agents"];
         setSelectedInstallTargets(defaults);
@@ -6849,9 +6883,9 @@ function App() {
   }
 
   const agentCounts = useMemo(() => {
-    const sources = settings?.sources?.length ? settings.sources : data?.sources || [];
+    const sources = optimisticSources?.length ? optimisticSources : settings?.sources?.length ? settings.sources : data?.sources || [];
     return orderedAgentCounts(sources, data?.skills || []);
-  }, [settings, data]);
+  }, [optimisticSources, settings, data]);
 
   const installedFiltered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -7265,7 +7299,7 @@ function App() {
         </aside>
 
         {listMode === "settings" ? (
-          <SettingsPage settings={settings} onSave={saveSettings} />
+          <SettingsPage settings={settings} onSave={saveSettings} onDraftChange={(nextSettings) => setOptimisticSources(nextSettings.sources || null)} />
         ) : listMode === "events" ? (
           <OperationEventPage events={operationEvents} onRefresh={refreshEvents} onClear={clearEvents} />
         ) : listMode === "logs" ? (
