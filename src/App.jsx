@@ -5388,6 +5388,7 @@ function InstallTargetDialog({ pending, targets, selectedTargets, onChangeTarget
   const isRestore = pending.type === "uninstalled";
   const isDeleteUninstalled = pending.type === "delete-uninstalled";
   const isUpdate = pending.forceUpdate;
+  const actionClass = isUninstall || isDeleteUninstalled ? "danger" : isRestore || isSync ? "soft-accent" : "primary";
   const selectedSet = new Set(selectedTargets);
   const selectableTargets = targets.filter((target) => !target.disabled && (!isUpgrade || target.installed));
   const allSelected = selectableTargets.length > 0 && selectableTargets.every((target) => selectedSet.has(target.id));
@@ -5407,13 +5408,19 @@ function InstallTargetDialog({ pending, targets, selectedTargets, onChangeTarget
   }
   return (
     <div className="modal-overlay">
-      <div className="install-dialog">
-        <div>
-          <h3>{isUninstall ? t("chooseUninstallAgent") : isUpgrade ? t("chooseUpgradeAgent") : isSync ? t("chooseSyncAgent") : isRestore ? t("chooseRecoverAgent") : isDeleteUninstalled ? t("chooseDeleteUninstalled") : isUpdate ? t("chooseUpdateAgent") : t("chooseInstallAgent")}</h3>
-          <p>{isSync ? t("syncFrom").replace("{source}", pending.sourceCopy?.client || name) : name}</p>
+      <div className={`install-dialog target-dialog ${actionClass}`}>
+        <div className="target-dialog-head">
+          <div>
+            <h3>{isUninstall ? t("chooseUninstallAgent") : isUpgrade ? t("chooseUpgradeAgent") : isSync ? t("chooseSyncAgent") : isRestore ? t("chooseRecoverAgent") : isDeleteUninstalled ? t("chooseDeleteUninstalled") : isUpdate ? t("chooseUpdateAgent") : t("chooseInstallAgent")}</h3>
+            <p>{isSync ? t("syncFrom").replace("{source}", pending.sourceCopy?.client || name) : name}</p>
+          </div>
+          <div className="target-selected-chip">
+            <span>{selectedTargets.length}</span>
+            <em>/ {selectableTargets.length}</em>
+          </div>
         </div>
         <div className="target-select-tools">
-          <span>{t("selectedCount")} {selectedTargets.length} / {selectableTargets.length}</span>
+          <span>{t("selectedCount")}</span>
           <button className="soft-button" onClick={allSelected ? clearTargets : selectAllTargets} disabled={!selectableTargets.length || busy}>
             {allSelected ? t("deselectAll") : t("selectAll")}
           </button>
@@ -5423,7 +5430,7 @@ function InstallTargetDialog({ pending, targets, selectedTargets, onChangeTarget
             (() => {
               const versionLabel = targetVersionLabel(target);
               return (
-                <label key={target.id} className={`target-check ${target.disabled || (isUpgrade && !target.installed) ? "disabled" : ""}`}>
+                <label key={target.id} className={`target-check ${selectedSet.has(target.id) ? "selected" : ""} ${target.disabled || (isUpgrade && !target.installed) ? "disabled" : ""}`}>
                   <input type="checkbox" checked={selectedSet.has(target.id)} disabled={target.disabled || (isUpgrade && !target.installed)} onChange={() => toggleTarget(target.id)} />
                   <span>
                     <strong>{target.client}</strong>
@@ -5445,7 +5452,7 @@ function InstallTargetDialog({ pending, targets, selectedTargets, onChangeTarget
         </div>
         <div className="dialog-actions">
           <button className="soft-button" onClick={onCancel} disabled={busy}>{t("cancel")}</button>
-          <button onClick={onConfirm} disabled={busy || !selectedTargets.length}>{busy ? t("processing") : isUninstall ? t("uninstall") : isUpgrade ? t("publishVersion") : isSync ? t("sync") : isRestore ? t("recover") : isDeleteUninstalled ? t("delete") : isUpdate ? t("update") : t("install")}</button>
+          <button className={`dialog-primary-action ${actionClass}`} onClick={onConfirm} disabled={busy || !selectedTargets.length}>{busy ? t("processing") : isUninstall ? t("uninstall") : isUpgrade ? t("publishVersion") : isSync ? t("sync") : isRestore ? t("recover") : isDeleteUninstalled ? t("delete") : isUpdate ? t("update") : t("install")}</button>
         </div>
       </div>
     </div>

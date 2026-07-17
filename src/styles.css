@@ -11660,3 +11660,234 @@ body {
   background: #eefdf7;
   color: #0d8b66;
 }
+
+.modal-overlay {
+  background: rgba(15, 23, 42, 0.06);
+  backdrop-filter: blur(0.6px);
+}
+
+.target-dialog.install-dialog {
+  width: min(720px, calc(100vw - 56px));
+  max-height: min(78vh, 680px);
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--sm-line);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 250, 0.98)),
+    #fff;
+  box-shadow:
+    0 18px 46px rgba(15, 23, 42, 0.13),
+    0 0 0 1px rgba(255, 255, 255, 0.7);
+}
+
+.target-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--sm-line);
+}
+
+.target-dialog-head h3 {
+  margin: 0;
+  color: #1f2937;
+  font-size: 16px;
+  font-weight: 760;
+  letter-spacing: 0;
+}
+
+.target-dialog-head p {
+  max-width: 520px;
+  margin: 5px 0 0;
+  overflow: hidden;
+  color: #718096;
+  font-size: 12.5px;
+  font-weight: 560;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.target-selected-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid #b9ead4;
+  border-radius: 999px;
+  background: #eefdf7;
+  color: #0d8b66;
+  font-weight: 760;
+}
+
+.target-selected-chip span {
+  font-size: 15px;
+}
+
+.target-selected-chip em {
+  color: #5d756b;
+  font-size: 11px;
+  font-style: normal;
+}
+
+.target-select-tools {
+  min-height: 32px;
+  padding: 0 2px;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.target-select-tools .soft-button {
+  height: 30px;
+  padding: 0 12px;
+  border-color: var(--sm-line);
+  border-radius: 9px;
+  background: #fff;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.target-select-tools .soft-button:hover:not(:disabled) {
+  border-color: #b9ead4;
+  background: #eefdf7;
+  color: #0d8b66;
+}
+
+.target-dialog .target-check-list {
+  max-height: min(430px, 46vh);
+  gap: 9px;
+  padding: 2px 3px 2px 1px;
+}
+
+.target-dialog .target-check {
+  min-height: 66px;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--sm-line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
+  transition: border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease, transform 0.14s ease;
+}
+
+.target-dialog .target-check:hover:not(.disabled) {
+  border-color: #b9ead4;
+  background: #fbfffd;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  transform: translateY(-1px);
+}
+
+.target-dialog .target-check.selected {
+  border-color: #84dcb8;
+  background: #f0fdf8;
+  box-shadow: inset 3px 0 0 var(--sm-accent), 0 8px 24px rgba(13, 139, 102, 0.08);
+}
+
+.target-dialog.danger .target-check.selected {
+  border-color: #f1b7a8;
+  background: #fff8f5;
+  box-shadow: inset 3px 0 0 #ef7d64, 0 8px 24px rgba(185, 60, 39, 0.08);
+}
+
+.target-dialog .target-check.disabled {
+  opacity: 1;
+  background: #f7f8fa;
+  color: #98a2b3;
+}
+
+.target-dialog .target-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--sm-accent);
+}
+
+.target-dialog.danger .target-check input {
+  accent-color: #d95d44;
+}
+
+.target-dialog .target-check strong {
+  color: #27313f;
+  font-size: 12.5px;
+  font-weight: 760;
+}
+
+.target-dialog .target-check em {
+  color: #667085;
+  font-size: 11px;
+  font-weight: 560;
+}
+
+.target-dialog .target-check em:last-child {
+  color: #7a889a;
+}
+
+.target-dialog .dialog-actions {
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--sm-line);
+}
+
+.target-dialog .dialog-actions button {
+  min-width: 82px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 760;
+}
+
+.target-dialog .dialog-actions .soft-button {
+  border: 1px solid var(--sm-line);
+  background: #fff;
+  color: #475467;
+}
+
+.target-dialog .dialog-primary-action {
+  border: 1px solid #98e4c5;
+  background: #dffbed;
+  color: #08724f;
+  box-shadow: none;
+}
+
+.target-dialog .dialog-primary-action.primary {
+  background: #c8ff24;
+  border-color: #161f18;
+  color: #162015;
+}
+
+.target-dialog .dialog-primary-action.soft-accent {
+  background: #e9fff5;
+  border-color: #aeeacc;
+  color: #08724f;
+}
+
+.target-dialog .dialog-primary-action.danger {
+  background: #fff4ef;
+  border-color: #f0a996;
+  color: #b33a24;
+}
+
+.target-dialog .dialog-actions button:disabled,
+.target-dialog .target-select-tools button:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+@media (max-width: 760px) {
+  .target-dialog.install-dialog {
+    width: min(560px, calc(100vw - 32px));
+    padding: 14px;
+  }
+
+  .target-dialog .target-check-list {
+    grid-template-columns: 1fr;
+  }
+}
