@@ -20,6 +20,7 @@ let apiActualPort = null;
 const windowDragState = new Map();
 const uninstallMetaFile = ".skill-manager-uninstall.json";
 const legacyUninstallMetaFile = ".skill-studio-uninstall.json";
+const originMetaFile = ".skill-manager-origin.json";
 const discoverPageSize = 80;
 const removedDefaultSourceIds = new Set([
   "codex-system",
@@ -696,7 +697,7 @@ function directoryHash(root) {
       return;
     }
     entries
-      .filter((entry) => ![".git", "node_modules", "__pycache__", ".DS_Store", uninstallMetaFile, legacyUninstallMetaFile].includes(entry.name))
+      .filter((entry) => ![".git", "node_modules", "__pycache__", ".DS_Store", originMetaFile, uninstallMetaFile, legacyUninstallMetaFile].includes(entry.name))
       .sort((a, b) => a.name.localeCompare(b.name))
       .forEach((entry) => {
         const fullPath = path.join(dir, entry.name);
@@ -725,7 +726,7 @@ function directoryUpdatedAt(root) {
       return;
     }
     entries
-      .filter((entry) => ![".git", "node_modules", "__pycache__", ".DS_Store", uninstallMetaFile, legacyUninstallMetaFile].includes(entry.name))
+      .filter((entry) => ![".git", "node_modules", "__pycache__", ".DS_Store", originMetaFile, uninstallMetaFile, legacyUninstallMetaFile].includes(entry.name))
       .forEach((entry) => {
         const fullPath = path.join(dir, entry.name);
         let stats = null;
@@ -1926,6 +1927,62 @@ async function extractZipBuffer(zipBuffer, destination) {
   }
 }
 
+function isZipFilePath(filePath = "") {
+  return /\.zip$/i.test(String(filePath || "").trim());
+}
+
+async function extractLocalSkillZip(zipPath) {
+  const tempRoot = await fsp.mkdtemp(path.join(app.getPath("temp"), "skill-manager-local-import-"));
+  const extractRoot = path.join(tempRoot, "extract");
+  const zipBuffer = await fsp.readFile(zipPath);
+  await extractZipBuffer(zipBuffer, extractRoot);
+  return extractRoot;
+}
+
+async function findSkillDirectories(rootDir, maxDepth = 4) {
+  const found = [];
+  async function walk(dir, depth) {
+    if (depth > maxDepth) return;
+    const skillFile = path.join(dir, "SKILL.md");
+    const skillFileStats = await fsp.stat(skillFile).catch(() => null);
+    if (skillFileStats?.isFile()) {
+      found.push(dir);
+      return;
+    }
+    const entries = await fsp.readdir(dir, { withFileTypes: true }).catch(() => []);
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if ([".git", "node_modules", "__MACOSX", "__pycache__"].includes(entry.name)) continue;
+      await walk(path.join(dir, entry.name), depth + 1);
+    }
+  }
+  await walk(rootDir, 0);
+  return found;
+}
+
+async function resolveLocalSkillInput(inputPath) {
+  const targetPath = expandHome(normalizeUserPathInput(inputPath || ""));
+  if (!targetPath) throw new Error("请选择本地 skill 目录或 zip 压缩包。");
+  const stats = await fsp.stat(targetPath).catch(() => null);
+  if (!stats) throw new Error("路径不存在。");
+  if (stats.isDirectory()) return { skillDir: targetPath, inputType: "directory", originalPath: targetPath };
+  if (!stats.isFile() || !isZipFilePath(targetPath)) {
+    throw new Error("请选择包含 SKILL.md 的目录，或 .zip 压缩包。");
+  }
+  const extractRoot = await extractLocalSkillZip(targetPath);
+  const skillDirs = await findSkillDirectories(extractRoot);
+  if (!skillDirs.length) throw new Error("压缩包中没有找到 SKILL.md。");
+  if (skillDirs.length > 1) {
+    throw new Error(`压缩包中找到 ${skillDirs.length} 个 skill，请先解压后选择具体目录导入。`);
+  }
+  return {
+    skillDir: skillDirs[0],
+    inputType: "zip",
+    originalPath: targetPath,
+    extractedRoot: extractRoot
+  };
+}
+
 async function downloadGithubRepoZip(repoFullName, destination) {
   if (!repoFullName) throw new Error("无法识别 GitHub 仓库地址。");
   const zipUrl = `https://api.github.com/repos/${repoFullName}/zipball`;
@@ -2175,6 +2232,23 @@ async function findSkillDirectory(root, skillName) {
   candidates.sort((a, b) => b.score - a.score || a.dir.length - b.dir.length);
   if (!candidates.length) throw new Error("仓库里没有找到 SKILL.md。");
   return candidates[0].dir;
+}
+
+async function writeSkillOriginMeta(skillDir, item = {}) {
+  if (!skillDir || !item?.name) return;
+  const meta = {
+    source: item.source || "",
+    sourceLabel: item.sourceLabel || "",
+    sourceName: item.sourceName || item.fullName || "",
+    fullName: item.fullName || "",
+    name: item.name || "",
+    url: item.url || "",
+    repositoryUrl: item.repositoryUrl || "",
+    installMethod: item.installMethod || "",
+    installCommand: item.installCommand || "",
+    installedAt: new Date().toISOString()
+  };
+  await fsp.writeFile(path.join(skillDir, originMetaFile), JSON.stringify(meta, null, 2));
 }
 
 function parseSkillsShLeaderboard(html, mode = "alltime", page = 0) {
@@ -2845,10 +2919,14 @@ async function performRestoreSkill(skillDir, targetSourceId, conflictStrategy = 
 
 ipcMain.handle("skills:restore", async (_event, skillDir, targetSourceId, conflictStrategy) => performRestoreSkill(skillDir, targetSourceId, conflictStrategy));
 
-async function performInstallLocalSkill(skillDir, targetSourceId, conflictStrategy = "skip") {
+async function performInstallLocalSkill(inputSkillPath, targetSourceId, conflictStrategy = "skip") {
   const installRoot = installRootFor(targetSourceId || getSettings().installSourceId);
-  const target = path.join(installRoot, installDirectoryNameForSkill(skillDir));
+  let skillDir = inputSkillPath;
+  let target = "";
   try {
+    const resolved = await resolveLocalSkillInput(inputSkillPath);
+    skillDir = resolved.skillDir;
+    target = path.join(installRoot, installDirectoryNameForSkill(skillDir));
     if (!fs.existsSync(skillDir)) {
       appendOperationLog({ type: "install", status: "missing", title: path.basename(skillDir), message: "本地 skill 目录不存在，已跳过安装。", detail: skillDir });
       return { path: skillDir, missing: true };
@@ -2886,11 +2964,12 @@ async function performInstallLocalSkill(skillDir, targetSourceId, conflictStrate
       sourceId: targetSourceId || getSettings().installSourceId,
       client: sourceLabelById(getSettings(), targetSourceId || getSettings().installSourceId)
     }, manifest);
-    appendOperationLog({ type: "install", status: "success", title: path.basename(skillDir), message: "已复制安装到指定 Agent。", detail: `${skillDir} -> ${finalTarget}` });
-    notifySkillsChanged({ type: "install-local", skillDir, target: finalTarget, targetSourceId });
+    const fromLabel = resolved.inputType === "zip" ? resolved.originalPath : skillDir;
+    appendOperationLog({ type: "install", status: "success", title: path.basename(skillDir), message: "已复制安装到指定 Agent。", detail: `${fromLabel} -> ${finalTarget}` });
+    notifySkillsChanged({ type: "install-local", skillDir, originalPath: resolved.originalPath, target: finalTarget, targetSourceId });
     return { path: finalTarget, installed: true };
   } catch (error) {
-    appendOperationLog({ type: "install", status: "failed", title: path.basename(skillDir), message: error.message || String(error), detail: `${skillDir} -> ${target}` });
+    appendOperationLog({ type: "install", status: "failed", title: path.basename(skillDir || inputSkillPath || "local skill"), message: error.message || String(error), detail: `${inputSkillPath || skillDir} -> ${target || installRoot}` });
     throw error;
   }
 }
@@ -2945,8 +3024,8 @@ ipcMain.handle("path:exists", async (_event, filePath) => {
 });
 
 async function inspectLocalSkillDirectory(inputPath) {
-  const skillDir = expandHome(normalizeUserPathInput(inputPath || ""));
-  if (!skillDir) throw new Error("请选择本地 skill 目录。");
+  const resolved = await resolveLocalSkillInput(inputPath);
+  const skillDir = resolved.skillDir;
   const stats = await fsp.stat(skillDir).catch(() => null);
   if (!stats?.isDirectory()) throw new Error("目录不存在或不是文件夹。");
   const skillFile = path.join(skillDir, "SKILL.md");
@@ -2959,6 +3038,8 @@ async function inspectLocalSkillDirectory(inputPath) {
     id: `local-import:${crypto.createHash("sha1").update(skillDir).digest("hex").slice(0, 12)}`,
     name,
     dir: skillDir,
+    originalPath: resolved.originalPath || skillDir,
+    inputType: resolved.inputType || "directory",
     filePath: skillFile,
     description: String(parsed.data?.description || "").trim(),
     version: parsed.data?.version ? String(parsed.data.version) : "",
@@ -2972,9 +3053,34 @@ ipcMain.handle("skills:inspect-local", async (_event, filePath) => {
 
 ipcMain.handle("dialog:choose-local-skill", async (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
+  let properties = ["openFile", "openDirectory"];
+  let filters = [
+    { name: "Skill 目录或 zip 压缩包", extensions: ["zip"] },
+    { name: "所有文件", extensions: ["*"] }
+  ];
+  if (process.platform !== "darwin") {
+    const choice = await dialog.showMessageBox(win, {
+      type: "question",
+      title: "选择导入方式",
+      message: "请选择要导入的本地 skill 类型",
+      buttons: ["选择目录", "选择 zip", "取消"],
+      cancelId: 2,
+      defaultId: 0,
+      noLink: true
+    });
+    if (choice.response === 2) return null;
+    if (choice.response === 0) {
+      properties = ["openDirectory"];
+      filters = [];
+    } else {
+      properties = ["openFile"];
+      filters = [{ name: "zip 压缩包", extensions: ["zip"] }];
+    }
+  }
   const result = await dialog.showOpenDialog(win, {
-    title: "选择本地 Skill 目录",
-    properties: ["openDirectory"]
+    title: "选择本地 Skill 目录或 zip 压缩包",
+    properties,
+    filters
   });
   if (result.canceled || !result.filePaths?.[0]) return null;
   return inspectLocalSkillDirectory(result.filePaths[0]);
@@ -3205,6 +3311,7 @@ async function performInstallDiscoverSkill(item, targetSourceId, forceUpdate = f
       const cloneResult = await cloneGithubRepoWithFallback(repoUrl, repoDir, tempRoot);
       const skillDir = await findSkillDirectory(cloneResult.repoDir, item.name);
       await fsp.cp(skillDir, finalTarget, { recursive: true, force: true });
+      await writeSkillOriginMeta(finalTarget, item);
       const manifest = await archiveSkillDirectory(finalTarget, {
         sourceId: targetSourceId || getSettings().installSourceId,
         client: sourceLabelById(getSettings(), targetSourceId || getSettings().installSourceId),
@@ -3227,6 +3334,7 @@ async function performInstallDiscoverSkill(item, targetSourceId, forceUpdate = f
       await extractZipBuffer(archiveBuffer, repoDir);
       const skillDir = await findSkillDirectory(repoDir, item.name);
       await fsp.cp(skillDir, finalTarget, { recursive: true, force: true });
+      await writeSkillOriginMeta(finalTarget, item);
       const manifest = await archiveSkillDirectory(finalTarget, {
         sourceId: targetSourceId || getSettings().installSourceId,
         client: sourceLabelById(getSettings(), targetSourceId || getSettings().installSourceId),
@@ -3243,6 +3351,7 @@ async function performInstallDiscoverSkill(item, targetSourceId, forceUpdate = f
 
     try {
       await execFileAsync("git", ["clone", "--depth", "1", item.url, finalTarget], { timeout: 120000 });
+      await writeSkillOriginMeta(finalTarget, item);
       const manifest = await archiveSkillDirectory(finalTarget, {
         sourceId: targetSourceId || getSettings().installSourceId,
         client: sourceLabelById(getSettings(), targetSourceId || getSettings().installSourceId),
@@ -3263,6 +3372,7 @@ async function performInstallDiscoverSkill(item, targetSourceId, forceUpdate = f
       const repoDir = await downloadGithubRepoZip(repoFullName, path.join(tempRoot, "zip"));
       const skillDir = await findSkillDirectory(repoDir, item.name);
       await fsp.cp(skillDir, finalTarget, { recursive: true, force: true });
+      await writeSkillOriginMeta(finalTarget, item);
       const manifest = await archiveSkillDirectory(finalTarget, {
         sourceId: targetSourceId || getSettings().installSourceId,
         client: sourceLabelById(getSettings(), targetSourceId || getSettings().installSourceId),

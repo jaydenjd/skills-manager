@@ -37,6 +37,7 @@ function defaultIgnorePatterns() {
     ".git/",
     "node_modules/",
     ".DS_Store",
+    ".skill-manager-origin.json",
     ".skill-manager-uninstall.json",
     ".skill-studio-uninstall.json",
     "__pycache__/",
@@ -87,6 +88,10 @@ async function readJsonIfExists(filePath) {
   } catch {
     return null;
   }
+}
+
+async function readOriginMeta(skillDir) {
+  return readJsonIfExists(path.join(skillDir, ".skill-manager-origin.json"));
 }
 
 async function mapLimit(items, limit, worker) {
@@ -296,12 +301,13 @@ async function readSkill(filePath, source, ignore, options = {}) {
   const description = data.description || firstParagraph(parsed.content);
   const tags = extractTags(parsed.content, data);
 
-  const [directory, directoryStats, uninstallMeta] = await Promise.all([
+  const [directory, directoryStats, uninstallMeta, originMeta] = await Promise.all([
     includeTree ? collectDirectoryTree(dir, ignore) : Promise.resolve({ tree: [], count: 0, truncated: false }),
     collectDirectoryStats(dir, ignore, { readLines: options.fastStats !== true }),
     source.id === "uninstalled"
       ? readJsonIfExists(path.join(dir, ".skill-manager-uninstall.json")).then((meta) => meta || readJsonIfExists(path.join(dir, ".skill-studio-uninstall.json")))
-      : Promise.resolve(null)
+      : Promise.resolve(null),
+    readOriginMeta(dir)
   ]);
 
   return {
@@ -319,6 +325,7 @@ async function readSkill(filePath, source, ignore, options = {}) {
     version: data.version || data.Version || data.metadata?.version || "",
     frontmatter: data,
     uninstallMeta,
+    originMeta,
     content: parsed.content.trim(),
     raw,
     directoryTree: directory.tree,

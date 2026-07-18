@@ -90,15 +90,15 @@ const messages = {
     skillsLeaderboard: "Skills 榜单",
     skillsLeaderboardDesc: "来自 skills.sh 的公开榜单",
     localInstall: "本地导入",
-    localInstallDesc: "从本机目录导入包含 SKILL.md 的 skill",
+    localInstallDesc: "从本机目录或 zip 压缩包导入包含 SKILL.md 的 skill",
     remoteInstall: "远程安装",
     remoteInstallDesc: "从 Git / URL / 压缩包安装 skill",
     importLocal: "本地导入",
     importLocalTitle: "导入本地 skill",
-    importLocalDesc: "选择或输入一个包含 SKILL.md 的目录，导入后会复制安装到选中的 Agent。",
-    chooseDirectory: "选择目录",
-    localSkillPath: "本地 skill 目录",
-    localSkillPathPlaceholder: "~/work/my-skill",
+    importLocalDesc: "选择或输入一个包含 SKILL.md 的目录或 zip 压缩包，导入后会复制安装到选中的 Agent。",
+    chooseDirectory: "选择目录/zip",
+    localSkillPath: "本地 skill 目录或 zip",
+    localSkillPathPlaceholder: "~/work/my-skill 或 ~/Downloads/my-skill.zip",
     importLocalInvalid: "导入失败：{message}",
     remoteSkillUrl: "远程地址",
     remoteSkillUrlPlaceholder: "https://github.com/owner/repo 或 https://example.com/skill.zip",
@@ -481,15 +481,15 @@ const messages = {
     skillsLeaderboard: "Skills Leaderboard",
     skillsLeaderboardDesc: "Public leaderboard from skills.sh",
     localInstall: "Local import",
-    localInstallDesc: "Import a local directory that contains SKILL.md",
+    localInstallDesc: "Import a local directory or zip archive that contains SKILL.md",
     remoteInstall: "Remote install",
     remoteInstallDesc: "Install from Git / URL / archive",
     importLocal: "Import local",
     importLocalTitle: "Import local skill",
-    importLocalDesc: "Choose or enter a directory that contains SKILL.md. It will be copied into the selected Agents.",
-    chooseDirectory: "Choose directory",
-    localSkillPath: "Local skill directory",
-    localSkillPathPlaceholder: "~/work/my-skill",
+    importLocalDesc: "Choose or enter a directory or zip archive that contains SKILL.md. It will be copied into the selected Agents.",
+    chooseDirectory: "Choose dir/zip",
+    localSkillPath: "Local skill directory or zip",
+    localSkillPathPlaceholder: "~/work/my-skill or ~/Downloads/my-skill.zip",
     importLocalInvalid: "Import failed: {message}",
     remoteSkillUrl: "Remote URL",
     remoteSkillUrlPlaceholder: "https://github.com/owner/repo or https://example.com/skill.zip",
@@ -1155,6 +1155,23 @@ function skillTags(item = {}) {
 
 function normalizeSkillName(value = "") {
   return String(value).trim().toLowerCase();
+}
+
+function normalizeDiscoverSource(value = "") {
+  return String(value || "")
+    .trim()
+    .replace(/^https?:\/\/github\.com\//i, "")
+    .replace(/^https?:\/\/www\.skills\.sh\//i, "")
+    .replace(/^https?:\/\/skills\.sh\//i, "")
+    .replace(/\.git$/i, "")
+    .replace(/^\/+|\/+$/g, "")
+    .toLowerCase();
+}
+
+function discoverInstallKey(item = {}) {
+  const source = normalizeDiscoverSource(item.originMeta?.sourceName || item.originMeta?.fullName || item.sourceName || item.fullName || item.repositoryUrl || item.url);
+  const name = normalizeSkillName(item.originMeta?.name || item.name || item.slug || item.frontmatter?.name);
+  return source && name ? `${source}:${name}` : "";
 }
 
 function isDiscoverUpdateAvailable(item, installedSkills = []) {
@@ -6424,7 +6441,7 @@ function App() {
     try {
       const item = await window.skillStudio.chooseLocalSkillDirectory();
       if (!item) return;
-      setLocalImportPath(item.dir || "");
+      setLocalImportPath(item.originalPath || item.dir || "");
       await beginLocalImportFromItem(item);
     } catch (err) {
       setLocalImportError(t("importLocalInvalid").replace("{message}", err.message || String(err)));
@@ -6986,20 +7003,17 @@ function App() {
   const discoverInstalledMap = useMemo(() => {
     const map = new Map();
     (data?.skills || []).forEach((skill) => {
-      [skill.name, skill.slug, skill.frontmatter?.name]
-        .map(normalizeSkillName)
-        .filter(Boolean)
-        .forEach((key) => {
-          const existing = map.get(key) || [];
-          existing.push(skill);
-          map.set(key, existing);
-        });
+      const key = discoverInstallKey(skill);
+      if (!key) return;
+      const existing = map.get(key) || [];
+      existing.push(skill);
+      map.set(key, existing);
     });
     return map;
   }, [data]);
 
   function installedForDiscover(item) {
-    return uniqueInstalledSkills(discoverInstalledMap.get(normalizeSkillName(item?.name)) || []);
+    return uniqueInstalledSkills(discoverInstalledMap.get(discoverInstallKey(item)) || []);
   }
 
   const visibleDiscoverItems = discoverItems;
