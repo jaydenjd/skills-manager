@@ -1365,15 +1365,21 @@ button.tag-pill {
 }
 
 .skill-glyph.installed {
-  background: #f0552f;
+  border-color: #a9e7ca;
+  background: #edf8f2;
+  color: #16825a;
 }
 
 .skill-glyph.uninstalled {
-  background: #f0552f;
+  border-color: #d7e0e8;
+  background: #f4f7fa;
+  color: #596474;
 }
 
 .skill-glyph.starred {
-  background: #f0552f;
+  border-color: #ecd38a;
+  background: #fff8df;
+  color: #8a6713;
 }
 
 .row-title {
@@ -10741,6 +10747,54 @@ body {
 
 .install-source-actions {
   justify-content: flex-start;
+}
+
+.install-source-form .inline-input-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.install-source-form .inline-input-row input {
+  height: 38px;
+  border-color: #d9e3ea;
+  border-radius: 11px;
+  background: #fff;
+  color: #27313f;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
+}
+
+.install-source-form .inline-input-row input::placeholder {
+  color: #96a1ad;
+}
+
+.install-source-form .inline-input-row .soft-button {
+  height: 38px;
+  min-width: 126px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 13px;
+  border: 1px solid #b8ead6;
+  border-radius: 11px;
+  background: #eefdf7;
+  color: #0b8f66;
+  font-size: 12.5px;
+  font-weight: 720;
+  line-height: 1;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
+}
+
+.install-source-form .inline-input-row .soft-button:hover:not(:disabled) {
+  border-color: #8eddbd;
+  background: #e5fbf1;
+  color: #067855;
+}
+
+.install-source-form .inline-input-row .soft-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .star-source-wrap {
