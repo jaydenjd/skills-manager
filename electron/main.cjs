@@ -755,7 +755,7 @@ function directoryUpdatedAt(root) {
 }
 
 function readSkillPackageMeta(skillDir) {
-  const skillFile = path.join(skillDir, "SKILL.md");
+  const skillFile = findSkillManifestPathSync(skillDir) || path.join(skillDir, "SKILL.md");
   let raw = "";
   let data = {};
   try {
@@ -795,6 +795,21 @@ function installDirectoryNameForSkill(skillDir) {
   const uninstallMeta = readUninstallMeta(skillDir);
   if (uninstallMeta?.sourceDir) return safeName(path.basename(uninstallMeta.sourceDir));
   throw new Error("无法确定 skill 的稳定目录名：请在 SKILL.md frontmatter 中配置 name，或使用带卸载元信息的记录恢复。");
+}
+
+function normalizeInstallName(value = "") {
+  const name = String(value || "").trim();
+  if (!name) return "";
+  if (!safeName(name)) throw new Error("安装名称无效。");
+  return name;
+}
+
+async function applyInstallNameToSkill(skillDir, installName = "") {
+  const name = normalizeInstallName(installName);
+  if (!name) return;
+  const skillFile = await normalizeSkillManifestName(skillDir);
+  const content = await fsp.readFile(skillFile, "utf8").catch(() => "");
+  await fsp.writeFile(skillFile, updateSkillMarkdownName(content, name), "utf8");
 }
 
 function bumpSkillVersion(version = "") {
@@ -847,6 +862,24 @@ function updateSkillMarkdownVersion(content, nextVersion) {
     }
   }
   return `---\nversion: "${value}"\n---\n${content}`;
+}
+
+function updateSkillMarkdownName(content, nextName) {
+  const value = String(nextName || "").trim();
+  if (!value) return content;
+  const escaped = value.replace(/"/g, '\\"');
+  if (content.startsWith("---")) {
+    const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+    if (match) {
+      const frontmatter = match[1];
+      const eol = match[0].includes("\r\n") ? "\r\n" : "\n";
+      const nextFrontmatter = /^name\s*:/im.test(frontmatter)
+        ? frontmatter.replace(/^name\s*:.*$/im, `name: "${escaped}"`)
+        : `name: "${escaped}"${eol}${frontmatter}`;
+      return `---${eol}${nextFrontmatter}${eol}---${eol}${content.slice(match[0].length)}`;
+    }
+  }
+  return `---\nname: "${escaped}"\n---\n${content}`;
 }
 
 function versionFromSkillMarkdown(content = "") {
@@ -1939,13 +1972,44 @@ async function extractLocalSkillZip(zipPath) {
   return extractRoot;
 }
 
+async function findSkillManifestPath(dir) {
+  const exactPath = path.join(dir, "SKILL.md");
+  const exactStats = await fsp.stat(exactPath).catch(() => null);
+  if (exactStats?.isFile()) return exactPath;
+  const entries = await fsp.readdir(dir, { withFileTypes: true }).catch(() => []);
+  const loose = entries.find((entry) => entry.isFile() && entry.name.toLowerCase() === "skill.md");
+  return loose ? path.join(dir, loose.name) : "";
+}
+
+function findSkillManifestPathSync(dir) {
+  const exactPath = path.join(dir, "SKILL.md");
+  try {
+    if (fs.statSync(exactPath).isFile()) return exactPath;
+  } catch {
+    // Fall through to a case-insensitive lookup for imported local folders.
+  }
+  try {
+    const loose = fs.readdirSync(dir, { withFileTypes: true }).find((entry) => entry.isFile() && entry.name.toLowerCase() === "skill.md");
+    return loose ? path.join(dir, loose.name) : "";
+  } catch {
+    return "";
+  }
+}
+
+async function normalizeSkillManifestName(skillDir) {
+  const manifestPath = await findSkillManifestPath(skillDir);
+  if (!manifestPath) throw new Error("请选择包含 SKILL.md 的 skill 目录。");
+  const expectedPath = path.join(skillDir, "SKILL.md");
+  if (path.basename(manifestPath) === "SKILL.md") return expectedPath;
+  await fsp.copyFile(manifestPath, expectedPath);
+  return expectedPath;
+}
+
 async function findSkillDirectories(rootDir, maxDepth = 4) {
   const found = [];
   async function walk(dir, depth) {
     if (depth > maxDepth) return;
-    const skillFile = path.join(dir, "SKILL.md");
-    const skillFileStats = await fsp.stat(skillFile).catch(() => null);
-    if (skillFileStats?.isFile()) {
+    if (await findSkillManifestPath(dir)) {
       found.push(dir);
       return;
     }
@@ -1965,7 +2029,10 @@ async function resolveLocalSkillInput(inputPath) {
   if (!targetPath) throw new Error("请选择本地 skill 目录或 zip 压缩包。");
   const stats = await fsp.stat(targetPath).catch(() => null);
   if (!stats) throw new Error("路径不存在。");
-  if (stats.isDirectory()) return { skillDir: targetPath, inputType: "directory", originalPath: targetPath };
+  if (stats.isDirectory()) {
+    if (!(await findSkillManifestPath(targetPath))) throw new Error("请选择包含 SKILL.md 的 skill 目录。");
+    return { skillDir: targetPath, inputType: "directory", originalPath: targetPath };
+  }
   if (!stats.isFile() || !isZipFilePath(targetPath)) {
     throw new Error("请选择包含 SKILL.md 的目录，或 .zip 压缩包。");
   }
@@ -2534,7 +2601,7 @@ async function routeLocalApi(request, url) {
     const payload = await readRequestBody(request);
     const target = resolveSkillTarget(payload);
     const sourceDir = expandHome(payload.sourceDir || payload.skillDir || "");
-    return { status: 200, body: await performInstallLocalSkill(sourceDir, target.sourceInfo.sourceId, payload.conflictStrategy) };
+    return { status: 200, body: await performInstallLocalSkill(sourceDir, target.sourceInfo.sourceId, payload.conflictStrategy, payload.installName) };
   }
   if (request.method === "POST" && url.pathname === "/api/skills/uninstall") {
     const payload = await readRequestBody(request);
@@ -2919,14 +2986,15 @@ async function performRestoreSkill(skillDir, targetSourceId, conflictStrategy = 
 
 ipcMain.handle("skills:restore", async (_event, skillDir, targetSourceId, conflictStrategy) => performRestoreSkill(skillDir, targetSourceId, conflictStrategy));
 
-async function performInstallLocalSkill(inputSkillPath, targetSourceId, conflictStrategy = "skip") {
+async function performInstallLocalSkill(inputSkillPath, targetSourceId, conflictStrategy = "skip", installName = "") {
   const installRoot = installRootFor(targetSourceId || getSettings().installSourceId);
   let skillDir = inputSkillPath;
   let target = "";
   try {
     const resolved = await resolveLocalSkillInput(inputSkillPath);
     skillDir = resolved.skillDir;
-    target = path.join(installRoot, installDirectoryNameForSkill(skillDir));
+    const requestedName = normalizeInstallName(installName);
+    target = path.join(installRoot, requestedName ? safeName(requestedName) : installDirectoryNameForSkill(skillDir));
     if (!fs.existsSync(skillDir)) {
       appendOperationLog({ type: "install", status: "missing", title: path.basename(skillDir), message: "本地 skill 目录不存在，已跳过安装。", detail: skillDir });
       return { path: skillDir, missing: true };
@@ -2953,6 +3021,8 @@ async function performInstallLocalSkill(inputSkillPath, targetSourceId, conflict
       await fsp.rm(target, { recursive: true, force: true });
     }
     await fsp.cp(skillDir, finalTarget, { recursive: true, force: true });
+    await normalizeSkillManifestName(finalTarget);
+    await applyInstallNameToSkill(finalTarget, requestedName);
     await fsp.rm(path.join(finalTarget, uninstallMetaFile), { force: true }).catch(() => {});
     await fsp.rm(path.join(finalTarget, legacyUninstallMetaFile), { force: true }).catch(() => {});
     const manifest = await archiveSkillDirectory(finalTarget, {
@@ -2965,7 +3035,7 @@ async function performInstallLocalSkill(inputSkillPath, targetSourceId, conflict
       client: sourceLabelById(getSettings(), targetSourceId || getSettings().installSourceId)
     }, manifest);
     const fromLabel = resolved.inputType === "zip" ? resolved.originalPath : skillDir;
-    appendOperationLog({ type: "install", status: "success", title: path.basename(skillDir), message: "已复制安装到指定 Agent。", detail: `${fromLabel} -> ${finalTarget}` });
+    appendOperationLog({ type: "install", status: "success", title: requestedName || path.basename(skillDir), message: "已复制安装到指定 Agent。", detail: `${fromLabel} -> ${finalTarget}` });
     notifySkillsChanged({ type: "install-local", skillDir, originalPath: resolved.originalPath, target: finalTarget, targetSourceId });
     return { path: finalTarget, installed: true };
   } catch (error) {
@@ -2974,7 +3044,7 @@ async function performInstallLocalSkill(inputSkillPath, targetSourceId, conflict
   }
 }
 
-ipcMain.handle("skills:install-local", async (_event, skillDir, targetSourceId, conflictStrategy) => performInstallLocalSkill(skillDir, targetSourceId, conflictStrategy));
+ipcMain.handle("skills:install-local", async (_event, skillDir, targetSourceId, conflictStrategy, installName) => performInstallLocalSkill(skillDir, targetSourceId, conflictStrategy, installName));
 
 async function performSyncSkill(sourceSkillDir, targetSkillDir, targetInfo = {}) {
   if (!sourceSkillDir || !targetSkillDir) throw new Error("缺少同步源或目标目录。");
@@ -3028,9 +3098,8 @@ async function inspectLocalSkillDirectory(inputPath) {
   const skillDir = resolved.skillDir;
   const stats = await fsp.stat(skillDir).catch(() => null);
   if (!stats?.isDirectory()) throw new Error("目录不存在或不是文件夹。");
-  const skillFile = path.join(skillDir, "SKILL.md");
-  const skillFileStats = await fsp.stat(skillFile).catch(() => null);
-  if (!skillFileStats?.isFile()) throw new Error("请选择包含 SKILL.md 的 skill 目录。");
+  const skillFile = await findSkillManifestPath(skillDir);
+  if (!skillFile) throw new Error("请选择包含 SKILL.md 的 skill 目录。");
   const raw = await fsp.readFile(skillFile, "utf8").catch(() => "");
   const parsed = raw ? matter(raw) : { data: {} };
   const name = String(parsed.data?.name || path.basename(skillDir) || "skill").trim();
@@ -3286,7 +3355,8 @@ ipcMain.handle("discover:detail", async (_event, item) => {
 async function performInstallDiscoverSkill(item, targetSourceId, forceUpdate = false, conflictStrategy = "") {
   if (!item?.url || !item?.fullName) throw new Error("缺少可安装的 discover 条目。");
   const installRoot = installRootFor(targetSourceId || getSettings().installSourceId);
-  const target = path.join(installRoot, safeName(item.name || item.fullName));
+  const requestedName = normalizeInstallName(item.installName || "");
+  const target = path.join(installRoot, safeName(requestedName || item.name || item.fullName));
   let finalTarget = target;
   const repoUrl = item.repositoryUrl || (item.fullName.startsWith("http") ? item.fullName : `https://github.com/${item.fullName}`);
   let tempRoot = "";
@@ -3311,6 +3381,7 @@ async function performInstallDiscoverSkill(item, targetSourceId, forceUpdate = f
       const cloneResult = await cloneGithubRepoWithFallback(repoUrl, repoDir, tempRoot);
       const skillDir = await findSkillDirectory(cloneResult.repoDir, item.name);
       await fsp.cp(skillDir, finalTarget, { recursive: true, force: true });
+      await applyInstallNameToSkill(finalTarget, requestedName);
       await writeSkillOriginMeta(finalTarget, item);
       const manifest = await archiveSkillDirectory(finalTarget, {
         sourceId: targetSourceId || getSettings().installSourceId,
@@ -3334,6 +3405,7 @@ async function performInstallDiscoverSkill(item, targetSourceId, forceUpdate = f
       await extractZipBuffer(archiveBuffer, repoDir);
       const skillDir = await findSkillDirectory(repoDir, item.name);
       await fsp.cp(skillDir, finalTarget, { recursive: true, force: true });
+      await applyInstallNameToSkill(finalTarget, requestedName);
       await writeSkillOriginMeta(finalTarget, item);
       const manifest = await archiveSkillDirectory(finalTarget, {
         sourceId: targetSourceId || getSettings().installSourceId,
@@ -3351,6 +3423,7 @@ async function performInstallDiscoverSkill(item, targetSourceId, forceUpdate = f
 
     try {
       await execFileAsync("git", ["clone", "--depth", "1", item.url, finalTarget], { timeout: 120000 });
+      await applyInstallNameToSkill(finalTarget, requestedName);
       await writeSkillOriginMeta(finalTarget, item);
       const manifest = await archiveSkillDirectory(finalTarget, {
         sourceId: targetSourceId || getSettings().installSourceId,
@@ -3372,6 +3445,7 @@ async function performInstallDiscoverSkill(item, targetSourceId, forceUpdate = f
       const repoDir = await downloadGithubRepoZip(repoFullName, path.join(tempRoot, "zip"));
       const skillDir = await findSkillDirectory(repoDir, item.name);
       await fsp.cp(skillDir, finalTarget, { recursive: true, force: true });
+      await applyInstallNameToSkill(finalTarget, requestedName);
       await writeSkillOriginMeta(finalTarget, item);
       const manifest = await archiveSkillDirectory(finalTarget, {
         sourceId: targetSourceId || getSettings().installSourceId,
@@ -3447,7 +3521,7 @@ async function runOperationEvent(eventId, payload) {
     } else if (payload.type === "install-local") {
       for (const targetId of payload.targetIds || []) {
         updateOperationEvent(eventId, { progress, current: `安装到 ${sourceNamesForTargetIds([targetId])}` });
-        await performInstallLocalSkill(payload.skillDir, targetId, payload.conflictActions?.[targetId]);
+        await performInstallLocalSkill(payload.skillDir, targetId, payload.conflictActions?.[targetId], payload.installName);
         progress += 1;
         updateOperationEvent(eventId, { progress });
       }
@@ -3459,7 +3533,7 @@ async function runOperationEvent(eventId, payload) {
         const recordDir = restoreRecords[targetId] || "";
         updateOperationEvent(eventId, { progress, current: `恢复到 ${sourceNamesForTargetIds([targetId])}` });
         if (recordDir) await performRestoreSkill(recordDir, targetId, payload.conflictActions?.[targetId]);
-        else await performInstallLocalSkill(payload.skillDir, targetId, payload.conflictActions?.[targetId]);
+        else await performInstallLocalSkill(payload.skillDir, targetId, payload.conflictActions?.[targetId], payload.installName);
         progress += 1;
         updateOperationEvent(eventId, { progress });
       }

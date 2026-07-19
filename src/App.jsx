@@ -99,10 +99,12 @@ const messages = {
     chooseDirectory: "选择目录/zip",
     localSkillPath: "本地 skill 目录或 zip",
     localSkillPathPlaceholder: "~/work/my-skill 或 ~/Downloads/my-skill.zip",
+    installAsName: "安装为（可选）",
+    installAsNamePlaceholder: "留空使用原 skill 名称",
     importLocalInvalid: "导入失败：{message}",
     remoteSkillUrl: "远程地址",
     remoteSkillUrlPlaceholder: "https://github.com/owner/repo 或 https://example.com/skill.zip",
-    remoteSkillName: "skill 名称（可选）",
+    remoteSkillName: "仓库内 skill 名称（可选）",
     remoteSkillNamePlaceholder: "仓库里有多个 skill 时填写",
     remoteInstallHint: "支持 GitHub、Git URL 和 zip 压缩包。仓库内有多个 skill 时建议填写 skill 名称。",
     remoteInstallInvalid: "远程安装失败：{message}",
@@ -490,10 +492,12 @@ const messages = {
     chooseDirectory: "Choose dir/zip",
     localSkillPath: "Local skill directory or zip",
     localSkillPathPlaceholder: "~/work/my-skill or ~/Downloads/my-skill.zip",
+    installAsName: "Install as (optional)",
+    installAsNamePlaceholder: "Leave empty to use the original skill name",
     importLocalInvalid: "Import failed: {message}",
     remoteSkillUrl: "Remote URL",
     remoteSkillUrlPlaceholder: "https://github.com/owner/repo or https://example.com/skill.zip",
-    remoteSkillName: "Skill name (optional)",
+    remoteSkillName: "Skill name in repository (optional)",
     remoteSkillNamePlaceholder: "Use when a repository contains multiple skills",
     remoteInstallHint: "Supports GitHub, Git URLs, and zip archives. Add a skill name when the repo contains multiple skills.",
     remoteInstallInvalid: "Remote install failed: {message}",
@@ -5481,15 +5485,19 @@ function InstallSourcePanel({
   localPath,
   localError,
   localBusy,
+  localInstallName,
   onLocalPathChange,
+  onLocalInstallNameChange,
   onChooseLocal,
   onConfirmLocal,
   remoteUrl,
   remoteName,
+  remoteInstallName,
   remoteError,
   remoteBusy,
   onRemoteUrlChange,
   onRemoteNameChange,
+  onRemoteInstallNameChange,
   onConfirmRemote
 }) {
   const { t } = useI18n();
@@ -5526,6 +5534,17 @@ function InstallSourcePanel({
                 </button>
               </div>
             </label>
+            <label>
+              <span>{t("installAsName")}</span>
+              <input
+                value={localInstallName}
+                onChange={(event) => onLocalInstallNameChange(event.target.value)}
+                placeholder={t("installAsNamePlaceholder")}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") onConfirmLocal();
+                }}
+              />
+            </label>
             {localError ? <div className="local-import-error">{localError}</div> : null}
             <div className="install-source-actions">
               <button onClick={onConfirmLocal} disabled={localBusy || !localPath.trim()}>
@@ -5557,6 +5576,17 @@ function InstallSourcePanel({
                 }}
               />
             </label>
+            <label>
+              <span>{t("installAsName")}</span>
+              <input
+                value={remoteInstallName}
+                onChange={(event) => onRemoteInstallNameChange(event.target.value)}
+                placeholder={t("installAsNamePlaceholder")}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") onConfirmRemote();
+                }}
+              />
+            </label>
             {remoteError ? <div className="local-import-error">{remoteError}</div> : null}
             <div className="install-source-actions">
               <button onClick={onConfirmRemote} disabled={remoteBusy || !remoteUrl.trim()}>
@@ -5570,7 +5600,7 @@ function InstallSourcePanel({
   );
 }
 
-function LocalImportDialog({ open, pathValue, error, busy, onPathChange, onChooseDirectory, onCancel, onConfirm }) {
+function LocalImportDialog({ open, pathValue, installName, error, busy, onPathChange, onInstallNameChange, onChooseDirectory, onCancel, onConfirm }) {
   const { t } = useI18n();
   if (!open) return null;
   return (
@@ -5603,6 +5633,18 @@ function LocalImportDialog({ open, pathValue, error, busy, onPathChange, onChoos
               {t("chooseDirectory")}
             </button>
           </div>
+        </label>
+        <label className="local-import-field">
+          <span>{t("installAsName")}</span>
+          <input
+            value={installName}
+            onChange={(event) => onInstallNameChange(event.target.value)}
+            placeholder={t("installAsNamePlaceholder")}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") onConfirm();
+              if (event.key === "Escape") onCancel();
+            }}
+          />
         </label>
         {error ? <div className="local-import-error">{error}</div> : null}
         <div className="dialog-actions">
@@ -6024,10 +6066,12 @@ function App() {
   const [conflictActions, setConflictActions] = useState({});
   const [localImportOpen, setLocalImportOpen] = useState(false);
   const [localImportPath, setLocalImportPath] = useState("");
+  const [localInstallName, setLocalInstallName] = useState("");
   const [localImportError, setLocalImportError] = useState("");
   const [localImportBusy, setLocalImportBusy] = useState(false);
   const [remoteInstallUrl, setRemoteInstallUrl] = useState("");
   const [remoteInstallName, setRemoteInstallName] = useState("");
+  const [remoteInstallAlias, setRemoteInstallAlias] = useState("");
   const [remoteInstallError, setRemoteInstallError] = useState("");
   const [remoteInstallBusy, setRemoteInstallBusy] = useState(false);
   const [starredMap, setStarredMap] = useState({});
@@ -6370,7 +6414,9 @@ function App() {
   }
 
   function beginInstallDiscover(item, forceUpdate = false) {
-    const installed = installedForDiscover(item);
+    const installed = item.installName
+      ? (data?.skills || []).filter((skill) => skillGroupKey(skill) === normalizeSkillName(item.installName))
+      : installedForDiscover(item);
     const targets = installTargets.map((target) => {
       const match = installed.find((skill) => skill.sourceId === target.id || skill.client === target.client);
       return {
@@ -6426,11 +6472,14 @@ function App() {
 
   async function beginLocalImportFromItem(item) {
     if (!item?.dir) return;
+    const installName = localInstallName.trim();
     setLocalImportOpen(false);
     setLocalImportError("");
     beginInstallLocal({
       ...item,
       id: item.id || `local-import:${item.dir}`,
+      installName,
+      name: installName || item.name,
       description: item.description || t("noDescription")
     });
   }
@@ -6472,10 +6521,12 @@ function App() {
     setRemoteInstallError("");
     try {
       const name = (remoteInstallName.trim() || remoteSkillNameFromUrl(url)).trim();
+      const installName = remoteInstallAlias.trim();
       if (!name) throw new Error(t("remoteSkillName"));
       beginInstallDiscover({
-        id: `remote:${url}:${name}`,
+        id: `remote:${url}:${name}:${installName || name}`,
         name,
+        installName,
         fullName: url,
         description: `${name} from ${url}`,
         url,
@@ -6664,6 +6715,7 @@ function App() {
       title: pending.item.name,
       skillName: pending.item.name,
       skillDir: pending.item.dir,
+      installName: pending.item.installName || "",
       targetIds,
       conflictActions: actions
     } : pending.type === "uninstalled" ? {
@@ -7547,14 +7599,17 @@ function App() {
                 localPath={localImportPath}
                 localError={localImportError}
                 localBusy={localImportBusy}
+                localInstallName={localInstallName}
                 onLocalPathChange={(value) => {
                   setLocalImportPath(value);
                   setLocalImportError("");
                 }}
+                onLocalInstallNameChange={setLocalInstallName}
                 onChooseLocal={chooseLocalImportDirectory}
                 onConfirmLocal={confirmLocalImportPath}
                 remoteUrl={remoteInstallUrl}
                 remoteName={remoteInstallName}
+                remoteInstallName={remoteInstallAlias}
                 remoteError={remoteInstallError}
                 remoteBusy={remoteInstallBusy}
                 onRemoteUrlChange={(value) => {
@@ -7563,6 +7618,10 @@ function App() {
                 }}
                 onRemoteNameChange={(value) => {
                   setRemoteInstallName(value);
+                  setRemoteInstallError("");
+                }}
+                onRemoteInstallNameChange={(value) => {
+                  setRemoteInstallAlias(value);
                   setRemoteInstallError("");
                 }}
                 onConfirmRemote={confirmRemoteInstall}
@@ -7736,12 +7795,14 @@ function App() {
       <LocalImportDialog
         open={localImportOpen}
         pathValue={localImportPath}
+        installName={localInstallName}
         error={localImportError}
         busy={localImportBusy}
         onPathChange={(value) => {
           setLocalImportPath(value);
           setLocalImportError("");
         }}
+        onInstallNameChange={setLocalInstallName}
         onChooseDirectory={chooseLocalImportDirectory}
         onCancel={closeLocalImportDialog}
         onConfirm={confirmLocalImportPath}

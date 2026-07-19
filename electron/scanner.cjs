@@ -147,6 +147,7 @@ async function collectDirectoryTree(root, ignore, limit = 1200) {
     const nodes = [];
     for (const entry of entries
       .filter((entry) => {
+        if (entry.isSymbolicLink()) return false;
         const fullPath = path.join(dir, entry.name);
         const relPath = path.relative(root, fullPath) || entry.name;
         return !ignore(entry.name, relPath, entry.isDirectory());
@@ -193,6 +194,7 @@ async function collectDirectoryStats(root, ignore, options = {}) {
       return;
     }
     for (const entry of entries) {
+      if (entry.isSymbolicLink()) continue;
       const fullPath = path.join(dir, entry.name);
       const relPath = path.relative(root, fullPath) || entry.name;
       if (ignore(entry.name, relPath, entry.isDirectory())) continue;

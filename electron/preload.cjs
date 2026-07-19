@@ -7,7 +7,7 @@ contextBridge.exposeInMainWorld("skillStudio", {
   skillDetail: (payload) => ipcRenderer.invoke("skills:detail", payload),
   diffDirs: (payload) => ipcRenderer.invoke("skills:diff-dirs", payload),
   uninstallSkill: (dir, sourceInfo) => ipcRenderer.invoke("skills:uninstall", dir, sourceInfo),
-  installLocalSkill: (dir, targetSourceId, conflictStrategy) => ipcRenderer.invoke("skills:install-local", dir, targetSourceId, conflictStrategy),
+  installLocalSkill: (dir, targetSourceId, conflictStrategy, installName) => ipcRenderer.invoke("skills:install-local", dir, targetSourceId, conflictStrategy, installName),
   inspectLocalSkill: (dir) => ipcRenderer.invoke("skills:inspect-local", dir),
   chooseLocalSkillDirectory: () => ipcRenderer.invoke("dialog:choose-local-skill"),
   restoreSkill: (dir, targetSourceId, conflictStrategy) => ipcRenderer.invoke("skills:restore", dir, targetSourceId, conflictStrategy),
